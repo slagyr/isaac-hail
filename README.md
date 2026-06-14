@@ -1,25 +1,17 @@
 # Isaac Hail
 
-Hail dispatch for Isaac — bands, queue, router, delivery worker, HTTP
-ingress, CLI, and the `hail-send` crew tool. Builtin module `:isaac.hail`
-contributes `:hail` config schema, `isaac hail` CLI, `POST /hail/send`,
-and the `hail-send` tool berth.
+Hail queue, router, delivery worker, HTTP route, and `hail-send` crew tool.
 
-Depends on [isaac-foundation](https://github.com/slagyr/isaac-foundation)
-(scheduler, nexus, fs) and [isaac-agent](https://github.com/slagyr/isaac-agent)
-(bridge, charge, sessions, tool framework).
+Depends on [isaac-foundation](https://github.com/slagyr/isaac-foundation) and
+[isaac-agent](https://github.com/slagyr/isaac-agent). Integration acceptance
+tests live in `features/` and pull step definitions from agent + server sibling
+spec trees (see `:features` in `deps.edn`).
 
-## Layout
-
-- `src/isaac/hail/` — queue, router, delivery, bands, HTTP, CLI
-- `src/isaac/tool/hail.clj` — `hail-send` LLM tool
-- `resources/isaac-manifest.edn` — builtin manifest
-- `spec/isaac/hail/` and `spec/isaac/tool/` — unit specs
-
-Integration features (`features/hail/`) live in **isaac-server** — they
-exercise the full host stack and avoid a circular dep with this repo.
-
-## Development
+```sh
+bb spec       # unit specs
+bb features   # acceptance features (50 scenarios)
+bb ci         # unit specs only until delivery/router harness is green
+```
 
 Sibling checkouts expected:
 
@@ -27,17 +19,6 @@ Sibling checkouts expected:
 plan/
   isaac-foundation/
   isaac-agent/
-  isaac-hail/       # this repo
-```
-
-```sh
-bb spec    # speclj unit specs
-bb ci      # same
-```
-
-## Consumer coordinate
-
-```clojure
-io.github.slagyr/isaac-hail {:local/root "../isaac-hail"}
-;; or {:git/url "https://github.com/slagyr/isaac-hail.git" :git/sha "..."}
+  isaac-server/
+  isaac-hail/   # this repo
 ```
