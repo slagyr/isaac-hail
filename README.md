@@ -10,7 +10,7 @@ spec trees (see `:features` in `deps.edn`).
 ```sh
 bb spec       # unit specs
 bb features   # acceptance features (50 scenarios)
-bb ci         # unit specs only until delivery/router harness is green
+bb ci         # specs + features
 ```
 
 Sibling checkouts expected:

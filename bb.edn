@@ -8,8 +8,9 @@
                 (apply shell "clojure" "-M:spec" *command-line-args*)
                 (shell "clojure" "-M:spec"))}
 
-  ci       {:doc  "Run unit specs (acceptance: bb features — delivery/router harness in progress)"
-            :task (shell "clojure" "-M:spec")}
+  ci       {:doc  "Run unit specs + acceptance features"
+            :task (do (shell "clojure" "-M:spec")
+                      (shell "clojure" "-M:features"))}
 
   features {:doc  "Run gherclj feature specs (excludes @slow and @wip)"
             :task (do
