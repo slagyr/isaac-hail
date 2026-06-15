@@ -25,7 +25,10 @@
          :main-opts   ["-m" "speclj.main" "-c" "-D" "spec"]}
 
   :features {:extra-paths ["spec" "../isaac-agent/spec" "../isaac-server/spec"]
-             :extra-deps  {io.github.slagyr/isaac-server                {:local/root "../isaac-server"}
+             :extra-deps  {io.github.slagyr/isaac-server-test-support   {:git/url "https://github.com/slagyr/isaac-server.git"
+                                                                        :git/sha "3382de70b89d79a0a38c18d79651dc88a78b7c0d"
+                                                                        :deps/root "spec-support"}
+                           io.github.slagyr/isaac-server                {:local/root "../isaac-server"}
                            io.github.slagyr/isaac-foundation-spec       {:git/url "https://github.com/slagyr/isaac-foundation.git"
                                                                         :git/tag "v0.1.0"
  :git/sha "535ce491e45875ac97bf97a4b2306def7bb82a7c"
