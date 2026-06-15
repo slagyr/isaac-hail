@@ -24,7 +24,7 @@
                        babashka/process                               {:mvn/version "0.5.22"}}
          :main-opts   ["-m" "speclj.main" "-c" "-D" "spec"]}
 
-  :features {:extra-paths ["spec" "../isaac-agent/spec" "../isaac-server/spec"]
+  :features {:extra-paths ["spec" "../isaac-agent/spec"]
              :extra-deps  {io.github.slagyr/isaac-server-test-support   {:git/url "https://github.com/slagyr/isaac-server.git"
                                                                         :git/sha "3382de70b89d79a0a38c18d79651dc88a78b7c0d"
                                                                         :deps/root "spec-support"}
