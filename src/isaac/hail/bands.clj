@@ -18,10 +18,12 @@
     @bands*)
 
   reconfigurable/Reconfigurable
-  (on-startup! [_ slice]
+  (on-load [_ slice]
     (reset! bands* (into {} (map (fn [[band-name band]] [band-name (with-band-defaults band)])) (or slice {}))))
   (on-config-change! [_ _old-slice new-slice]
-    (reset! bands* (into {} (map (fn [[band-name band]] [band-name (with-band-defaults band)])) (or new-slice {})))))
+    (reset! bands* (into {} (map (fn [[band-name band]] [band-name (with-band-defaults band)])) (or new-slice {}))))
+  (on-unload [_ _slice]
+    (reset! bands* {})))
 
 (defn make [_host]
   (->HailBands (atom {})))
