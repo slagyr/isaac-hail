@@ -16,7 +16,7 @@ Feature: Hail-delivered slash-like commands
     And the following model responses are queued:
       | type | content                | model  |
       | text | Acknowledged, Captain. | grover |
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" exists with:
+    And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
       | path        | value                   |
       | id          | delivery-1              |
       | hail.id     | hail-1                  |
@@ -30,6 +30,6 @@ Feature: Hail-delivered slash-like commands
       | type    | message.role | message.content         |
       | message | user         | /prune dilithium-orchid |
     And the isaac file "hail/deliveries/delivery-1.edn" does not exist
-    And the EDN isaac file "hail/delivered/delivery-1.edn" contains:
+    And the isaac file "hail/delivered/delivery-1.edn" EDN contains:
       | path | value      |
       | id   | delivery-1 |

@@ -15,7 +15,7 @@ Feature: Hail send
   Scenario: isaac hail send writes a hail record to pending/
     When isaac is run with "hail send --band bean-pickup --payload '{:n 1}'"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And the isaac file "hail/pending/hail-1.edn" EDN contains:
       | path      | value                 |
       | id        | hail-1                |
       | frequency | {:band "bean-pickup"} |
@@ -27,10 +27,10 @@ Feature: Hail send
     Then the exit code is 0
     When isaac is run with "hail send --band bean-pickup --payload '{:n 2}'"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And the isaac file "hail/pending/hail-1.edn" EDN contains:
       | path    | value  |
       | payload | {:n 1} |
-    And the EDN isaac file "hail/pending/hail-2.edn" contains:
+    And the isaac file "hail/pending/hail-2.edn" EDN contains:
       | path    | value  |
       | payload | {:n 2} |
 
@@ -38,7 +38,7 @@ Feature: Hail send
     Given the clock is fixed at "2026-05-23T12:00:00Z"
     When isaac is run with "hail send --band bean-pickup --payload '{:n 1}'"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And the isaac file "hail/pending/hail-1.edn" EDN contains:
       | path    | value                |
       | sent-at | 2026-05-23T12:00:00Z |
 
@@ -54,7 +54,7 @@ Feature: Hail send
       """
     When isaac is run with "hail send --band bean-pickup --payload -"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And the isaac file "hail/pending/hail-1.edn" EDN contains:
       | path    | value  |
       | payload | {:n 1} |
 
@@ -84,7 +84,7 @@ Feature: Hail send
   Scenario: isaac hail send works without a payload
     When isaac is run with "hail send --band bean-pickup"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And the isaac file "hail/pending/hail-1.edn" EDN contains:
       | path      | value                |
       | id        | hail-1               |
       | frequency | {:band "bean-pickup"} |
@@ -97,7 +97,7 @@ Feature: Hail send
       """
     When isaac is run with "hail send -"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And the isaac file "hail/pending/hail-1.edn" EDN contains:
       | path      | value                 |
       | id        | hail-1                |
       | frequency | {:band "bean-pickup"} |

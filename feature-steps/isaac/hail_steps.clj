@@ -80,7 +80,6 @@
           (store/registered-store))))
 
 (defn hail-router-ticks []
-  (g/assoc! :isaac-file-phase :assert)
   (g/assoc! :runtime-root-dir (g/get :root))
   (with-server-fs
     (fn []
@@ -98,7 +97,6 @@
 (defn hail-delivery-worker-ticks []
   (log/set-output! :memory)
   (log/clear-entries!)
-  (g/assoc! :isaac-file-phase :assert)
   (g/assoc! :runtime-root-dir (g/get :root))
   (with-server-fs
     (fn []
@@ -116,7 +114,6 @@
 (defn hail-delivery-worker-ticks-at [iso]
   (log/set-output! :memory)
   (log/clear-entries!)
-  (g/assoc! :isaac-file-phase :assert)
   (g/assoc! :runtime-root-dir (g/get :root))
   (with-server-fs
     (fn []

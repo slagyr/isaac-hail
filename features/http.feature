@@ -16,7 +16,7 @@ Feature: Hail HTTP route POST /hail/send
       | header.Authorization | Bearer secret123                                            |
       | body                 | {"frequency": {"band": "bean-pickup"}, "payload": {"n": 1}} |
     Then the response status is 201
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And the isaac file "hail/pending/hail-1.edn" EDN contains:
       | path      | value                 |
       | id        | hail-1                |
       | frequency | {:band "bean-pickup"} |
@@ -30,7 +30,7 @@ Feature: Hail HTTP route POST /hail/send
       | header.Authorization | Bearer secret123                                   |
       | body                 | {:frequency {:band "bean-pickup"} :payload {:n 1}} |
     Then the response status is 201
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And the isaac file "hail/pending/hail-1.edn" EDN contains:
       | path      | value                 |
       | id        | hail-1                |
       | frequency | {:band "bean-pickup"} |

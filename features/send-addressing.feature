@@ -10,7 +10,7 @@ Feature: Hail send — direct addressing flags
   Scenario: --crew populates :crew in the address map
     When isaac is run with "hail send --crew marvin --prompt 'Heads up' --payload '{:n 1}'"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And the isaac file "hail/pending/hail-1.edn" EDN contains:
       | path      | value             |
       | id        | hail-1            |
       | frequency | {:crew [:marvin]} |
@@ -21,7 +21,7 @@ Feature: Hail send — direct addressing flags
   Scenario: --session populates :session in the address map
     When isaac is run with "hail send --session tidy-cavern --prompt 'wake up' --payload '{:n 1}'"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And the isaac file "hail/pending/hail-1.edn" EDN contains:
       | path      | value                     |
       | id        | hail-1                    |
       | frequency | {:session [:tidy-cavern]} |
@@ -32,7 +32,7 @@ Feature: Hail send — direct addressing flags
   Scenario: --crew-tag populates :crew-tags (repeatable AND-set)
     When isaac is run with "hail send --crew-tag role/worker --crew-tag wip --prompt 'go' --payload '{:n 1}'"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And the isaac file "hail/pending/hail-1.edn" EDN contains:
       | path      | value                            |
       | id        | hail-1                           |
       | frequency | {:crew-tags #{:role/worker :wip}} |
@@ -42,7 +42,7 @@ Feature: Hail send — direct addressing flags
   Scenario: --session-tag populates :session-tags (repeatable AND-set)
     When isaac is run with "hail send --session-tag project/chess --session-tag wip --prompt 'do it' --payload '{:n 1}'"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And the isaac file "hail/pending/hail-1.edn" EDN contains:
       | path      | value                                  |
       | id        | hail-1                                 |
       | frequency | {:session-tags #{:project/chess :wip}} |
@@ -52,7 +52,7 @@ Feature: Hail send — direct addressing flags
   Scenario: combining --crew with --session-tag forms an intersection
     When isaac is run with "hail send --crew marvin --session-tag project/chess --prompt 'go' --payload '{:n 1}'"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And the isaac file "hail/pending/hail-1.edn" EDN contains:
       | path      | value                                             |
       | id        | hail-1                                            |
       | frequency | {:crew [:marvin] :session-tags #{:project/chess}} |
@@ -66,7 +66,7 @@ Feature: Hail send — direct addressing flags
       """
     When isaac is run with "hail send - --from-json"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And the isaac file "hail/pending/hail-1.edn" EDN contains:
       | path      | value                 |
       | id        | hail-1                |
       | frequency | {:band "bean-pickup"} |
@@ -82,7 +82,7 @@ Feature: Hail send — direct addressing flags
       """
     When isaac is run with "hail send -"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And the isaac file "hail/pending/hail-1.edn" EDN contains:
       | path      | value                                             |
       | id        | hail-1                                            |
       | frequency | {:crew [:marvin] :session-tags #{:project/chess}} |

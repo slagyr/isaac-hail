@@ -34,7 +34,7 @@ Feature: Hail-driven session spawning (get-or-create)
       | path  | value             |
       | model | grover            |
       | tags  | #{:role/engineer} |
-    And the EDN isaac file "hail/pending/hail-1.edn" exists with:
+    And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path                   | value                 |
       | id                     | hail-1                |
       | frequency.crew-tags    | #{:role/engineer}     |
@@ -46,7 +46,7 @@ Feature: Hail-driven session spawning (get-or-create)
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
     And the isaac file "hail/undeliverable/hail-1.edn" does not exist
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" contains:
+    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
       | path                 | value  | #comment                        |
       | hail.id              | hail-1 |                                 |
       | hail.frequency.spawn | true   | spawn-eligible, unbound         |
@@ -58,7 +58,7 @@ Feature: Hail-driven session spawning (get-or-create)
       | path  | value             |
       | model | grover            |
       | tags  | #{:role/engineer} |
-    And the EDN isaac file "hail/pending/hail-1.edn" exists with:
+    And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path                | value               |
       | id                  | hail-1              |
       | frequency.crew-tags | #{:role/engineer}   |
@@ -68,13 +68,13 @@ Feature: Hail-driven session spawning (get-or-create)
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
     And the isaac file "hail/deliveries/delivery-1.edn" does not exist
-    And the EDN isaac file "hail/undeliverable/hail-1.edn" contains:
+    And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
       | path    | value          | #comment                        |
       | hail.id | hail-1         |                                 |
       | reason  | :no-recipients | spawn off — no existing session |
 
   Scenario: spawn with session-tags but no crew to host is undeliverable
-    Given the EDN isaac file "hail/pending/hail-1.edn" exists with:
+    Given the isaac EDN file hail/pending/hail-1.edn exists with:
       | path                   | value                 |
       | id                     | hail-1                |
       | frequency.session-tags | #{:project/warp-coil} |
@@ -85,7 +85,7 @@ Feature: Hail-driven session spawning (get-or-create)
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
     And the isaac file "hail/deliveries/delivery-1.edn" does not exist
-    And the EDN isaac file "hail/undeliverable/hail-1.edn" contains:
+    And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
       | path    | value    | #comment                                   |
       | hail.id | hail-1   |                                            |
       | reason  | :no-host | spawn requested, no crew to host a session |
@@ -98,7 +98,7 @@ Feature: Hail-driven session spawning (get-or-create)
     And the following model responses are queued:
       | type | content      | model  |
       | text | On the coil. | grover |
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" exists with:
+    And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
       | path                        | value                 |
       | id                          | delivery-1            |
       | hail.id                     | hail-1                |
@@ -118,7 +118,7 @@ Feature: Hail-driven session spawning (get-or-create)
       | message | user         | Resonance climbing. |
       | message | assistant    | On the coil.        |
     And the isaac file "hail/deliveries/delivery-1.edn" does not exist
-    And the EDN isaac file "hail/delivered/delivery-1.edn" contains:
+    And the isaac file "hail/delivered/delivery-1.edn" EDN contains:
       | path    | value       |
       | crew    | bartholomew |
       | session | session-1   |
@@ -134,7 +134,7 @@ Feature: Hail-driven session spawning (get-or-create)
     And the following model responses are queued:
       | type | content      | model  |
       | text | On the coil. | grover |
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" exists with:
+    And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
       | path                        | value                 |
       | id                          | delivery-1            |
       | hail.id                     | hail-1                |
@@ -151,7 +151,7 @@ Feature: Hail-driven session spawning (get-or-create)
       | type    | message.role | message.content     |
       | message | user         | Resonance climbing. |
       | message | assistant    | On the coil.        |
-    And the EDN isaac file "hail/delivered/delivery-1.edn" contains:
+    And the isaac file "hail/delivered/delivery-1.edn" EDN contains:
       | path    | value     |
       | session | coil-work |
 
@@ -165,7 +165,7 @@ Feature: Hail-driven session spawning (get-or-create)
       | name      | crew        | tags                  |
       | coil-work | bartholomew | #{:project/warp-coil} |
     And session "coil-work" is in flight
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" exists with:
+    And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
       | path                        | value                 |
       | id                          | delivery-1            |
       | hail.id                     | hail-1                |
@@ -177,7 +177,7 @@ Feature: Hail-driven session spawning (get-or-create)
       | attempts                    | 0                     |
     When the hail delivery worker ticks
     Then session "session-1" does not exist
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" contains:
+    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
       | path     | value      | #comment                                            |
       | id       | delivery-1 | matching session busy — wait, don't spawn a sibling |
       | attempts | 0          |                                                     |
@@ -192,7 +192,7 @@ Feature: Hail-driven session spawning (get-or-create)
       | name       | crew        |
       | other-work | bartholomew |
     And session "other-work" is in flight
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" exists with:
+    And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
       | path                        | value                 |
       | id                          | delivery-1            |
       | hail.id                     | hail-1                |
@@ -204,7 +204,7 @@ Feature: Hail-driven session spawning (get-or-create)
       | attempts                    | 0                     |
     When the hail delivery worker ticks
     Then session "session-1" does not exist
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" contains:
+    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
       | path     | value      | #comment                                 |
       | id       | delivery-1 | crew at capacity — can't spawn yet, wait |
       | attempts | 0          |                                          |

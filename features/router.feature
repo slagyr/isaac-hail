@@ -27,7 +27,7 @@ Feature: Hail router
     And the following sessions exist:
       | name        | crew        |
       | engine-room | bartholomew |
-    And the EDN isaac file "hail/pending/hail-1.edn" exists with:
+    And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                          |
       | id        | hail-1                         |
       | frequency | {:band "engineering-intercom"} |
@@ -35,7 +35,7 @@ Feature: Hail router
       | from      | :cli                           |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" contains:
+    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
       | path           | value                          | #comment                      |
       | hail.id        | hail-1                         | original hail nested verbatim |
       | hail.frequency | {:band "engineering-intercom"} |                               |
@@ -56,7 +56,7 @@ Feature: Hail router
       | name        | crew     |
       | bridge      | atticus  |
       | first-watch | cordelia |
-    And the EDN isaac file "hail/pending/hail-1.edn" exists with:
+    And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                         |
       | id        | hail-1                        |
       | frequency | {:crew-tags #{:role/command}} |
@@ -65,7 +65,7 @@ Feature: Hail router
       | from      | :cli                          |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" contains:
+    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
       | path       | value                                                                       | #comment             |
       | hail.id    | hail-1                                                                      |                      |
       | crew       |                                                                             | unbound — nil        |
@@ -80,7 +80,7 @@ Feature: Hail router
     And the following sessions exist:
       | name       | crew       |
       | greenhouse | hieronymus |
-    And the EDN isaac file "hail/pending/hail-1.edn" exists with:
+    And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                   |
       | id        | hail-1                  |
       | frequency | {:crew [:hieronymus]}   |
@@ -89,7 +89,7 @@ Feature: Hail router
       | from      | :cli                    |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" contains:
+    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
       | path        | value                   | #comment                         |
       | hail.id     | hail-1                  |                                  |
       | hail.prompt | The lettuce is wilting. | carried verbatim under :hail     |
@@ -105,7 +105,7 @@ Feature: Hail router
       | name           | crew  |
       | charted-course | mavis |
       | side-quest     | mavis |
-    And the EDN isaac file "hail/pending/hail-1.edn" exists with:
+    And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                        |
       | id        | hail-1                       |
       | frequency | {:session [:charted-course]} |
@@ -113,7 +113,7 @@ Feature: Hail router
       | from      | :cli                         |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" contains:
+    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
       | path    | value          | #comment             |
       | hail.id | hail-1         |                      |
       | crew    | mavis          |                      |
@@ -133,7 +133,7 @@ Feature: Hail router
       | name        | crew     |
       | bridge      | atticus  |
       | first-watch | cordelia |
-    And the EDN isaac file "hail/pending/hail-1.edn" exists with:
+    And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                         |
       | id        | hail-1                        |
       | frequency | {:crew-tags #{:role/command}} |
@@ -142,12 +142,12 @@ Feature: Hail router
       | from      | :cli                          |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" contains:
+    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
       | path    | value   | #comment                             |
       | hail.id | hail-1  |                                      |
       | crew    | atticus |                                      |
       | session | bridge  | deliveries emitted sorted by session |
-    And the EDN isaac file "hail/deliveries/delivery-2.edn" contains:
+    And the isaac file "hail/deliveries/delivery-2.edn" EDN contains:
       | path    | value       |
       | hail.id | hail-1      |
       | crew    | cordelia    |
@@ -167,7 +167,7 @@ Feature: Hail router
       | name           | crew        | tags                  |
       | engine-room    | bartholomew | #{}                   |
       | coil-tinkering | bartholomew | #{:project/warp-coil} |
-    And the EDN isaac file "hail/pending/hail-1.edn" exists with:
+    And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                                                              |
       | id        | hail-1                                                             |
       | frequency | {:band "engineering-intercom" :session-tags #{:project/warp-coil}} |
@@ -175,7 +175,7 @@ Feature: Hail router
       | from      | :cli                                                               |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" contains:
+    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
       | path    | value          | #comment                                   |
       | hail.id | hail-1         |                                            |
       | crew    | bartholomew    |                                            |
@@ -183,7 +183,7 @@ Feature: Hail router
     And the isaac file "hail/deliveries/delivery-2.edn" does not exist
 
   Scenario: an unknown band moves the hail to undeliverable
-    Given the EDN isaac file "hail/pending/hail-1.edn" exists with:
+    Given the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                  | #comment                               |
       | id        | hail-1                 |                                        |
       | frequency | {:band "phantom-band"} | no config/hail/phantom-band.edn exists |
@@ -192,7 +192,7 @@ Feature: Hail router
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
     And the isaac file "hail/deliveries/delivery-1.edn" does not exist
-    And the EDN isaac file "hail/undeliverable/hail-1.edn" contains:
+    And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
       | path           | value                  | #comment                  |
       | hail.id        | hail-1                 | original hail preserved   |
       | hail.frequency | {:band "phantom-band"} |                           |
@@ -210,7 +210,7 @@ Feature: Hail router
     And the following sessions exist:
       | name       | crew       |
       | greenhouse | hieronymus |
-    And the EDN isaac file "hail/pending/hail-1.edn" exists with:
+    And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                          |
       | id        | hail-1                         |
       | frequency | {:band "engineering-intercom"} |
@@ -219,7 +219,7 @@ Feature: Hail router
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
     And the isaac file "hail/deliveries/delivery-1.edn" does not exist
-    And the EDN isaac file "hail/undeliverable/hail-1.edn" contains:
+    And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
       | path    | value          | #comment                         |
       | hail.id | hail-1         |                                  |
       | reason  | :no-recipients | band exists, no engineer matched |
@@ -232,7 +232,7 @@ Feature: Hail router
     And the following sessions exist:
       | name       | crew       |
       | greenhouse | hieronymus |
-    And the EDN isaac file "hail/pending/hail-1.edn" exists with:
+    And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                         | #comment                      |
       | id        | hail-1                        |                               |
       | frequency | {:crew-tags #{:role/command}} | no command-tagged crew exists |
@@ -242,7 +242,7 @@ Feature: Hail router
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
     And the isaac file "hail/deliveries/delivery-1.edn" does not exist
-    And the EDN isaac file "hail/undeliverable/hail-1.edn" contains:
+    And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
       | path    | value          | #comment                    |
       | hail.id | hail-1         |                             |
       | reason  | :no-recipients | snapshot matched no session |

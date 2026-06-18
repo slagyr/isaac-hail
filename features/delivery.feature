@@ -32,7 +32,7 @@ Feature: Hail delivery
     And the following model responses are queued:
       | type | content      | model  |
       | text | Sealing now. | grover |
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" exists with:
+    And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
       | path         | value                  |
       | id           | delivery-1             |
       | hail.id      | hail-1                 |
@@ -51,7 +51,7 @@ Feature: Hail delivery
     # in features/hail/spawn.feature's parent refactor (isaac-uysx), not here —
     # this bean only sets :origin {:kind :hail ...} and dispatches.
     And the isaac file "hail/deliveries/delivery-1.edn" does not exist
-    And the EDN isaac file "hail/delivered/delivery-1.edn" contains:
+    And the isaac file "hail/delivered/delivery-1.edn" EDN contains:
       | path    | value      |
       | id      | delivery-1 |
       | hail.id | hail-1     |
@@ -71,7 +71,7 @@ Feature: Hail delivery
     And the following model responses are queued:
       | type | content      | model  |
       | text | Bridge here. | grover |
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" exists with:
+    And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
       | path        | value                                                                       |
       | id          | delivery-1                                                                  |
       | hail.id     | hail-1                                                                      |
@@ -84,7 +84,7 @@ Feature: Hail delivery
       | type    | message.role | message.content |
       | message | user         | Status report?  |
       | message | assistant    | Bridge here.    |
-    And the EDN isaac file "hail/delivered/delivery-1.edn" contains:
+    And the isaac file "hail/delivered/delivery-1.edn" EDN contains:
       | path    | value   | #comment                           |
       | crew    | atticus | bound to the idle candidate        |
       | session | bridge  | first-watch was in flight, skipped |
@@ -98,7 +98,7 @@ Feature: Hail delivery
       | name        | crew        |
       | engine-room | bartholomew |
     And session "engine-room" is in flight
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" exists with:
+    And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
       | path        | value          |
       | id          | delivery-1     |
       | hail.id     | hail-1         |
@@ -107,7 +107,7 @@ Feature: Hail delivery
       | session     | engine-room    |
       | attempts    | 0              |
     When the hail delivery worker ticks
-    Then the EDN isaac file "hail/deliveries/delivery-1.edn" contains:
+    Then the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
       | path     | value      | #comment                              |
       | id       | delivery-1 | still pending — session was in flight |
       | attempts | 0          | gating is not a failed attempt        |
@@ -124,7 +124,7 @@ Feature: Hail delivery
       | engine-room | bartholomew |
       | warp-core   | bartholomew |
     And session "warp-core" is in flight
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" exists with:
+    And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
       | path        | value           |
       | id          | delivery-1      |
       | hail.id     | hail-1          |
@@ -133,7 +133,7 @@ Feature: Hail delivery
       | session     | engine-room     |
       | attempts    | 0               |
     When the hail delivery worker ticks
-    Then the EDN isaac file "hail/deliveries/delivery-1.edn" contains:
+    Then the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
       | path     | value      | #comment                                |
       | id       | delivery-1 | still pending — bartholomew at capacity |
       | attempts | 0          |                                         |
@@ -152,7 +152,7 @@ Feature: Hail delivery
       | type | content        | model  | wait |
       | text | Leak sealed.   | grover | true |
       | text | Plasma vented. | grover |      |
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" exists with:
+    And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
       | path        | value          |
       | id          | delivery-1     |
       | hail.id     | hail-1         |
@@ -160,7 +160,7 @@ Feature: Hail delivery
       | crew        | bartholomew    |
       | session     | engine-room    |
       | attempts    | 0              |
-    And the EDN isaac file "hail/deliveries/delivery-2.edn" exists with:
+    And the isaac EDN file hail/deliveries/delivery-2.edn exists with:
       | path        | value            |
       | id          | delivery-2       |
       | hail.id     | hail-2           |
@@ -170,16 +170,16 @@ Feature: Hail delivery
       | attempts    | 0                |
     When the hail delivery worker ticks
     Then session "engine-room" in-flight status is true
-    And the EDN isaac file "hail/deliveries/delivery-2.edn" contains:
+    And the isaac file "hail/deliveries/delivery-2.edn" EDN contains:
       | path | value      | #comment                                  |
       | id   | delivery-2 | not dispatched — engine-room already busy |
     When the turn ends on session "engine-room"
-    Then the EDN isaac file "hail/delivered/delivery-1.edn" contains:
+    Then the isaac file "hail/delivered/delivery-1.edn" EDN contains:
       | path | value      |
       | id   | delivery-1 |
     When the hail delivery worker ticks
     And the turn ends on session "engine-room"
-    Then the EDN isaac file "hail/delivered/delivery-2.edn" contains:
+    Then the isaac file "hail/delivered/delivery-2.edn" EDN contains:
       | path | value      |
       | id   | delivery-2 |
 
@@ -193,7 +193,7 @@ Feature: Hail delivery
     And the following model responses are queued:
       | type  | content | model  |
       | error | boom    | grover |
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" exists with:
+    And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
       | path        | value          |
       | id          | delivery-1     |
       | hail.id     | hail-1         |
@@ -203,7 +203,7 @@ Feature: Hail delivery
       | attempts    | 0              |
     When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
     And the turn ends on session "engine-room"
-    Then the EDN isaac file "hail/deliveries/delivery-1.edn" contains:
+    Then the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
       | path            | value                | #comment                              |
       | attempts        | 1                    | incremented after the failed dispatch |
       | next-attempt-at | 2026-04-21T10:00:01Z | tick time + 1s (first backoff step)   |
@@ -221,7 +221,7 @@ Feature: Hail delivery
     And the following model responses are queued:
       | type  | content | model  |
       | error | boom    | grover |
-    And the EDN isaac file "hail/deliveries/delivery-1.edn" exists with:
+    And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
       | path        | value          | #comment                                          |
       | id          | delivery-1     |                                                   |
       | hail.id     | hail-1         |                                                   |
@@ -233,7 +233,7 @@ Feature: Hail delivery
     And the turn ends on session "engine-room"
     Then the isaac file "hail/deliveries/delivery-1.edn" does not exist
     And the isaac file "hail/inflight/delivery-1.edn" does not exist
-    And the EDN isaac file "hail/failed/delivery-1.edn" contains:
+    And the isaac file "hail/failed/delivery-1.edn" EDN contains:
       | path     | value      | #comment                                |
       | id       | delivery-1 |                                         |
       | attempts | 5          | hit the max on this tick; dead-lettered |
