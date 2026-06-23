@@ -16,11 +16,13 @@
 
   (it "conforms hail band declarations"
     (let [result (schema/conform (hail-band-schema)
-                                 {:crew-tags [:role/worker]
-                                  :reach     :one})]
+                                 {:session-tags  [:project/chess]
+                                  :reach         :one
+                                  :spawn-session true})]
       (should-not (schema/error? result))
-      (should= {:crew-tags [:role/worker]
-                :reach     :one}
+      (should= {:session-tags  [:project/chess]
+                :reach         :one
+                :spawn-session true}
                result)))
 
   (it "conforms hail prompts on band declarations"
@@ -34,20 +36,25 @@
                 :reach        :all}
                result)))
 
-  (it "conforms hail band spawn-session declarations"
+  (it "rejects retired :crew-tags"
     (let [result (schema/conform (hail-band-schema)
-                                 {:crew-tags     [:role/worker]
-                                  :reach         :one
-                                  :spawn-session true})]
-      (should-not (schema/error? result))
-      (should= {:crew-tags     [:role/worker]
-                :reach         :one
-                :spawn-session true}
-               result)))
+                                 {:crew-tags    [:role/worker]
+                                  :session-tags [:project/chess]
+                                  :reach        :one})]
+      (should (schema/error? result))
+      (should (.contains (pr-str (schema/message-map result)) "crew-tags"))))
+
+  (it "rejects :crew as a seq"
+    (let [result (schema/conform (hail-band-schema)
+                                 {:crew         [:ops]
+                                  :session-tags [:project/chess]
+                                  :reach        :one})]
+      (should (schema/error? result))
+      (should (.contains (pr-str (schema/message-map result)) "crew"))))
 
   (it "rejects hail bands without any addressing fields"
     (let [result (schema/conform (hail-band-schema)
                                  {:reach :one})]
       (should (schema/error? result))
-      (should= {:addressing "must include at least one of :crew, :crew-tags, :session, :session-tags"}
+      (should= {:addressing "must include at least one of :session, :session-tags"}
                (schema/message-map result)))))

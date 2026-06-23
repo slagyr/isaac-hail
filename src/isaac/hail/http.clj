@@ -82,21 +82,19 @@
 (defn- normalize-frequency [frequency]
   (let [frequency (some-> frequency walk/keywordize-keys)]
     (cond-> frequency
-      (:crew frequency)         (update :crew keywordize*)
       (:session frequency)      (update :session keywordize*)
-      (:crew-tags frequency)    (update :crew-tags keyword-set*)
       (:session-tags frequency) (update :session-tags keyword-set*)
       (:reach frequency)        (update :reach ->keyword))))
 
 (defn- direct-addressing? [frequency]
   (and (map? frequency)
        (boolean (some #(contains? frequency %)
-                      [:crew :session :crew-tags :session-tags]))))
+                      [:session :session-tags]))))
 
 (defn- has-addressing? [frequency]
   (and (map? frequency)
        (boolean (some #(contains? frequency %)
-                      [:band :crew :session :crew-tags :session-tags]))))
+                      [:band :session :session-tags]))))
 
 (defn- validate-record [record]
   (let [frequency (:frequency record)]
@@ -119,7 +117,8 @@
   (cond-> {:frequency (normalize-frequency (:frequency payload))
            :from      :http}
     (contains? payload :payload) (assoc :payload (:payload payload))
-    (contains? payload :prompt)  (assoc :prompt (:prompt payload))))
+    (contains? payload :prompt)  (assoc :prompt (:prompt payload))
+    (contains? payload :crew)    (assoc :crew (->keyword (:crew payload)))))
 
 (defn handler [request]
   (let [format  (response-format request)

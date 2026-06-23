@@ -113,20 +113,18 @@
                                                       :hail       {:id "hail-1" :prompt "Status report?"}
                                                       :candidates [{:crew :atticus :session :bridge}
                                                                    {:crew :cordelia :session :first-watch}]
-                                                     :attempts   0})
+                                                      :attempts   0})
                             [:crew :session]))))
 
   (it "spawns a sequential hail-origin session when a spawn delivery has no existing match"
     (let [session-store (nexus/get-in [:sessions :store])
-          cfg           (-> test-config
-                            (assoc-in [:crew "bartholomew" :tags] #{:role/engineer})
-                            loader/normalize-config)]
+          cfg           (loader/normalize-config test-config)]
       (config/dangerously-install-config! cfg "spec")
       (write-delivery! {:id       "delivery-1"
+                        :crew     :bartholomew
                         :hail     {:id "hail-1"
                                    :prompt "Resonance climbing."
-                                   :frequency {:crew-tags #{:role/engineer}
-                                               :session-tags #{:project/warp-coil}
+                                   :frequency {:session-tags #{:project/warp-coil}
                                                :reach :one
                                                :spawn-session true}}
                         :attempts 0})
@@ -142,9 +140,7 @@
 
   (it "binds a spawn delivery to an existing matching session instead of creating one"
     (let [session-store (nexus/get-in [:sessions :store])
-          cfg           (-> test-config
-                            (assoc-in [:crew "bartholomew" :tags] #{:role/engineer})
-                            loader/normalize-config)]
+          cfg           (loader/normalize-config test-config)]
       (config/dangerously-install-config! cfg "spec")
       (store/open-session! session-store "coil-work" {:crew "bartholomew" :tags #{:project/warp-coil}})
       (should= {:crew :bartholomew :session :coil-work}
@@ -152,32 +148,29 @@
                              cfg
                              session-store
                              {:id       "delivery-1"
+                              :crew     :main
                               :hail     {:id "hail-1"
                                          :prompt "Resonance climbing."
-                                         :frequency {:crew-tags #{:role/engineer}
-                                                     :session-tags #{:project/warp-coil}
+                                         :frequency {:session-tags #{:project/warp-coil}
                                                      :reach :one
                                                      :spawn-session true}}
                               :attempts 0})
                             [:crew :session]))
       (should-be-nil (store/get-session session-store "session-1"))))
 
-  (it "chooses the first available host crew by id for a spawn delivery"
+  (it "spawns under the delivery's resolved crew when no session matches"
     (let [session-store (nexus/get-in [:sessions :store])
-          cfg           (-> test-config
-                            (assoc-in [:crew "atticus" :tags] #{:role/engineer})
-                            (assoc-in [:crew "bartholomew" :tags] #{:role/engineer})
-                            loader/normalize-config)]
+          cfg           (loader/normalize-config test-config)]
       (config/dangerously-install-config! cfg "spec")
-      (should= {:action :spawn :crew-id "atticus"}
+      (should= {:action :spawn :crew-id "bartholomew"}
                (#'sut/spawn-target
                 cfg
                 session-store
                 {:id       "delivery-1"
+                 :crew     :bartholomew
                  :hail     {:id "hail-1"
                             :prompt "Resonance climbing."
-                            :frequency {:crew-tags #{:role/engineer}
-                                        :session-tags #{:project/warp-coil}
+                            :frequency {:session-tags #{:project/warp-coil}
                                         :reach :one
                                         :spawn-session true}}
                  :attempts 0}))))
@@ -185,7 +178,6 @@
   (it "waits on a busy matching session for a spawn delivery and does not create a sibling"
     (let [session-store (nexus/get-in [:sessions :store])
           cfg           (-> test-config
-                            (assoc-in [:crew "bartholomew" :tags] #{:role/engineer})
                             (assoc-in [:crew "bartholomew" :max-in-flight] 2)
                             loader/normalize-config)]
       (config/dangerously-install-config! cfg "spec")
@@ -196,37 +188,32 @@
                 cfg
                 session-store
                 {:id       "delivery-1"
+                 :crew     :main
                  :hail     {:id "hail-1"
                             :prompt "Resonance climbing."
-                            :frequency {:crew-tags #{:role/engineer}
-                                        :session-tags #{:project/warp-coil}
+                            :frequency {:session-tags #{:project/warp-coil}
                                         :reach :one
                                         :spawn-session true}}
                  :attempts 0}))
       (should-be-nil (store/get-session session-store "session-1"))))
 
-  (it "waits when spawn host crews match but all are at capacity"
+  (it "waits when the resolved processing crew is at capacity"
     (let [session-store (nexus/get-in [:sessions :store])
           cfg           (-> test-config
-                            (assoc-in [:crew "atticus" :tags] #{:role/engineer})
-                            (assoc-in [:crew "atticus" :max-in-flight] 1)
-                            (assoc-in [:crew "bartholomew" :tags] #{:role/engineer})
                             (assoc-in [:crew "bartholomew" :max-in-flight] 1)
                             loader/normalize-config)]
       (config/dangerously-install-config! cfg "spec")
-      (store/open-session! session-store "atticus-busy" {:crew "atticus"})
-      (store/open-session! session-store "bart-busy" {:crew "bartholomew"})
-      (store/mark-in-flight! session-store "atticus-busy")
-      (store/mark-in-flight! session-store "bart-busy")
+      (store/open-session! session-store "other-work" {:crew "bartholomew"})
+      (store/mark-in-flight! session-store "other-work")
       (should= {:action :wait}
                (#'sut/spawn-target
                 cfg
                 session-store
                 {:id       "delivery-1"
+                 :crew     :bartholomew
                  :hail     {:id "hail-1"
                             :prompt "Resonance climbing."
-                            :frequency {:crew-tags #{:role/engineer}
-                                        :session-tags #{:project/warp-coil}
+                            :frequency {:session-tags #{:project/warp-coil}
                                         :reach :one
                                         :spawn-session true}}
                  :attempts 0}))))

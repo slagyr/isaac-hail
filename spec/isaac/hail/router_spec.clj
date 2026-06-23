@@ -8,6 +8,9 @@
     [isaac.session.store.memory :as memory]
     [speclj.core :refer :all]))
 
+(def ^:private test-cfg
+  {:defaults {:crew "main"}})
+
 (describe "hail router"
 
   #_{:clj-kondo/ignore [:unresolved-symbol]}
@@ -16,9 +19,9 @@
       (example)))
 
   (it "binds a reach-one band to the only matching session"
-    (let [result (sut/resolve-obligations {"engineering-intercom" {:crew-tags #{:role/engineer} :reach :one}}
-                                          {:bartholomew {:tags #{:role/engineer}}}
-                                          [{:id "engine-room" :crew "bartholomew"}]
+    (let [result (sut/resolve-obligations test-cfg
+                                          {"engineering-intercom" {:session-tags #{:role/engineer} :reach :one}}
+                                          [{:id "engine-room" :crew "bartholomew" :tags #{:role/engineer}}]
                                           {:id "hail-1" :frequency {:band "engineering-intercom"}})]
       (should= {:deliveries [{:hail     {:id "hail-1" :frequency {:band "engineering-intercom"}}
                               :crew     :bartholomew
@@ -27,16 +30,15 @@
                result)))
 
   (it "leaves a reach-one pool unbound with sorted candidates"
-    (let [result (sut/resolve-obligations {}
-                                          {:atticus  {:tags #{:role/command}}
-                                           :cordelia {:tags #{:role/command}}}
-                                          [{:id "first-watch" :crew "cordelia"}
-                                           {:id "bridge" :crew "atticus"}]
+    (let [result (sut/resolve-obligations test-cfg
+                                          {}
+                                          [{:id "first-watch" :crew "cordelia" :tags #{:role/command}}
+                                           {:id "bridge" :crew "atticus" :tags #{:role/command}}]
                                           {:id        "hail-1"
-                                           :frequency {:crew-tags #{:role/command}}
+                                           :frequency {:session-tags #{:role/command}}
                                            :reach     :one})]
       (should= {:deliveries [{:hail       {:id        "hail-1"
-                                           :frequency {:crew-tags #{:role/command}}
+                                           :frequency {:session-tags #{:role/command}}
                                            :reach     :one}
                               :crew       nil
                               :session    nil
@@ -45,33 +47,32 @@
                               :attempts   0}]}
                result)))
 
-  (it "emits an unbound spawn delivery when a reach-one spawn hail has a host crew but no session"
-    (let [hail   {:id "hail-1"
-                  :frequency {:crew-tags #{:role/engineer}
-                              :session-tags #{:project/warp-coil}
-                              :reach :one
-                              :spawn-session true}}
-          result (sut/resolve-obligations {}
-                                          {:bartholomew {:tags #{:role/engineer}}}
-                                          []
-                                          hail)]
-      (should= {:deliveries [{:hail hail :crew nil :session nil :attempts 0}]}
+  (it "uses a hail processing-crew override over the matched session crew"
+    (let [result (sut/resolve-obligations test-cfg
+                                          {}
+                                          [{:id "engine-room" :crew "bartholomew"}]
+                                          {:id        "hail-1"
+                                           :crew      :marvin
+                                           :frequency {:session [:engine-room]}})]
+      (should= {:deliveries [{:hail     {:id        "hail-1"
+                                         :crew      :marvin
+                                         :frequency {:session [:engine-room]}}
+                              :crew     :marvin
+                              :session  :engine-room
+                              :attempts 0}]}
                result)))
 
-  (it "returns no-host when a spawn hail has no resolvable host crew"
+  (it "emits a spawn delivery with resolved crew when no session matches"
     (let [hail   {:id "hail-1"
                   :frequency {:session-tags #{:project/warp-coil}
                               :reach :one
                               :spawn-session true}}
-          result (sut/resolve-obligations {}
-                                          {}
-                                          []
-                                          hail)]
-      (should= {:undeliverable {:hail hail :reason :no-host}}
+          result (sut/resolve-obligations test-cfg {} [] hail)]
+      (should= {:deliveries [{:hail hail :crew :main :session nil :attempts 0}]}
                result)))
 
   (it "returns unknown-band when the referenced band is missing"
-    (let [result (sut/resolve-obligations {}
+    (let [result (sut/resolve-obligations test-cfg
                                           {}
                                           []
                                           {:id "hail-1" :frequency {:band "phantom-band"}})]
@@ -80,22 +81,21 @@
                result)))
 
   (it "fans out reach-all matches in session order"
-    (let [result (sut/resolve-obligations {}
-                                          {:atticus  {:tags #{:role/command}}
-                                           :cordelia {:tags #{:role/command}}}
-                                          [{:id "first-watch" :crew "cordelia"}
-                                           {:id "bridge" :crew "atticus"}]
+    (let [result (sut/resolve-obligations test-cfg
+                                          {}
+                                          [{:id "first-watch" :crew "cordelia" :tags #{:role/command}}
+                                           {:id "bridge" :crew "atticus" :tags #{:role/command}}]
                                           {:id        "hail-1"
-                                           :frequency {:crew-tags #{:role/command}}
+                                           :frequency {:session-tags #{:role/command}}
                                            :reach     :all})]
       (should= {:deliveries [{:hail     {:id        "hail-1"
-                                         :frequency {:crew-tags #{:role/command}}
+                                         :frequency {:session-tags #{:role/command}}
                                          :reach     :all}
                               :crew     :atticus
                               :session  :bridge
                               :attempts 0}
                              {:hail     {:id        "hail-1"
-                                         :frequency {:crew-tags #{:role/command}}
+                                         :frequency {:session-tags #{:role/command}}
                                          :reach     :all}
                               :crew     :cordelia
                               :session  :first-watch
@@ -107,12 +107,13 @@
       (store/open-session! session-store "engine-room" {:crew "bartholomew"})
       (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/pending")
       (fs/spit (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"
-               (pr-str {:id "hail-1" :frequency {:crew [:bartholomew]} :from :cli}))
-      (sut/tick! {:cfg           {:crew {:bartholomew {:model "grover"}}}
+               (pr-str {:id "hail-1" :frequency {:session [:engine-room]} :from :cli}))
+      (sut/tick! {:cfg           {:defaults {:crew "main"}
+                                  :crew {:bartholomew {:model "grover"}}}
                   :session-store session-store})
       (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"))
       (should= {:id       "delivery-1"
-                :hail     {:id "hail-1" :frequency {:crew [:bartholomew]} :from :cli}
+                :hail     {:id "hail-1" :frequency {:session [:engine-room]} :from :cli}
                 :crew     :bartholomew
                 :session  :engine-room
                 :attempts 0}
@@ -122,11 +123,11 @@
     (let [session-store (memory/create-store)]
       (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/pending")
       (fs/spit (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"
-               (pr-str {:id "hail-1" :frequency {:crew-tags #{:role/command}} :from :cli}))
+               (pr-str {:id "hail-1" :frequency {:session-tags #{:role/command}} :from :cli}))
       (sut/tick! {:cfg           {:crew {:bartholomew {:tags #{:role/engineer}}}}
                   :session-store session-store})
       (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"))
-      (should= {:hail   {:id "hail-1" :frequency {:crew-tags #{:role/command}} :from :cli}
+      (should= {:hail   {:id "hail-1" :frequency {:session-tags #{:role/command}} :from :cli}
                 :reason :no-recipients}
                (read-string (fs/slurp (nexus/get :fs) "/test/isaac/hail/undeliverable/hail-1.edn")))))
 

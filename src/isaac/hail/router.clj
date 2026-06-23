@@ -4,7 +4,6 @@
     [clojure.pprint :as pprint]
     [clojure.set :as set]
     [isaac.config.loader :as loader]
-    [isaac.crew.store :as crew-store]
     [isaac.fs :as fs]
     [isaac.naming :as naming]
     [isaac.nexus :as nexus]
@@ -105,6 +104,13 @@
     (seq right)                  right
     :else                        nil))
 
+(defn- union-or [left right]
+  (cond
+    (and (seq left) (seq right)) (set/union left right)
+    (seq left)                   left
+    (seq right)                  right
+    :else                        nil))
+
 (defn effective-reach [band hail]
   (or (:reach hail)
       (get-in hail [:frequency :reach])
@@ -117,46 +123,36 @@
       (:spawn-session band)
       false))
 
-(defn- effective-filter [band hail key selector-fn]
-  (let [band-value (selector-fn (get band key))
-        hail-value (selector-fn (get-in hail [:frequency key]))]
-    (intersect-or band-value hail-value)))
+(defn- effective-id-filter [band hail key]
+  (intersect-or (selector-ids (get band key))
+                (selector-ids (get-in hail [:frequency key]))))
 
-(defn- crew-config [crews session]
-  (let [crew-id (normalize-id (:crew session))]
-    (or (get crews crew-id)
-        (get crews (some-> crew-id keyword)))))
+(defn- effective-tag-filter [band hail key]
+  (union-or (selector-tags (get band key))
+            (selector-tags (get-in hail [:frequency key]))))
 
-(defn matching-crews [band crews hail]
-  (let [band-name (get-in hail [:frequency :band])
-        crew-ids  (effective-filter band hail :crew selector-ids)
-        crew-tags (effective-filter band hail :crew-tags selector-tags)]
-    (cond
-      (and band-name (nil? band))
-      {:reason :unknown-band}
+(defn effective-crew
+  "Resolve the processing crew after session match: hail :crew, band :crew,
+   session :crew, then cfg [:defaults :crew] (default :main)."
+  [cfg band hail session]
+  (or (id-keyword (:crew hail))
+      (id-keyword (:crew band))
+      (id-keyword (:crew session))
+      (id-keyword (get-in cfg [:defaults :crew]))
+      :main))
 
-      (and (nil? crew-ids) (nil? crew-tags))
-      {:crews []}
+(defn spawn-crew
+  "Resolve the processing crew for a spawn delivery (no session yet)."
+  [cfg band hail]
+  (or (id-keyword (:crew hail))
+      (id-keyword (:crew band))
+      (id-keyword (get-in cfg [:defaults :crew]))
+      :main))
 
-      :else
-      {:crews
-       (->> crews
-            (map (fn [[crew-id crew-cfg]]
-                   {:id   (normalize-id crew-id)
-                    :crew crew-cfg}))
-            (filter (fn [{:keys [id crew]}]
-                      (and (or (nil? crew-ids) (contains? crew-ids (keyword id)))
-                           (or (nil? crew-tags)
-                               (every? #(contains? (crew-store/tags-of crew) %) crew-tags)))))
-            (sort-by :id)
-            vec)})))
-
-(defn matching-sessions [band crews sessions hail]
+(defn matching-sessions [band sessions hail]
   (let [band-name    (get-in hail [:frequency :band])
-        crew-ids     (effective-filter band hail :crew selector-ids)
-        session-ids  (effective-filter band hail :session selector-ids)
-        crew-tags    (effective-filter band hail :crew-tags selector-tags)
-        session-tags (effective-filter band hail :session-tags selector-tags)]
+        session-ids  (effective-id-filter band hail :session)
+        session-tags (effective-tag-filter band hail :session-tags)]
     (cond
       (and band-name (nil? band))
       {:reason :unknown-band}
@@ -165,63 +161,54 @@
       {:sessions
        (->> sessions
             (filter (fn [session]
-                      (let [session-id (id-keyword (:id session))
-                            crew-id    (id-keyword (:crew session))
-                            crew-cfg   (crew-config crews session)]
+                      (let [session-id (id-keyword (:id session))]
                         (and
-                          (or (nil? crew-ids) (contains? crew-ids crew-id))
                           (or (nil? session-ids) (contains? session-ids session-id))
-                          (or (nil? crew-tags)
-                              (every? #(contains? (crew-store/tags-of crew-cfg) %) crew-tags))
                           (or (nil? session-tags)
                               (every? #(contains? (session-store/tags-of session) %) session-tags))))))
-            (sort-by (juxt :id :crew))
+            (sort-by :id)
             vec)})))
 
-(defn- bound-delivery [hail session]
+(defn- bound-delivery [cfg band hail session]
   {:hail     hail
-   :crew     (id-keyword (:crew session))
+   :crew     (effective-crew cfg band hail session)
    :session  (state-id-value (:id session))
    :attempts 0})
 
-(defn- candidate-entry [session]
-  {:crew    (id-keyword (:crew session))
+(defn- candidate-entry [cfg band hail session]
+  {:crew    (effective-crew cfg band hail session)
    :session (state-id-value (:id session))})
 
-(defn resolve-obligations [bands crews sessions hail]
-  (let [band-name     (get-in hail [:frequency :band])
-        band          (when band-name (get bands band-name))
-        reach         (effective-reach band hail)
-        spawn?        (effective-spawn band hail)
-        crew-result   (matching-crews band crews hail)
-        match-result  (matching-sessions band crews sessions hail)
-        matches       (:sessions match-result)
-        host-crews    (:crews crew-result)]
+(defn resolve-obligations [cfg bands sessions hail]
+  (let [band-name    (get-in hail [:frequency :band])
+        band         (when band-name (get bands band-name))
+        reach        (effective-reach band hail)
+        spawn?       (effective-spawn band hail)
+        match-result (matching-sessions band sessions hail)
+        matches      (:sessions match-result)]
     (cond
       (:reason match-result)
       {:undeliverable {:hail hail :reason (:reason match-result)}}
 
       (empty? matches)
       (if (and spawn? (= :one reach))
-        (if (seq host-crews)
-          {:deliveries [{:hail     hail
-                         :crew     nil
-                         :session  nil
-                         :attempts 0}]}
-          {:undeliverable {:hail hail :reason :no-host}})
+        {:deliveries [{:hail     hail
+                       :crew     (spawn-crew cfg band hail)
+                       :session  nil
+                       :attempts 0}]}
         {:undeliverable {:hail hail :reason :no-recipients}})
 
       (= :all reach)
-      {:deliveries (mapv #(bound-delivery hail %) matches)}
+      {:deliveries (mapv #(bound-delivery cfg band hail %) matches)}
 
       (= 1 (count matches))
-      {:deliveries [(bound-delivery hail (first matches))]}
+      {:deliveries [(bound-delivery cfg band hail (first matches))]}
 
       :else
       {:deliveries [{:hail       hail
                      :crew       nil
                      :session    nil
-                     :candidates (mapv candidate-entry matches)
+                     :candidates (mapv #(candidate-entry cfg band hail %) matches)
                      :attempts   0}]})))
 
 (defn- write-deliveries! [root fs* hail deliveries]
@@ -238,17 +225,16 @@
 (defn tick!
   [{:keys [cfg root] :as opts}]
   (let [cfg            (or cfg (loader/snapshot "hail router tick wake boundary — config may have changed") {})
-        root      (or root (runtime-root))
+        root           (or root (runtime-root))
         fs*            (filesystem)
         session-store* (or (:session-store opts)
                            (session-store/registered-store)
                            (session-store/create root))
-        crews          (:crew cfg)
         bands          (:hail cfg)
         sessions       (session-store/list-sessions session-store*)]
     (doseq [hail (list-pending)]
       (let [{:keys [deliveries undeliverable]}
-            (resolve-obligations bands crews sessions hail)]
+            (resolve-obligations cfg bands sessions hail)]
         (cond
           (seq deliveries)       (write-deliveries! root fs* hail deliveries)
           undeliverable          (write-undeliverable! hail undeliverable)

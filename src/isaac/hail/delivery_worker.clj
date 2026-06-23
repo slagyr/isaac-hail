@@ -121,15 +121,16 @@
            (crew-available? cfg session-store crew-id)
            session))))
 
-(defn- bind-candidate [delivery session]
-  (-> delivery
-      (assoc :crew (id-keyword (:crew session))
-             :session (router/state-id-value (:id session)))
-      (dissoc :candidates)))
-
 (defn- delivery-band [cfg delivery]
   (when-let [band-name (get-in delivery [:hail :frequency :band])]
     (get-in cfg [:hail band-name])))
+
+(defn- bind-candidate [cfg delivery session]
+  (let [band (delivery-band cfg delivery)]
+    (-> delivery
+        (assoc :crew (router/effective-crew cfg band (:hail delivery) session)
+               :session (router/state-id-value (:id session)))
+        (dissoc :candidates))))
 
 (defn- spawn-delivery? [cfg delivery]
   (let [band (delivery-band cfg delivery)
@@ -140,18 +141,11 @@
 (defn- matching-spawn-sessions [cfg session-store delivery]
   (let [band     (delivery-band cfg delivery)
         sessions (store/list-sessions session-store)]
-    (:sessions (router/matching-sessions band (:crew cfg) sessions (:hail delivery)))))
+    (:sessions (router/matching-sessions band sessions (:hail delivery)))))
 
 (defn- available-spawn-session [cfg session-store delivery]
   (some #(session-available? cfg session-store (normalize-id (:id %)))
         (matching-spawn-sessions cfg session-store delivery)))
-
-(defn- available-host-crew [cfg session-store delivery]
-  (let [band (delivery-band cfg delivery)]
-    (some (fn [{:keys [id]}]
-            (when (crew-available? cfg session-store id)
-              id))
-          (:crews (router/matching-crews band (:crew cfg) (:hail delivery))))))
 
 (defn- spawn-session! [session-store delivery host-crew]
   (let [root (runtime-root {})
@@ -169,15 +163,16 @@
     {:action :bind :session session}
     (if (seq (matching-spawn-sessions cfg session-store delivery))
       {:action :wait}
-      (if-let [host-crew (available-host-crew cfg session-store delivery)]
-        {:action :spawn :crew-id host-crew}
-        {:action :wait}))))
+      (let [crew-id (normalize-id (:crew delivery))]
+        (if (crew-available? cfg session-store crew-id)
+          {:action :spawn :crew-id crew-id}
+          {:action :wait})))))
 
 (defn- spawn-runnable-delivery [cfg session-store delivery]
   (let [{:keys [action session crew-id]} (spawn-target cfg session-store delivery)]
     (case action
-      :bind  (bind-candidate delivery session)
-      :spawn (bind-candidate delivery (spawn-session! session-store delivery crew-id))
+      :bind  (bind-candidate cfg delivery session)
+      :spawn (bind-candidate cfg delivery (spawn-session! session-store delivery crew-id))
       nil)))
 
 (defn- runnable-delivery [cfg session-store delivery]
@@ -191,7 +186,7 @@
         delivery)
       (some (fn [{:keys [session]}]
               (when-let [session-entry (session-available? cfg session-store (normalize-id session))]
-                (bind-candidate delivery session-entry)))
+                (bind-candidate cfg delivery session-entry)))
             (:candidates delivery)))))
 
 (defn- inflight-path [root id]

@@ -52,14 +52,13 @@
                   :from      :cli}
                  (select-keys (sut/read-pending "hail-1") [:id :sent-at :frequency :from])))))
 
-  (it "accepts --crew and persists it under :frequency :crew"
+  (it "accepts --crew and persists it at the hail top level"
     (let [output (with-out-str
-                   (should= 0 (sut/run-fn {:_raw-args ["send" "--crew" "marvin" "--prompt" "Heads up" "--payload" "{:n 1}"]})))]
+                   (should= 0 (sut/run-fn {:_raw-args ["send" "--crew" "marvin" "--session-tag" "wip" "--prompt" "Heads up" "--payload" "{:n 1}"]})))]
       (should= "hail-1\n" output)
-      (should= {:crew [:marvin]}
-               (:frequency (sut/read-pending "hail-1")))
-      (should= "Heads up"
-               (:prompt (sut/read-pending "hail-1")))))
+      (should= :marvin (:crew (sut/read-pending "hail-1")))
+      (should= {:session-tags #{:wip}} (:frequency (sut/read-pending "hail-1")))
+      (should= "Heads up" (:prompt (sut/read-pending "hail-1")))))
 
   (it "accepts --session and persists it under :frequency :session"
     (let [output (with-out-str
@@ -70,13 +69,6 @@
       (should= "Heads up"
                (:prompt (sut/read-pending "hail-1")))))
 
-  (it "accepts repeatable tag flags and persists them as keyword sets"
-    (let [output (with-out-str
-                   (should= 0 (sut/run-fn {:_raw-args ["send" "--crew-tag" "role/worker" "--crew-tag" "wip" "--prompt" "go"]})))]
-      (should= "hail-1\n" output)
-      (should= {:crew-tags #{:role/worker :wip}}
-               (:frequency (sut/read-pending "hail-1")))))
-
   (it "accepts repeatable --session-tag values and persists them as a keyword set"
     (let [output (with-out-str
                    (should= 0 (sut/run-fn {:_raw-args ["send" "--session-tag" "project/chess" "--session-tag" "wip" "--prompt" "go"]})))]
@@ -84,18 +76,19 @@
       (should= {:session-tags #{:project/chess :wip}}
                (:frequency (sut/read-pending "hail-1")))))
 
-  (it "combines distinct direct-addressing flags into one frequency map"
+  (it "combines --crew with --session-tag into top-level crew and frequency routing"
     (let [output (with-out-str
                    (should= 0 (sut/run-fn {:_raw-args ["send" "--crew" "marvin" "--session-tag" "project/chess" "--prompt" "go"]})))]
       (should= "hail-1\n" output)
-      (should= {:crew [:marvin] :session-tags #{:project/chess}}
+      (should= :marvin (:crew (sut/read-pending "hail-1")))
+      (should= {:session-tags #{:project/chess}}
                (:frequency (sut/read-pending "hail-1")))))
 
   (it "accepts --reach for direct/tag addressing"
     (let [output (with-out-str
-                   (should= 0 (sut/run-fn {:_raw-args ["send" "--crew" "marvin" "--reach" "all" "--prompt" "go"]})))]
+                   (should= 0 (sut/run-fn {:_raw-args ["send" "--session-tag" "wip" "--reach" "all" "--prompt" "go"]})))]
       (should= "hail-1\n" output)
-      (should= {:crew [:marvin] :reach :all}
+      (should= {:session-tags #{:wip} :reach :all}
                (:frequency (sut/read-pending "hail-1")))))
 
   (it "reads a whole hail record from stdin as JSON when --from-json is given"
@@ -111,7 +104,7 @@
   (it "rejects direct addressing without a prompt"
     (let [err* (java.io.StringWriter.)]
       (binding [*err* err*]
-        (should= 1 (sut/run-fn {:_raw-args ["send" "--crew" "marvin" "--payload" "{:n 1}"]})))
+        (should= 1 (sut/run-fn {:_raw-args ["send" "--session-tag" "wip" "--payload" "{:n 1}"]})))
       (let [err (str err*)]
         (should (.contains err "--prompt")))))
 

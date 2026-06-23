@@ -8,21 +8,21 @@ Feature: Hail-driven session spawning (get-or-create)
                                     is ever created.
     :spawn-session true            - MATCH-OR-CREATE. An existing matching
                                     session -> deliver to it; none -> create one
-                                    under a matching crew, apply the hail's
-                                    :session-tags, deliver. (One-line:
+                                    under the resolved processing crew, apply the
+                                    hail's :session-tags, deliver. (One-line:
                                     ":spawn-session = create the addressed
                                     session if it doesn't exist.")
 
   Two phases:
-  - Router (features/hail/router.feature): a spawn-enabled reach-one with a
-    matching crew but no session emits an unbound spawn delivery instead of
-    undeliverable. With no resolvable host crew -> undeliverable :no-host.
+  - Router (features/hail/router.feature): a spawn-enabled reach-one with no
+    matching session emits a spawn delivery with the resolved processing crew
+    already set (:crew from hail -> band -> cfg-default/main).
   - Delivery worker (features/hail/delivery.feature): treats a spawn-enabled
     delivery as live get-or-create each tick. An existing matching session
     that is idle -> bind; busy -> wait (never a sibling — preserves the
-    crew's context); none -> spawn under a matching crew (first by id, only
-    if it has :max-in-flight capacity), tagging the session with the hail's
-    :session-tags and marking :origin {:kind :hail ...}.
+    crew's context); none -> spawn under the delivery's resolved :crew,
+    tagging the session with the hail's :session-tags and marking
+    :origin {:kind :hail ...}.
 
   Spawn is reach-one only; :reach :all never spawns. Default :spawn-session is
   false.
@@ -31,7 +31,7 @@ Feature: Hail-driven session spawning (get-or-create)
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
-  Scenario: spawn-enabled reach-one with a matching crew but no session yields a spawn delivery
+  Scenario: spawn-enabled reach-one with no matching session yields a spawn delivery
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value             |
       | model | grover            |
@@ -39,7 +39,6 @@ Feature: Hail-driven session spawning (get-or-create)
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path                        | value                 |
       | id                          | hail-1                |
-      | frequency.crew-tags         | #{:role/engineer}     |
       | frequency.session-tags      | #{:project/warp-coil} |
       | frequency.reach             | :one                  |
       | frequency.spawn-session     | true                  |
@@ -49,24 +48,24 @@ Feature: Hail-driven session spawning (get-or-create)
     Then the isaac file "hail/pending/hail-1.edn" does not exist
     And the isaac file "hail/undeliverable/hail-1.edn" does not exist
     And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
-      | path                          | value  | #comment                        |
-      | hail.id                       | hail-1 |                                 |
-      | hail.frequency.spawn-session  | true   | spawn-eligible, unbound         |
-      | crew                          |        | nil — worker will get-or-create |
-      | session                       |        | nil                             |
+      | path                         | value  | #comment                              |
+      | hail.id                      | hail-1 |                                       |
+      | hail.frequency.spawn-session | true   | spawn-eligible, unbound               |
+      | crew                         | main   | resolved at router time (cfg default) |
+      | session                      |        | nil                                   |
 
-  Scenario: without spawn-session, a matching crew with no session is undeliverable
+  Scenario: without spawn-session, no matching session is undeliverable
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value             |
       | model | grover            |
       | tags  | #{:role/engineer} |
     And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path                | value               |
-      | id                  | hail-1              |
-      | frequency.crew-tags | #{:role/engineer}   |
-      | frequency.reach     | :one                |
-      | prompt              | Resonance climbing. |
-      | from                | :cli                |
+      | path                    | value                 |
+      | id                      | hail-1                |
+      | frequency.session-tags  | #{:project/warp-coil} |
+      | frequency.reach         | :one                  |
+      | prompt                  | Resonance climbing.   |
+      | from                    | :cli                  |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
     And the isaac file "hail/deliveries/delivery-1.edn" does not exist
@@ -74,23 +73,6 @@ Feature: Hail-driven session spawning (get-or-create)
       | path    | value          | #comment                        |
       | hail.id | hail-1         |                                 |
       | reason  | :no-recipients | spawn off — no existing session |
-
-  Scenario: spawn-session with session-tags but no crew to host is undeliverable
-    Given the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path                        | value                 |
-      | id                          | hail-1                |
-      | frequency.session-tags      | #{:project/warp-coil} |
-      | frequency.reach             | :one                  |
-      | frequency.spawn-session     | true                  |
-      | prompt                      | Resonance climbing.   |
-      | from                        | :cli                  |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/delivery-1.edn" does not exist
-    And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
-      | path    | value    | #comment                                   |
-      | hail.id | hail-1   |                                            |
-      | reason  | :no-host | spawn requested, no crew to host a session |
 
   Scenario: a spawn delivery with no existing session creates a tagged session and dispatches
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
@@ -103,8 +85,8 @@ Feature: Hail-driven session spawning (get-or-create)
     And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
       | path                             | value                 |
       | id                               | delivery-1            |
+      | crew                             | :bartholomew          |
       | hail.id                          | hail-1                |
-      | hail.frequency.crew-tags         | #{:role/engineer}     |
       | hail.frequency.session-tags      | #{:project/warp-coil} |
       | hail.frequency.reach             | :one                  |
       | hail.frequency.spawn-session     | true                  |
@@ -139,8 +121,8 @@ Feature: Hail-driven session spawning (get-or-create)
     And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
       | path                             | value                 |
       | id                               | delivery-1            |
+      | crew                             | :main                 |
       | hail.id                          | hail-1                |
-      | hail.frequency.crew-tags         | #{:role/engineer}     |
       | hail.frequency.session-tags      | #{:project/warp-coil} |
       | hail.frequency.reach             | :one                  |
       | hail.frequency.spawn-session     | true                  |
@@ -170,8 +152,8 @@ Feature: Hail-driven session spawning (get-or-create)
     And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
       | path                             | value                 |
       | id                               | delivery-1            |
+      | crew                             | :main                 |
       | hail.id                          | hail-1                |
-      | hail.frequency.crew-tags         | #{:role/engineer}     |
       | hail.frequency.session-tags      | #{:project/warp-coil} |
       | hail.frequency.reach             | :one                  |
       | hail.frequency.spawn-session     | true                  |
@@ -184,7 +166,7 @@ Feature: Hail-driven session spawning (get-or-create)
       | id       | delivery-1 | matching session busy — wait, don't spawn a sibling |
       | attempts | 0          |                                                     |
 
-  Scenario: a spawn delivery waits when the only matching crew is at capacity
+  Scenario: a spawn delivery waits when the resolved processing crew is at capacity
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path          | value             |
       | model         | grover            |
@@ -197,8 +179,8 @@ Feature: Hail-driven session spawning (get-or-create)
     And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
       | path                             | value                 |
       | id                               | delivery-1            |
+      | crew                             | :bartholomew          |
       | hail.id                          | hail-1                |
-      | hail.frequency.crew-tags         | #{:role/engineer}     |
       | hail.frequency.session-tags      | #{:project/warp-coil} |
       | hail.frequency.reach             | :one                  |
       | hail.frequency.spawn-session     | true                  |

@@ -67,7 +67,7 @@
 
   (it "returns 400 with a structured error when direct addressing omits prompt"
     (let [response (sut/handler (post-request "application/json"
-                                              "{\"frequency\":{\"crew\":[\"marvin\"]}}"))
+                                              "{\"frequency\":{\"session-tags\":[\"wip\"]}}"))
           body     (json/parse-string (:body response) true)]
       (should= 400 (:status response))
       (should= "missing prompt" (:error body))

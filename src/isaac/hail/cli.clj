@@ -14,11 +14,8 @@
 (def ^:private send-option-spec
   [["-h" "--help" "Show help"]
    [nil "--band NAME" "Band name"]
-   [nil "--crew ID" "Crew id (repeatable)"
-    :assoc-fn (fn [m k v] (update m k (fnil conj []) v))]
+   [nil "--crew ID" "Processing crew override"]
    [nil "--session ID" "Session id (repeatable)"
-    :assoc-fn (fn [m k v] (update m k (fnil conj []) v))]
-   [nil "--crew-tag TAG" "Crew tag (repeatable)"
     :assoc-fn (fn [m k v] (update m k (fnil conj []) v))]
    [nil "--session-tag TAG" "Session tag (repeatable)"
     :assoc-fn (fn [m k v] (update m k (fnil conj []) v))]
@@ -42,9 +39,8 @@
        "Options:\n"
        "  -h, --help                 Show help\n"
        "      --band NAME            Band name\n"
-       "      --crew ID              Crew id (repeatable)\n"
+       "      --crew ID              Processing crew override\n"
        "      --session ID           Session id (repeatable)\n"
-       "      --crew-tag TAG         Crew tag (repeatable)\n"
        "      --session-tag TAG      Session tag (repeatable)\n"
        "      --reach MODE           Reach mode (:one or :all) for direct/tag addressing\n"
        "      --prompt TEXT          Prompt for direct/tag-addressed hails\n"
@@ -72,20 +68,18 @@
 
 (defn- direct-addressing? [frequency]
   (boolean (some #(contains? frequency %)
-                 [:crew :session :crew-tags :session-tags])))
+                 [:session :session-tags])))
 
 (defn- has-addressing? [frequency]
   (boolean (some #(contains? frequency %)
-                 [:band :crew :session :crew-tags :session-tags])))
+                 [:band :session :session-tags])))
 
 (defn- frequency-from-options [options]
   (cond-> {}
-    (:band options)         (assoc :band (:band options))
-    (:crew options)         (assoc :crew (keywordize* (:crew options)))
-    (:session options)      (assoc :session (keywordize* (:session options)))
-    (:crew-tag options)     (assoc :crew-tags (keyword-set* (:crew-tag options)))
-    (:session-tag options)  (assoc :session-tags (keyword-set* (:session-tag options)))
-    (:reach options)        (assoc :reach (keyword (:reach options)))))
+    (:band options)        (assoc :band (:band options))
+    (:session options)     (assoc :session (keywordize* (:session options)))
+    (:session-tag options) (assoc :session-tags (keyword-set* (:session-tag options)))
+    (:reach options)       (assoc :reach (keyword (:reach options)))))
 
 (defn- parse-whole-hail [options]
   (let [text (or (slurp-stdin) "{}")]
@@ -144,6 +138,7 @@
     (assoc (parse-whole-hail options) :from :cli)
     (cond-> {:frequency (frequency-from-options options)
              :from      :cli}
+      (:crew options)    (assoc :crew (keyword (:crew options)))
       (:prompt options)  (assoc :prompt (:prompt options))
       (:payload options) (assoc :payload (if (= "-" (:payload options))
                                            (read-edn (or (slurp-stdin) "nil"))

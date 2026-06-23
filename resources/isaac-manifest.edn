@@ -31,17 +31,17 @@
      :schema
      {:addressing
       {:type :ignore,
-       :description "Derived: bands must address crews or sessions",
+       :description "Derived: bands must address sessions",
        :validations
-       [[:requires-any? :crew :crew-tags :session :session-tags]]},
+       [[:requires-any? :session :session-tags]]},
       :crew
-      {:type :seq,
-       :description "Explicit crew ids eligible for the band",
-       :spec {:type :string}},
+      {:type :string,
+       :description "Default processing crew for hails on this band",
+       :validations [[:nil-or? [:crew-exists?]]]},
       :crew-tags
-      {:type :seq,
-       :description "Tags crews must carry",
-       :spec {:type :keyword}},
+      {:type :ignore,
+       :description "Retired: crew tag routing removed",
+       :validations [[:retired? "removed; use :session-tags for session routing"]]},
       :prompt
       {:type :string,
        :description "Optional companion markdown prompt for the band"},
