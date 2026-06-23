@@ -48,7 +48,7 @@ Feature: Hail delivery
       | message | user         | Seal the leak.  | resolved prompt                 |
       | message | assistant    | Sealing now.    | grover's reply — turn completed |
     # Origin framing (the autonomy preamble in the system prompt) is asserted
-    # in features/hail/spawn.feature's parent refactor (isaac-uysx), not here —
+    # in features/hail/spawn-session.feature's parent refactor (isaac-uysx), not here —
     # this bean only sets :origin {:kind :hail ...} and dispatches.
     And the isaac file "hail/deliveries/delivery-1.edn" does not exist
     And the isaac file "hail/delivered/delivery-1.edn" EDN contains:

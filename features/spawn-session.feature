@@ -1,16 +1,17 @@
 Feature: Hail-driven session spawning (get-or-create)
   A spawn-enabled reach-one hail uses get-or-create for its target session.
-  The :spawn flag is the descriptive/prescriptive toggle for the frequency's
-  tags:
+  The :spawn-session flag is the descriptive/prescriptive toggle for the
+  frequency's tags:
 
-    :spawn false (default) - tags are a read-only FILTER over existing
-                             sessions. No match -> undeliverable. Nothing is
-                             ever created.
-    :spawn true            - MATCH-OR-CREATE. An existing matching session ->
-                             deliver to it; none -> create one under a
-                             matching crew, apply the hail's :session-tags,
-                             deliver. (One-line: ":spawn = create the
-                             addressed session if it doesn't exist.")
+    :spawn-session false (default) - tags are a read-only FILTER over existing
+                                    sessions. No match -> undeliverable. Nothing
+                                    is ever created.
+    :spawn-session true            - MATCH-OR-CREATE. An existing matching
+                                    session -> deliver to it; none -> create one
+                                    under a matching crew, apply the hail's
+                                    :session-tags, deliver. (One-line:
+                                    ":spawn-session = create the addressed
+                                    session if it doesn't exist.")
 
   Two phases:
   - Router (features/hail/router.feature): a spawn-enabled reach-one with a
@@ -23,7 +24,8 @@ Feature: Hail-driven session spawning (get-or-create)
     if it has :max-in-flight capacity), tagging the session with the hail's
     :session-tags and marking :origin {:kind :hail ...}.
 
-  Spawn is reach-one only; :reach :all never spawns. Default :spawn is false.
+  Spawn is reach-one only; :reach :all never spawns. Default :spawn-session is
+  false.
 
   Background:
     Given an Isaac root at "target/test-state"
@@ -35,25 +37,25 @@ Feature: Hail-driven session spawning (get-or-create)
       | model | grover            |
       | tags  | #{:role/engineer} |
     And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path                   | value                 |
-      | id                     | hail-1                |
-      | frequency.crew-tags    | #{:role/engineer}     |
-      | frequency.session-tags | #{:project/warp-coil} |
-      | frequency.reach        | :one                  |
-      | frequency.spawn        | true                  |
-      | prompt                 | Resonance climbing.   |
-      | from                   | :cli                  |
+      | path                        | value                 |
+      | id                          | hail-1                |
+      | frequency.crew-tags         | #{:role/engineer}     |
+      | frequency.session-tags      | #{:project/warp-coil} |
+      | frequency.reach             | :one                  |
+      | frequency.spawn-session     | true                  |
+      | prompt                      | Resonance climbing.   |
+      | from                        | :cli                  |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
     And the isaac file "hail/undeliverable/hail-1.edn" does not exist
     And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
-      | path                 | value  | #comment                        |
-      | hail.id              | hail-1 |                                 |
-      | hail.frequency.spawn | true   | spawn-eligible, unbound         |
-      | crew                 |        | nil — worker will get-or-create |
-      | session              |        | nil                             |
+      | path                          | value  | #comment                        |
+      | hail.id                       | hail-1 |                                 |
+      | hail.frequency.spawn-session  | true   | spawn-eligible, unbound         |
+      | crew                          |        | nil — worker will get-or-create |
+      | session                       |        | nil                             |
 
-  Scenario: without spawn, a matching crew with no session is undeliverable
+  Scenario: without spawn-session, a matching crew with no session is undeliverable
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value             |
       | model | grover            |
@@ -73,15 +75,15 @@ Feature: Hail-driven session spawning (get-or-create)
       | hail.id | hail-1         |                                 |
       | reason  | :no-recipients | spawn off — no existing session |
 
-  Scenario: spawn with session-tags but no crew to host is undeliverable
+  Scenario: spawn-session with session-tags but no crew to host is undeliverable
     Given the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path                   | value                 |
-      | id                     | hail-1                |
-      | frequency.session-tags | #{:project/warp-coil} |
-      | frequency.reach        | :one                  |
-      | frequency.spawn        | true                  |
-      | prompt                 | Resonance climbing.   |
-      | from                   | :cli                  |
+      | path                        | value                 |
+      | id                          | hail-1                |
+      | frequency.session-tags      | #{:project/warp-coil} |
+      | frequency.reach             | :one                  |
+      | frequency.spawn-session     | true                  |
+      | prompt                      | Resonance climbing.   |
+      | from                        | :cli                  |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
     And the isaac file "hail/deliveries/delivery-1.edn" does not exist
@@ -99,15 +101,15 @@ Feature: Hail-driven session spawning (get-or-create)
       | type | content      | model  |
       | text | On the coil. | grover |
     And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
-      | path                        | value                 |
-      | id                          | delivery-1            |
-      | hail.id                     | hail-1                |
-      | hail.frequency.crew-tags    | #{:role/engineer}     |
-      | hail.frequency.session-tags | #{:project/warp-coil} |
-      | hail.frequency.reach        | :one                  |
-      | hail.frequency.spawn        | true                  |
-      | hail.prompt                 | Resonance climbing.   |
-      | attempts                    | 0                     |
+      | path                             | value                 |
+      | id                               | delivery-1            |
+      | hail.id                          | hail-1                |
+      | hail.frequency.crew-tags         | #{:role/engineer}     |
+      | hail.frequency.session-tags      | #{:project/warp-coil} |
+      | hail.frequency.reach             | :one                  |
+      | hail.frequency.spawn-session     | true                  |
+      | hail.prompt                      | Resonance climbing.   |
+      | attempts                         | 0                     |
     When the hail delivery worker ticks
     And the turn ends on session "session-1"
     Then the following sessions match:
@@ -135,15 +137,15 @@ Feature: Hail-driven session spawning (get-or-create)
       | type | content      | model  |
       | text | On the coil. | grover |
     And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
-      | path                        | value                 |
-      | id                          | delivery-1            |
-      | hail.id                     | hail-1                |
-      | hail.frequency.crew-tags    | #{:role/engineer}     |
-      | hail.frequency.session-tags | #{:project/warp-coil} |
-      | hail.frequency.reach        | :one                  |
-      | hail.frequency.spawn        | true                  |
-      | hail.prompt                 | Resonance climbing.   |
-      | attempts                    | 0                     |
+      | path                             | value                 |
+      | id                               | delivery-1            |
+      | hail.id                          | hail-1                |
+      | hail.frequency.crew-tags         | #{:role/engineer}     |
+      | hail.frequency.session-tags      | #{:project/warp-coil} |
+      | hail.frequency.reach             | :one                  |
+      | hail.frequency.spawn-session     | true                  |
+      | hail.prompt                      | Resonance climbing.   |
+      | attempts                         | 0                     |
     When the hail delivery worker ticks
     And the turn ends on session "coil-work"
     Then session "session-1" does not exist
@@ -166,15 +168,15 @@ Feature: Hail-driven session spawning (get-or-create)
       | coil-work | bartholomew | #{:project/warp-coil} |
     And session "coil-work" is in flight
     And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
-      | path                        | value                 |
-      | id                          | delivery-1            |
-      | hail.id                     | hail-1                |
-      | hail.frequency.crew-tags    | #{:role/engineer}     |
-      | hail.frequency.session-tags | #{:project/warp-coil} |
-      | hail.frequency.reach        | :one                  |
-      | hail.frequency.spawn        | true                  |
-      | hail.prompt                 | Resonance climbing.   |
-      | attempts                    | 0                     |
+      | path                             | value                 |
+      | id                               | delivery-1            |
+      | hail.id                          | hail-1                |
+      | hail.frequency.crew-tags         | #{:role/engineer}     |
+      | hail.frequency.session-tags      | #{:project/warp-coil} |
+      | hail.frequency.reach             | :one                  |
+      | hail.frequency.spawn-session     | true                  |
+      | hail.prompt                      | Resonance climbing.   |
+      | attempts                         | 0                     |
     When the hail delivery worker ticks
     Then session "session-1" does not exist
     And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
@@ -193,15 +195,15 @@ Feature: Hail-driven session spawning (get-or-create)
       | other-work | bartholomew |
     And session "other-work" is in flight
     And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
-      | path                        | value                 |
-      | id                          | delivery-1            |
-      | hail.id                     | hail-1                |
-      | hail.frequency.crew-tags    | #{:role/engineer}     |
-      | hail.frequency.session-tags | #{:project/warp-coil} |
-      | hail.frequency.reach        | :one                  |
-      | hail.frequency.spawn        | true                  |
-      | hail.prompt                 | Resonance climbing.   |
-      | attempts                    | 0                     |
+      | path                             | value                 |
+      | id                               | delivery-1            |
+      | hail.id                          | hail-1                |
+      | hail.frequency.crew-tags         | #{:role/engineer}     |
+      | hail.frequency.session-tags      | #{:project/warp-coil} |
+      | hail.frequency.reach             | :one                  |
+      | hail.frequency.spawn-session     | true                  |
+      | hail.prompt                      | Resonance climbing.   |
+      | attempts                         | 0                     |
     When the hail delivery worker ticks
     Then session "session-1" does not exist
     And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:

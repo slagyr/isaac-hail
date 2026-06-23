@@ -128,7 +128,7 @@
                                    :frequency {:crew-tags #{:role/engineer}
                                                :session-tags #{:project/warp-coil}
                                                :reach :one
-                                               :spawn true}}
+                                               :spawn-session true}}
                         :attempts 0})
       (with-redefs [isaac.drive.turn/run-turn! (fn [_] {})]
         @(first (sut/tick! {:cfg cfg :session-store session-store})))
@@ -157,7 +157,7 @@
                                          :frequency {:crew-tags #{:role/engineer}
                                                      :session-tags #{:project/warp-coil}
                                                      :reach :one
-                                                     :spawn true}}
+                                                     :spawn-session true}}
                               :attempts 0})
                             [:crew :session]))
       (should-be-nil (store/get-session session-store "session-1"))))
@@ -179,7 +179,7 @@
                             :frequency {:crew-tags #{:role/engineer}
                                         :session-tags #{:project/warp-coil}
                                         :reach :one
-                                        :spawn true}}
+                                        :spawn-session true}}
                  :attempts 0}))))
 
   (it "waits on a busy matching session for a spawn delivery and does not create a sibling"
@@ -201,7 +201,7 @@
                             :frequency {:crew-tags #{:role/engineer}
                                         :session-tags #{:project/warp-coil}
                                         :reach :one
-                                        :spawn true}}
+                                        :spawn-session true}}
                  :attempts 0}))
       (should-be-nil (store/get-session session-store "session-1"))))
 
@@ -228,7 +228,7 @@
                             :frequency {:crew-tags #{:role/engineer}
                                         :session-tags #{:project/warp-coil}
                                         :reach :one
-                                        :spawn true}}
+                                        :spawn-session true}}
                  :attempts 0}))))
 
   (it "leaves a delivery pending when its session is already in flight"

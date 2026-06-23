@@ -49,6 +49,9 @@
       {:type :keyword,
        :description "How many listeners receive the hail",
        :validations [[:one-of? :one :all]]},
+      :spawn-session
+      {:type :boolean,
+       :description "When :reach is :one and no matching session is available, start a new session (with a host crew) to handle the hail."},
       :session
       {:type :seq,
        :description "Explicit session ids eligible for the band",

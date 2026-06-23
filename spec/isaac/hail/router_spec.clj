@@ -50,7 +50,7 @@
                   :frequency {:crew-tags #{:role/engineer}
                               :session-tags #{:project/warp-coil}
                               :reach :one
-                              :spawn true}}
+                              :spawn-session true}}
           result (sut/resolve-obligations {}
                                           {:bartholomew {:tags #{:role/engineer}}}
                                           []
@@ -62,7 +62,7 @@
     (let [hail   {:id "hail-1"
                   :frequency {:session-tags #{:project/warp-coil}
                               :reach :one
-                              :spawn true}}
+                              :spawn-session true}}
           result (sut/resolve-obligations {}
                                           {}
                                           []

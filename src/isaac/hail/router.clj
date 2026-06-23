@@ -112,9 +112,9 @@
       :one))
 
 (defn effective-spawn [band hail]
-  (or (:spawn hail)
-      (get-in hail [:frequency :spawn])
-      (:spawn band)
+  (or (:spawn-session hail)
+      (get-in hail [:frequency :spawn-session])
+      (:spawn-session band)
       false))
 
 (defn- effective-filter [band hail key selector-fn]

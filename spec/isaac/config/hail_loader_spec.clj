@@ -34,6 +34,17 @@
                 :reach        :all}
                result)))
 
+  (it "conforms hail band spawn-session declarations"
+    (let [result (schema/conform (hail-band-schema)
+                                 {:crew-tags     [:role/worker]
+                                  :reach         :one
+                                  :spawn-session true})]
+      (should-not (schema/error? result))
+      (should= {:crew-tags     [:role/worker]
+                :reach         :one
+                :spawn-session true}
+               result)))
+
   (it "rejects hail bands without any addressing fields"
     (let [result (schema/conform (hail-band-schema)
                                  {:reach :one})]
