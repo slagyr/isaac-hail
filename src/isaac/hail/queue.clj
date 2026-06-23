@@ -3,7 +3,9 @@
     [clojure.edn :as edn]
     [clojure.pprint :as pprint]
     [isaac.config.loader :as loader]
+    [isaac.config.root :as root]
     [isaac.fs :as fs]
+    [isaac.nexus :as nexus]
     [isaac.naming :as naming]
     [isaac.tool.memory :as memory]))
 
@@ -12,7 +14,10 @@
     (with-out-str (pprint/pprint value))))
 
 (defn- runtime-root []
-  (or (loader/root) (throw (ex-info "hail queue requires :root" {}))))
+  (or (nexus/get :root)
+      (root/current-root)
+      (loader/root)
+      (throw (ex-info "hail queue requires :root" {}))))
 
 (defn- filesystem []
   (or (fs/instance) (throw (ex-info "hail.queue requires :fs in system" {}))))

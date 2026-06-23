@@ -1,6 +1,7 @@
 (ns isaac.hail.queue-spec
   (:require
     [clojure.string :as str]
+    [isaac.config.root :as root]
     [isaac.fs :as fs]
     [isaac.hail.queue :as sut]
     [isaac.nexus :as nexus]
@@ -65,4 +66,11 @@
 
   (it "stores the pending file at hail/pending/<id>.edn"
     (sut/send! {:frequency {:band "bean-pickup"} :from :cli})
-    (should (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"))))
+    (should (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn")))
+
+  (it "uses the CLI root binding when nexus :root is unset"
+    (let [fs* (fs/mem-fs)]
+      (nexus/-with-nexus {:fs fs*}
+        (binding [root/*root* "/target/test-state"]
+          (sut/send! {:frequency {:session-tags #{:wip}} :prompt "go" :from :cli})
+          (should (fs/exists? fs* "/target/test-state/hail/pending/hail-1.edn")))))))

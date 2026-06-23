@@ -4,6 +4,7 @@
     [clojure.pprint :as pprint]
     [clojure.set :as set]
     [isaac.config.loader :as loader]
+    [isaac.config.root :as root]
     [isaac.fs :as fs]
     [isaac.naming :as naming]
     [isaac.nexus :as nexus]
@@ -17,7 +18,10 @@
     (with-out-str (pprint/pprint value))))
 
 (defn- runtime-root []
-  (or (loader/root) (throw (ex-info "hail router requires :root" {}))))
+  (or (nexus/get :root)
+      (root/current-root)
+      (loader/root)
+      (throw (ex-info "hail router requires :root" {}))))
 
 (defn- filesystem []
   (or (fs/instance) (throw (ex-info "hail.router requires :fs in system" {}))))

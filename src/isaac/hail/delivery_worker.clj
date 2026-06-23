@@ -5,6 +5,7 @@
     [isaac.charge :as charge]
     [isaac.comm.null :as null-comm]
     [isaac.config.loader :as loader]
+    [isaac.config.root :as root]
     [isaac.drive.turn :as turn]
     [isaac.fs :as fs]
     [isaac.hail.router :as router]
@@ -36,8 +37,9 @@
 
 (defn- runtime-root [opts]
   (or (:root opts)
-      (loader/root)
       (nexus/get :root)
+      (root/current-root)
+      (loader/root)
       (throw (ex-info "hail delivery worker requires :root" {}))))
 
 (defn- filesystem []

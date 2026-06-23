@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+
+- Hail pending/delivery paths honor the CLI `--root` binding when nexus `:root` is unset (feature in-process runs).
+- Ship `isaac-manifest.edn` under `src/` so scratch feature classpaths that omit `resources/` still register hail CLI and band schema.
+
 ### Breaking
 
 - Hail routing resolves recipients by `:session` and `:session-tags` only. `:crew-tags` and crew-based session matching are removed.
