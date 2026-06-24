@@ -77,7 +77,8 @@
         (let [future* (first (sut/tick! {:cfg test-config :session-store session-store}))]
           (should-not-be-nil future*)
           @future*))
-      (should= {:kind :hail :hail-id "hail-1"} (:origin @captured))
+      (should= {:kind :hail :hail-id "hail-1" :prompt "Seal the leak."}
+               (:origin @captured))
       (should= null-comm/channel (:comm @captured))
       (should= "Seal the leak." (:input @captured))
       (should= "engine-room" (:session-key @captured))

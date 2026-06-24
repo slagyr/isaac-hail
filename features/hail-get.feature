@@ -1,11 +1,17 @@
-@wip
 Feature: Hail get and search
 
   Background:
     Given an Isaac root at "target/test-state"
 
   Scenario: hail_get tool can fetch a hail by id from any subdir
-    Given hails exist in pending/, delivered/, and failed/
+    Given the EDN isaac file "hail/delivered/hail-42.edn" exists with:
+      | path      | value                  |
+      | id        | hail-42                |
+      | prompt    | context                |
+      | params    | {:n 1}                 |
+      | thread-id | thread-1               |
+      | reply-to  | hail-parent            |
+      | sent-at   | 2026-06-23T12:00:00Z   |
     When an agent calls the hail_get tool with id "hail-42"
     Then it returns the full hail record including prompt, params, thread-id, reply-to, sent-at
 

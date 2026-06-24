@@ -35,6 +35,7 @@
         (should= "hail-1" (:id body))
         (should= "http" (:from body))
         (should= {:id        "hail-1"
+                  :thread-id "hail-1"
                   :frequency {:band "bean-pickup"}
                   :payload   {:n 1}
                   :from      :http
@@ -50,6 +51,7 @@
         (should= "application/edn" (get-in response [:headers "Content-Type"]))
         (should= "/hail/hail-1" (get-in response [:headers "Location"]))
         (should= {:id        "hail-1"
+                  :thread-id "hail-1"
                   :frequency {:band "bean-pickup"}
                   :payload   {:n 1}
                   :from      :http

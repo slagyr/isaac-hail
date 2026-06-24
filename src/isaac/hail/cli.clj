@@ -20,7 +20,10 @@
    [nil "--session-tag TAG" "Session tag (repeatable)"
     :assoc-fn (fn [m k v] (update m k (fnil conj []) v))]
    [nil "--reach MODE" "Reach mode (:one or :all) for direct/tag addressing"]
-   [nil "--prompt TEXT" "Prompt for direct/tag-addressed hails"]
+   [nil "--prompt TEXT" "Prompt override (band hails may omit when the band has a template)"]
+   [nil "--params EDN" "Band template parameters (EDN map)"]
+   [nil "--reply-to ID" "Hail id this message replies to"]
+   [nil "--thread-id ID" "Thread id (defaults to hail id or inherited from reply-to)"]
    [nil "--payload EDN" "Payload EDN, or '-' to read payload from stdin"]
    [nil "--from-json" "Read whole-hail stdin input as JSON"]
    [nil "--json" "Print the full hail record as JSON"]
@@ -138,9 +141,12 @@
     (assoc (parse-whole-hail options) :from :cli)
     (cond-> {:frequency (frequency-from-options options)
              :from      :cli}
-      (:crew options)    (assoc :crew (keyword (:crew options)))
-      (:prompt options)  (assoc :prompt (:prompt options))
-      (:payload options) (assoc :payload (if (= "-" (:payload options))
+      (:crew options)     (assoc :crew (keyword (:crew options)))
+      (:prompt options)   (assoc :prompt (:prompt options))
+      (:params options)   (assoc :params (read-edn (:params options)))
+      (:reply-to options) (assoc :reply-to (:reply-to options))
+      (:thread-id options) (assoc :thread-id (:thread-id options))
+      (:payload options)  (assoc :payload (if (= "-" (:payload options))
                                            (read-edn (or (slurp-stdin) "nil"))
                                            (read-edn (:payload options)))))))
 

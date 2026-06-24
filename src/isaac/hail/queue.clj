@@ -2,10 +2,12 @@
   (:require
     [clojure.edn :as edn]
     [clojure.pprint :as pprint]
+    [clojure.string :as str]
     [isaac.config.loader :as loader]
     [isaac.config.root :as root]
     [isaac.fs :as fs]
-    [isaac.nexus :as nexus]
+    [isaac.hail.prepare :as prepare]
+    [isaac.hail.store :as store]
     [isaac.naming :as naming]
     [isaac.tool.memory :as memory]))
 
@@ -14,9 +16,8 @@
     (with-out-str (pprint/pprint value))))
 
 (defn- runtime-root []
-  (or (nexus/get :root)
+  (or (loader/root)
       (root/current-root)
-      (loader/root)
       (throw (ex-info "hail queue requires :root" {}))))
 
 (defn- filesystem []
@@ -34,13 +35,26 @@
 (defn- naming-strategy [root fs*]
   (naming/->SequentialStrategy root "hail" "hail-" fs*))
 
+(defn- sync-hail-counter! [root fs*]
+  (let [counter-file (str root "/hail/.counter")
+        max-seq      (store/max-hail-seq root fs*)
+        current      (or (when (fs/exists? fs* counter-file)
+                           (some-> (fs/slurp fs* counter-file) str/trim parse-long))
+                         0)]
+    (when (< current max-seq)
+      (fs/mkdirs fs* (str root "/hail"))
+      (fs/spit fs* counter-file (str max-seq)))))
+
 (defn- next-id [root fs*]
+  (sync-hail-counter! root fs*)
   (naming/generate (naming-strategy root fs*)))
 
-(defn- normalize-record [record root fs*]
-  (-> record
-      (assoc :id (next-id root fs*))
-      (assoc :sent-at (str (memory/now)))))
+(defn- snapshot-config []
+  (or (when-let [root (or (loader/root) (root/current-root))]
+        (some-> (loader/load-config-result {:root root :fs (filesystem)})
+                :config))
+      (loader/snapshot "hail queue send")
+      {}))
 
 (defn- read-record [path]
   (let [fs* (filesystem)]
@@ -50,10 +64,22 @@
           (into {} (map (fn [[k v]] [(if (keyword? k) k (keyword k)) v]) record))
           record)))))
 
+(defn- finalize-record [record root fs*]
+  (let [id (-> record
+               (dissoc :id :sent-at)
+               (assoc :id (next-id root fs*))
+               prepare/default-thread-id
+               (assoc :sent-at (str (memory/now))))]
+    id))
+
 (defn send! [record]
   (let [fs*    (filesystem)
-        root (runtime-root)
-        record (normalize-record record root fs*)
+        root   (runtime-root)
+        cfg    (snapshot-config)
+        record (-> record
+                   (dissoc :id :sent-at)
+                   (prepare/enrich cfg)
+                   (finalize-record root fs*))
         path   (pending-path (:id record))
         temp   (temp-path (:id record))]
     (fs/mkdirs fs* (fs/parent path))

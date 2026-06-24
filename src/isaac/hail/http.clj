@@ -113,12 +113,22 @@
       {:error "invalid reach"
        :hint  "include direct addressing when using :reach"})))
 
+(defn- parse-params [value]
+  (cond
+    (map? value)    value
+    (nil? value)    nil
+    (string? value) (edn/read-string value)
+    :else           value))
+
 (defn- build-record [payload]
   (cond-> {:frequency (normalize-frequency (:frequency payload))
            :from      :http}
-    (contains? payload :payload) (assoc :payload (:payload payload))
-    (contains? payload :prompt)  (assoc :prompt (:prompt payload))
-    (contains? payload :crew)    (assoc :crew (->keyword (:crew payload)))))
+    (contains? payload :payload)   (assoc :payload (:payload payload))
+    (contains? payload :prompt)    (assoc :prompt (:prompt payload))
+    (contains? payload :params)    (assoc :params (parse-params (:params payload)))
+    (contains? payload :thread-id) (assoc :thread-id (:thread-id payload))
+    (contains? payload :reply-to)  (assoc :reply-to (:reply-to payload))
+    (contains? payload :crew)      (assoc :crew (->keyword (:crew payload)))))
 
 (defn handler [request]
   (let [format  (response-format request)

@@ -8,6 +8,7 @@
     [isaac.config.root :as root]
     [isaac.drive.turn :as turn]
     [isaac.fs :as fs]
+    [isaac.hail.prepare :as hail-prepare]
     [isaac.hail.router :as router]
     [isaac.logger :as log]
     [isaac.naming :as naming]
@@ -236,13 +237,25 @@
         (finish-failed! root (assoc delivery :attempts attempts))
         (log/error :hail/dead-lettered :id (:id delivery) :reason :exhausted)))))
 
+(defn- hail-origin [hail]
+  (let [hail-id (normalize-id (:id hail))]
+    (cond-> {:kind :hail :hail-id hail-id}
+      (:thread-id hail) (assoc :thread-id (normalize-id (:thread-id hail)))
+      (:reply-to hail)  (assoc :reply-to (normalize-id (:reply-to hail)))
+      (:params hail)    (assoc :params (:params hail))
+      (:prompt hail)    (assoc :prompt (:prompt hail)))))
+
+(defn- delivery-with-prompt [cfg delivery]
+  (update delivery :hail hail-prepare/render-band-prompt cfg))
+
 (defn- delivery-charge [cfg delivery]
-  (charge/build {:config      cfg
-                 :comm        null-comm/channel
-                 :guidance    hail-guidance
-                 :session-key (normalize-id (:session delivery))
-                 :input       (get-in delivery [:hail :prompt])
-                 :origin      {:kind :hail :hail-id (normalize-id (get-in delivery [:hail :id]))}}))
+  (let [hail (:hail delivery)]
+    (charge/build {:config      cfg
+                   :comm        null-comm/channel
+                   :guidance    hail-guidance
+                   :session-key (normalize-id (:session delivery))
+                   :input       (:prompt hail)
+                   :origin      (hail-origin hail)})))
 
 (defn- run-delivery! [cfg delivery]
   (let [charge (delivery-charge cfg delivery)]
@@ -253,7 +266,8 @@
 (defn- launch-delivery! [opts delivery]
   (let [cfg           (:cfg opts)
         session-store (:session-store opts)
-        root     (runtime-root opts)
+        root          (runtime-root opts)
+        delivery      (delivery-with-prompt cfg delivery)
         session-id    (normalize-id (:session delivery))
         run!          (nexus/bound-runtime-fn
                         (bound-fn []

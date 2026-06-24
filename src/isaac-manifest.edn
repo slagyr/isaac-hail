@@ -3,7 +3,8 @@
  :builtin? true,
  :factory isaac.hail.module/create-module,
  :isaac.agent/tools
- {:hail-send {:factory isaac.tool.hail/hail-send-tool-factory}},
+ {:hail-send {:factory isaac.tool.hail/hail-send-tool-factory}
+  :hail-get  {:factory isaac.tool.hail-get/hail-get-tool-factory}},
  :isaac/cli
  {:hail
   {:usage "hail <subcommand> [options]",

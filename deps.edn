@@ -64,5 +64,6 @@
                            "-s" "isaac.session.session-steps"
                            "-s" "isaac.server.server-steps"
                            "-s" "isaac.hail-steps"
+                           "-s" "isaac.hail-hlt1-steps"
                            "-t" "~slow"
                            "-t" "~wip"]}}}

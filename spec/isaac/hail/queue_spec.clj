@@ -21,6 +21,7 @@
                                :payload   {:n 1}
                                :from      :cli})]
         (should= {:id        "hail-1"
+                  :thread-id "hail-1"
                   :frequency {:band "bean-pickup"}
                   :payload   {:n 1}
                   :from      :cli
@@ -67,6 +68,25 @@
   (it "stores the pending file at hail/pending/<id>.edn"
     (sut/send! {:frequency {:band "bean-pickup"} :from :cli})
     (should (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn")))
+
+  (it "mints hail-2 when hail-1 already exists outside pending"
+    (let [fs* (nexus/get :fs)]
+      (fs/mkdirs fs* "/test/isaac/hail/delivered")
+      (fs/spit fs* "/test/isaac/hail/delivered/hail-1.edn"
+               (pr-str {:id "hail-1" :thread-id "thread-7"}))
+      (should= "hail-2" (:id (sut/send! {:frequency {:band "bean-pickup"} :from :cli})))))
+
+  (it "inherits thread-id from reply-to and defaults to the new id otherwise"
+    (let [fs* (nexus/get :fs)]
+      (fs/mkdirs fs* "/test/isaac/hail/pending")
+      (fs/spit fs* "/test/isaac/hail/pending/hail-42.edn"
+               (pr-str {:id "hail-42" :thread-id "thread-7"}))
+      (let [record (sut/send! {:frequency {:band "bean-pickup"}
+                               :reply-to  "hail-42"
+                               :from      :cli})]
+        (should= "thread-7" (:thread-id record))
+        (should= "hail-42" (:reply-to record))
+        (should= "hail-43" (:id record)))))
 
   (it "uses the CLI root binding when nexus :root is unset"
     (let [fs* (fs/mem-fs)]
