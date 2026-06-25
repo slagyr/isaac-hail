@@ -17,6 +17,7 @@
  :isaac.config/schema
  {:hail
   {:entity-dir "hail",
+   :frontmatter? true,
    :merge-root-entity? true,
    :companion {:field :prompt, :mode :optional},
    :schema
@@ -39,10 +40,6 @@
       {:type :string,
        :description "Default processing crew for hails on this band",
        :validations [[:nil-or? [:crew-exists?]]]},
-      :crew-tags
-      {:type :ignore,
-       :description "Retired: crew tag routing removed",
-       :validations [[:retired? "removed; use :session-tags for session routing"]]},
       :prompt
       {:type :string,
        :description "Optional companion markdown prompt for the band"},

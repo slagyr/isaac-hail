@@ -36,14 +36,6 @@
                 :reach        :all}
                result)))
 
-  (it "rejects retired :crew-tags"
-    (let [result (schema/conform (hail-band-schema)
-                                 {:crew-tags    [:role/worker]
-                                  :session-tags [:project/chess]
-                                  :reach        :one})]
-      (should (schema/error? result))
-      (should (.contains (pr-str (schema/message-map result)) "crew-tags"))))
-
   (it "rejects :crew as a seq"
     (let [result (schema/conform (hail-band-schema)
                                  {:crew         [:ops]
