@@ -1,20 +1,23 @@
 Feature: Hail router
   The hail router ticks on the shared scheduler, reads raw hails from
-  hail/pending/, resolves each :frequency into delivery obligations, and
-  writes one file per obligation to hail/deliveries/. Each delivery wraps
-  the original hail verbatim under :hail plus resolved addressing. reach
-  :all fans out to every match (one bound delivery each); reach :one over
-  a pool is left unbound with a frozen :candidates list for the delivery
-  worker to bind. Routing is fail-fast: a hail that cannot produce at
-  least one delivery moves to hail/undeliverable/ with a :reason. After a
-  tick every processed hail has left pending/ — to deliveries/ or
-  undeliverable/. The delivery worker (separate bean) consumes
-  hail/deliveries/.
+  hail/pending/, and resolves each :frequency by enriching the hail IN
+  PLACE with the resolved processing crew + session — keeping its id and
+  filename. A reach-one hail moves to hail/deliveries/ named by its own
+  hail id. A reach-all hail becomes a durable broadcast PARENT in
+  hail/broadcasts/ that holds the :children ids, and the router mints one
+  child delivery hail per matching session in hail/deliveries/ (each with
+  its own id, a :source-hail back-ref, and the shared :thread-id). A
+  reach-one pool of many is left unbound with a frozen :candidates list
+  for the delivery worker to bind. Routing is fail-fast: a hail that
+  cannot produce at least one delivery moves to hail/undeliverable/ with a
+  :reason. After a tick every processed hail has left pending/. The
+  delivery worker (separate bean) consumes hail/deliveries/.
 
   Background:
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
+  @wip
   Scenario: a reach-one band matching exactly one session binds immediately
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
@@ -35,14 +38,15 @@ Feature: Hail router
       | from      | :cli                           |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
-      | path           | value                          | #comment                      |
-      | hail.id        | hail-1                         | original hail nested verbatim |
-      | hail.frequency | {:band "engineering-intercom"} |                               |
-      | hail.payload   | {:dilithium-leak true}         |                               |
-      | crew           | bartholomew                    | only one engineer → bound now |
-      | session        | engine-room                    |                               |
+    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
+      | path      | value                          | #comment                      |
+      | id        | hail-1                         | same id, enriched in place    |
+      | frequency | {:band "engineering-intercom"} |                               |
+      | payload   | {:dilithium-leak true}         |                               |
+      | crew      | bartholomew                    | only one engineer → bound now |
+      | session   | engine-room                    |                               |
 
+  @wip
   Scenario: a reach-one tag pool of many is left unbound with frozen candidates
     Given the isaac EDN file "config/crew/atticus.edn" exists with:
       | path  | value            |
@@ -53,9 +57,9 @@ Feature: Hail router
       | model | grover           |
       | tags  | #{:role/command} |
     And the following sessions exist:
-      | name        | crew     | tags              |
-      | bridge      | atticus  | #{:role/command}  |
-      | first-watch | cordelia | #{:role/command}  |
+      | name        | crew     | tags             |
+      | bridge      | atticus  | #{:role/command} |
+      | first-watch | cordelia | #{:role/command} |
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                            |
       | id        | hail-1                           |
@@ -65,13 +69,14 @@ Feature: Hail router
       | from      | :cli                             |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
+    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
       | path       | value                                                                       | #comment             |
-      | hail.id    | hail-1                                                                      |                      |
+      | id         | hail-1                                                                      |                      |
       | crew       |                                                                             | unbound — nil        |
       | session    |                                                                             | unbound — nil        |
       | candidates | [{:crew :atticus :session :bridge} {:crew :cordelia :session :first-watch}] | frozen pool snapshot |
 
+  @wip
   Scenario: a hail processing-crew override beats the matched session crew
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value             |
@@ -85,20 +90,21 @@ Feature: Hail router
       | name        | crew        |
       | engine-room | bartholomew |
     And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path      | value                        |
-      | id        | hail-1                       |
-      | crew      | :marvin                      |
+      | path      | value                       |
+      | id        | hail-1                      |
+      | crew      | :marvin                     |
       | frequency | {:session [:engine-room]}   |
-      | prompt    | Override processing crew.    |
-      | from      | :cli                         |
+      | prompt    | Override processing crew.   |
+      | from      | :cli                        |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
-      | path    | value       | #comment                              |
-      | hail.id | hail-1      |                                       |
-      | crew    | marvin      | hail :crew beats session crew         |
-      | session | engine-room |                                       |
+    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
+      | path    | value       | #comment                      |
+      | id      | hail-1      |                               |
+      | crew    | marvin      | hail :crew beats session crew |
+      | session | engine-room |                               |
 
+  @wip
   Scenario: a direct session frequency binds to that exact session only
     Given the isaac EDN file "config/crew/mavis.edn" exists with:
       | path  | value              |
@@ -116,14 +122,15 @@ Feature: Hail router
       | from      | :cli                         |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
+    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
       | path    | value          | #comment             |
-      | hail.id | hail-1         |                      |
+      | id      | hail-1         |                      |
       | crew    | mavis          |                      |
       | session | charted-course | the targeted session |
-    And the isaac file "hail/deliveries/delivery-2.edn" does not exist
+    And the isaac file "hail/broadcasts/hail-1.edn" does not exist
 
-  Scenario: reach :all fans out to one bound delivery per matching session
+  @wip
+  Scenario: reach :all becomes a broadcast parent plus one child delivery per matching session
     Given the isaac EDN file "config/crew/atticus.edn" exists with:
       | path  | value            |
       | model | grover           |
@@ -145,18 +152,25 @@ Feature: Hail router
       | from      | :cli                             |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
-      | path    | value   | #comment                             |
-      | hail.id | hail-1  |                                      |
-      | crew    | atticus |                                      |
-      | session | bridge  | deliveries emitted sorted by session |
-    And the isaac file "hail/deliveries/delivery-2.edn" EDN contains:
-      | path    | value       |
-      | hail.id | hail-1      |
-      | crew    | cordelia    |
-      | session | first-watch |
-    And the isaac file "hail/deliveries/delivery-3.edn" does not exist
+    And the isaac file "hail/broadcasts/hail-1.edn" EDN contains:
+      | path     | value             | #comment                     |
+      | id       | hail-1            | durable broadcast parent     |
+      | children | [hail-2 hail-3]   | minted child delivery ids    |
+    And the isaac file "hail/deliveries/hail-2.edn" EDN contains:
+      | path        | value   | #comment                          |
+      | id          | hail-2  | child delivery, own id            |
+      | source-hail | hail-1  | back-ref to the broadcast parent  |
+      | crew        | atticus |                                   |
+      | session     | bridge  | children sorted by session        |
+    And the isaac file "hail/deliveries/hail-3.edn" EDN contains:
+      | path        | value       |
+      | id          | hail-3      |
+      | source-hail | hail-1      |
+      | crew        | cordelia    |
+      | session     | first-watch |
+    And the isaac file "hail/deliveries/hail-4.edn" does not exist
 
+  @wip
   Scenario: combined band and session-tag intersect to one bound delivery
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
@@ -167,9 +181,9 @@ Feature: Hail router
       | model | grover            |
       | tags  | #{:role/engineer} |
     And the following sessions exist:
-      | name           | crew        | tags                                      |
-      | engine-room    | bartholomew | #{:role/engineer}                         |
-      | coil-tinkering | bartholomew | #{:role/engineer :project/warp-coil}     |
+      | name           | crew        | tags                                 |
+      | engine-room    | bartholomew | #{:role/engineer}                    |
+      | coil-tinkering | bartholomew | #{:role/engineer :project/warp-coil} |
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                                                              |
       | id        | hail-1                                                             |
@@ -178,13 +192,13 @@ Feature: Hail router
       | from      | :cli                                                               |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
+    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
       | path    | value          | #comment                                   |
-      | hail.id | hail-1         |                                            |
+      | id      | hail-1         |                                            |
       | crew    | bartholomew    |                                            |
       | session | coil-tinkering | warp-coil session matched, engine-room not |
-    And the isaac file "hail/deliveries/delivery-2.edn" does not exist
 
+  @wip
   Scenario: a band processing-crew default beats the matched session crew
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
@@ -210,12 +224,13 @@ Feature: Hail router
       | from      | :cli                           |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
-      | path    | value       | #comment                    |
-      | hail.id | hail-1      |                             |
-      | crew    | cordelia    | band :crew beats session    |
-      | session | engine-room |                             |
+    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
+      | path    | value       | #comment                 |
+      | id      | hail-1      |                          |
+      | crew    | cordelia    | band :crew beats session |
+      | session | engine-room |                          |
 
+  @wip
   Scenario: processing crew defaults to :main when no override is set
     And the following sessions exist:
       | name        | crew |
@@ -223,17 +238,18 @@ Feature: Hail router
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                      |
       | id        | hail-1                     |
-      | frequency | {:session [:engine-room]} |
+      | frequency | {:session [:engine-room]}  |
       | prompt    | Check the gauges.          |
       | from      | :cli                       |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/delivery-1.edn" EDN contains:
-      | path    | value       | #comment                         |
-      | hail.id | hail-1      |                                  |
-      | crew    | main        | cfg [:defaults :crew] → :main   |
-      | session | engine-room |                                  |
+    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
+      | path    | value       | #comment                       |
+      | id      | hail-1      |                                |
+      | crew    | main        | cfg [:defaults :crew] → :main  |
+      | session | engine-room |                                |
 
+  @wip
   Scenario: an unknown band moves the hail to undeliverable
     Given the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                  | #comment                               |
@@ -243,22 +259,22 @@ Feature: Hail router
       | from      | :cli                   |                                        |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/delivery-1.edn" does not exist
     And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
-      | path           | value                  | #comment                  |
-      | hail.id        | hail-1                 | original hail preserved   |
-      | hail.frequency | {:band "phantom-band"} |                           |
-      | reason         | :unknown-band          | why it couldn't be routed |
+      | path      | value                  | #comment                  |
+      | id        | hail-1                 | same id, :reason added    |
+      | frequency | {:band "phantom-band"} |                           |
+      | reason    | :unknown-band          | why it couldn't be routed |
 
+  @wip
   Scenario: a reach-one band with no matching session moves the hail to undeliverable
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
       | session-tags | #{:role/engineer} |
       | reach        | :one              |
     And the isaac EDN file "config/crew/hieronymus.edn" exists with:
-      | path  | value             | #comment                       |
-      | model | grover            |                                |
-      | tags  | #{:role/botanist} | no engineer-tagged session     |
+      | path  | value             | #comment                   |
+      | model | grover            |                            |
+      | tags  | #{:role/botanist} | no engineer-tagged session |
     And the following sessions exist:
       | name       | crew       |
       | greenhouse | hieronymus |
@@ -270,12 +286,12 @@ Feature: Hail router
       | from      | :cli                           |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/delivery-1.edn" does not exist
     And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
-      | path    | value          | #comment                         |
-      | hail.id | hail-1         |                                  |
-      | reason  | :no-recipients | band exists, no engineer matched |
+      | path   | value          | #comment                         |
+      | id     | hail-1         |                                  |
+      | reason | :no-recipients | band exists, no engineer matched |
 
+  @wip
   Scenario: reach :all matching zero sessions moves the hail to undeliverable
     Given the isaac EDN file "config/crew/hieronymus.edn" exists with:
       | path  | value             |
@@ -285,19 +301,19 @@ Feature: Hail router
       | name       | crew       |
       | greenhouse | hieronymus |
     And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path      | value                            | #comment                      |
-      | id        | hail-1                           |                               |
-      | frequency | {:session-tags #{:role/command}} | no command-tagged session     |
-      | reach     | :all                             |                               |
-      | prompt    | All hands!                       |                               |
-      | from      | :cli                             |                               |
+      | path      | value                            | #comment                  |
+      | id        | hail-1                           |                           |
+      | frequency | {:session-tags #{:role/command}} | no command-tagged session |
+      | reach     | :all                             |                           |
+      | prompt    | All hands!                       |                           |
+      | from      | :cli                             |                           |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/delivery-1.edn" does not exist
+    And the isaac file "hail/broadcasts/hail-1.edn" does not exist
     And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
-      | path    | value          | #comment                    |
-      | hail.id | hail-1         |                             |
-      | reason  | :no-recipients | snapshot matched no session |
+      | path   | value          | #comment                    |
+      | id     | hail-1         |                             |
+      | reason | :no-recipients | snapshot matched no session |
 
   Scenario: the hail router tick is registered with the shared scheduler
     When the Isaac system is started

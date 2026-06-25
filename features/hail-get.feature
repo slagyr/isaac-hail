@@ -15,8 +15,9 @@ Feature: Hail get and search
     When an agent calls the hail_get tool with id "hail-42"
     Then it returns the full hail record including prompt, params, thread-id, reply-to, sent-at
 
+  @wip
   Scenario: Searching uses directory scan (no index required)
-    Given the hail directory contains sub-directories pending, deliveries, inflight, delivered, failed, undeliverable
+    Given the hail directory contains sub-directories pending, deliveries, broadcasts, inflight, delivered, failed, undeliverable
     When hail_get searches for an arbitrary id
     Then it locates the matching *.edn file by walking the sub-directories
     And no index file is read or required
@@ -57,9 +58,36 @@ Feature: Hail get and search
       | reply-to  | hail-42                                      |
       | sent-at   | 2026-06-23T12:00:00Z                         |
 
+  @wip
   Scenario: Searching uses directory scan for templated band hails (with rendered prompt and params)
-    Given the hail directory contains sub-directories pending, deliveries, inflight, delivered, failed, undeliverable
+    Given the hail directory contains sub-directories pending, deliveries, broadcasts, inflight, delivered, failed, undeliverable
     And hails from templated bands exist with rendered prompts and params in those dirs
     When hail_get searches for an arbitrary id
     Then it locates the matching *.edn file by walking the sub-directories
     And no index file is read or required
+
+  @wip
+  Scenario: hail_get on a broadcast parent returns its child ids without aggregating
+    Given the EDN isaac file "hail/broadcasts/hail-42.edn" exists with:
+      | path      | value             |
+      | id        | hail-42           |
+      | children  | [hail-43 hail-44] |
+      | thread-id | thread-1          |
+    When an agent calls the hail_get tool with id "hail-42"
+    Then it returns the hail record containing:
+      | path     | value             |
+      | id       | hail-42           |
+      | children | [hail-43 hail-44] |
+
+  @wip
+  Scenario: hail_get on a fan-out child returns its source-hail back-reference
+    Given the EDN isaac file "hail/deliveries/hail-43.edn" exists with:
+      | path        | value   |
+      | id          | hail-43 |
+      | source-hail | hail-42 |
+      | session     | bridge  |
+    When an agent calls the hail_get tool with id "hail-43"
+    Then it returns the hail record containing:
+      | path        | value   |
+      | id          | hail-43 |
+      | source-hail | hail-42 |
