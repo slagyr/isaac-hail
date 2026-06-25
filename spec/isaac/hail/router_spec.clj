@@ -18,15 +18,16 @@
     (nexus/-with-nested-nexus {:root "/test/isaac" :fs (fs/mem-fs)}
       (example)))
 
-  (it "binds a reach-one band to the only matching session"
+  (it "binds a reach-one band to the only matching session, enriching the hail in place"
     (let [result (sut/resolve-obligations test-cfg
                                           {"engineering-intercom" {:session-tags #{:role/engineer} :reach :one}}
                                           [{:id "engine-room" :crew "bartholomew" :tags #{:role/engineer}}]
                                           {:id "hail-1" :frequency {:band "engineering-intercom"}})]
-      (should= {:deliveries [{:hail     {:id "hail-1" :frequency {:band "engineering-intercom"}}
-                              :crew     :bartholomew
-                              :session  :engine-room
-                              :attempts 0}]}
+      (should= {:delivery {:id       "hail-1"
+                           :frequency {:band "engineering-intercom"}
+                           :crew     :bartholomew
+                           :session  :engine-room
+                           :attempts 0}}
                result)))
 
   (it "leaves a reach-one pool unbound with sorted candidates"
@@ -37,14 +38,14 @@
                                           {:id        "hail-1"
                                            :frequency {:session-tags #{:role/command}}
                                            :reach     :one})]
-      (should= {:deliveries [{:hail       {:id        "hail-1"
-                                           :frequency {:session-tags #{:role/command}}
-                                           :reach     :one}
-                              :crew       nil
-                              :session    nil
-                              :candidates [{:crew :atticus :session :bridge}
-                                           {:crew :cordelia :session :first-watch}]
-                              :attempts   0}]}
+      (should= {:delivery {:id         "hail-1"
+                           :frequency  {:session-tags #{:role/command}}
+                           :reach      :one
+                           :crew       nil
+                           :session    nil
+                           :candidates [{:crew :atticus :session :bridge}
+                                        {:crew :cordelia :session :first-watch}]
+                           :attempts   0}}
                result)))
 
   (it "uses a hail processing-crew override over the matched session crew"
@@ -54,12 +55,11 @@
                                           {:id        "hail-1"
                                            :crew      :marvin
                                            :frequency {:session [:engine-room]}})]
-      (should= {:deliveries [{:hail     {:id        "hail-1"
-                                         :crew      :marvin
-                                         :frequency {:session [:engine-room]}}
-                              :crew     :marvin
-                              :session  :engine-room
-                              :attempts 0}]}
+      (should= {:delivery {:id        "hail-1"
+                           :crew      :marvin
+                           :frequency {:session [:engine-room]}
+                           :session   :engine-room
+                           :attempts  0}}
                result)))
 
   (it "emits a spawn delivery with resolved crew when no session matches"
@@ -68,7 +68,7 @@
                               :reach :one
                               :spawn-session true}}
           result (sut/resolve-obligations test-cfg {} [] hail)]
-      (should= {:deliveries [{:hail hail :crew :main :session nil :attempts 0}]}
+      (should= {:delivery (assoc hail :crew :main :session nil :attempts 0)}
                result)))
 
   (it "returns unknown-band when the referenced band is missing"
@@ -76,11 +76,10 @@
                                           {}
                                           []
                                           {:id "hail-1" :frequency {:band "phantom-band"}})]
-      (should= {:undeliverable {:hail   {:id "hail-1" :frequency {:band "phantom-band"}}
-                                :reason :unknown-band}}
+      (should= {:undeliverable {:id "hail-1" :frequency {:band "phantom-band"} :reason :unknown-band}}
                result)))
 
-  (it "fans out reach-all matches in session order"
+  (it "fans reach-all into a broadcast parent plus per-session children in session order"
     (let [result (sut/resolve-obligations test-cfg
                                           {}
                                           [{:id "first-watch" :crew "cordelia" :tags #{:role/command}}
@@ -88,21 +87,12 @@
                                           {:id        "hail-1"
                                            :frequency {:session-tags #{:role/command}}
                                            :reach     :all})]
-      (should= {:deliveries [{:hail     {:id        "hail-1"
-                                         :frequency {:session-tags #{:role/command}}
-                                         :reach     :all}
-                              :crew     :atticus
-                              :session  :bridge
-                              :attempts 0}
-                             {:hail     {:id        "hail-1"
-                                         :frequency {:session-tags #{:role/command}}
-                                         :reach     :all}
-                              :crew     :cordelia
-                              :session  :first-watch
-                              :attempts 0}]}
+      (should= {:broadcast {:parent   {:id "hail-1" :frequency {:session-tags #{:role/command}} :reach :all}
+                            :children [{:crew :atticus :session :bridge}
+                                       {:crew :cordelia :session :first-watch}]}}
                result)))
 
-  (it "writes deliveries and removes the pending hail on tick"
+  (it "writes a flat delivery keeping the hail id and removes the pending hail on tick"
     (let [session-store (memory/create-store)]
       (store/open-session! session-store "engine-room" {:crew "bartholomew"})
       (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/pending")
@@ -112,14 +102,34 @@
                                   :crew {:bartholomew {:model "grover"}}}
                   :session-store session-store})
       (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"))
-      (should= {:id       "delivery-1"
-                :hail     {:id "hail-1" :frequency {:session [:engine-room]} :from :cli}
+      (should= {:id       "hail-1"
+                :frequency {:session [:engine-room]}
+                :from     :cli
                 :crew     :bartholomew
                 :session  :engine-room
                 :attempts 0}
-               (read-string (fs/slurp (nexus/get :fs) "/test/isaac/hail/deliveries/delivery-1.edn")))))
+               (read-string (fs/slurp (nexus/get :fs) "/test/isaac/hail/deliveries/hail-1.edn")))))
 
-  (it "moves no-recipient hails to undeliverable on tick"
+  (it "writes a broadcast parent plus child delivery hails on tick for reach :all"
+    (let [session-store (memory/create-store)]
+      (store/open-session! session-store "bridge" {:crew "atticus" :tags #{:role/command}})
+      (store/open-session! session-store "first-watch" {:crew "cordelia" :tags #{:role/command}})
+      (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/pending")
+      (fs/spit (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"
+               (pr-str {:id "hail-1" :frequency {:session-tags #{:role/command}} :reach :all :from :cli}))
+      (sut/tick! {:cfg           {:crew {:atticus {:tags #{:role/command}}
+                                         :cordelia {:tags #{:role/command}}}}
+                  :session-store session-store})
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"))
+      (let [parent (read-string (fs/slurp (nexus/get :fs) "/test/isaac/hail/broadcasts/hail-1.edn"))
+            child2 (read-string (fs/slurp (nexus/get :fs) "/test/isaac/hail/deliveries/hail-2.edn"))]
+        (should= "hail-1" (:id parent))
+        (should= '[hail-2 hail-3] (:children parent))
+        (should= "hail-1" (:source-hail child2))
+        (should= :atticus (:crew child2))
+        (should= :bridge (:session child2)))))
+
+  (it "moves no-recipient hails to undeliverable on tick, enriched in place"
     (let [session-store (memory/create-store)]
       (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/pending")
       (fs/spit (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"
@@ -127,8 +137,7 @@
       (sut/tick! {:cfg           {:crew {:bartholomew {:tags #{:role/engineer}}}}
                   :session-store session-store})
       (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"))
-      (should= {:hail   {:id "hail-1" :frequency {:session-tags #{:role/command}} :from :cli}
-                :reason :no-recipients}
+      (should= {:id "hail-1" :frequency {:session-tags #{:role/command}} :from :cli :reason :no-recipients}
                (read-string (fs/slurp (nexus/get :fs) "/test/isaac/hail/undeliverable/hail-1.edn")))))
 
   (it "registers the shared scheduler task"

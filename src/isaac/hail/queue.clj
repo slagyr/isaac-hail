@@ -45,7 +45,11 @@
       (fs/mkdirs fs* (str root "/hail"))
       (fs/spit fs* counter-file (str max-seq)))))
 
-(defn- next-id [root fs*]
+(defn next-id
+  "Mint the next hail id (\"hail-N\"). Syncs hail/.counter against existing
+   files first so ids are unique across every hail subdir. Shared by send!
+   and the router's reach-:all child fan-out."
+  [root fs*]
   (sync-hail-counter! root fs*)
   (naming/generate (naming-strategy root fs*)))
 

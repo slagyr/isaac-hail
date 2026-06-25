@@ -6,7 +6,7 @@
     [isaac.config.loader :as loader]
     [isaac.config.root :as root]
     [isaac.fs :as fs]
-    [isaac.naming :as naming]
+    [isaac.hail.queue :as queue]
     [isaac.nexus :as nexus]
     [isaac.scheduler.runtime :as scheduler]
     [isaac.session.store.spi :as session-store]))
@@ -35,6 +35,9 @@
 (defn- undeliverable-dir []
   (str (runtime-root) "/hail/undeliverable"))
 
+(defn- broadcasts-dir []
+  (str (runtime-root) "/hail/broadcasts"))
+
 (defn- pending-path [id]
   (str (pending-dir) "/" id ".edn"))
 
@@ -43,6 +46,9 @@
 
 (defn- undeliverable-path [id]
   (str (undeliverable-dir) "/" id ".edn"))
+
+(defn- broadcast-path [id]
+  (str (broadcasts-dir) "/" id ".edn"))
 
 (defn- temp-path [path]
   (str path ".tmp"))
@@ -72,9 +78,6 @@
            (sort-by :id)
            vec)
       [])))
-
-(defn- delivery-id [root fs*]
-  (naming/generate (naming/->SequentialStrategy root "hail/deliveries" "delivery-" fs*)))
 
 (defn normalize-id [value]
   (cond
@@ -173,15 +176,37 @@
             (sort-by :id)
             vec)})))
 
+;; ----- Obligation resolution (pure) -----
+;;
+;; An id is identity: a routed hail keeps its id and filename. resolve-obligations
+;; enriches the hail IN PLACE (flat — no :hail wrapper) and returns one of:
+;;   {:delivery flat-hail}              reach :one bound / unbound pool / spawn
+;;   {:broadcast {:parent hail
+;;                :children [{:crew :session} ...]}}  reach :all (child ids minted at write)
+;;   {:undeliverable flat-hail}         routing failure, carries :reason
+
 (defn- bound-delivery [cfg band hail session]
-  {:hail     hail
-   :crew     (effective-crew cfg band hail session)
-   :session  (state-id-value (:id session))
-   :attempts 0})
+  (assoc hail
+         :crew     (effective-crew cfg band hail session)
+         :session  (state-id-value (:id session))
+         :attempts 0))
+
+(defn- spawn-delivery [cfg band hail]
+  (assoc hail
+         :crew     (spawn-crew cfg band hail)
+         :session  nil
+         :attempts 0))
 
 (defn- candidate-entry [cfg band hail session]
   {:crew    (effective-crew cfg band hail session)
    :session (state-id-value (:id session))})
+
+(defn- unbound-delivery [cfg band hail matches]
+  (assoc hail
+         :crew       nil
+         :session    nil
+         :candidates (mapv #(candidate-entry cfg band hail %) matches)
+         :attempts   0))
 
 (defn resolve-obligations [cfg bands sessions hail]
   (let [band-name    (get-in hail [:frequency :band])
@@ -192,39 +217,48 @@
         matches      (:sessions match-result)]
     (cond
       (:reason match-result)
-      {:undeliverable {:hail hail :reason (:reason match-result)}}
+      {:undeliverable (assoc hail :reason (:reason match-result))}
 
       (empty? matches)
       (if (and spawn? (= :one reach))
-        {:deliveries [{:hail     hail
-                       :crew     (spawn-crew cfg band hail)
-                       :session  nil
-                       :attempts 0}]}
-        {:undeliverable {:hail hail :reason :no-recipients}})
+        {:delivery (spawn-delivery cfg band hail)}
+        {:undeliverable (assoc hail :reason :no-recipients)})
 
       (= :all reach)
-      {:deliveries (mapv #(bound-delivery cfg band hail %) matches)}
+      {:broadcast {:parent   hail
+                   :children (mapv #(candidate-entry cfg band hail %) matches)}}
 
       (= 1 (count matches))
-      {:deliveries [(bound-delivery cfg band hail (first matches))]}
+      {:delivery (bound-delivery cfg band hail (first matches))}
 
       :else
-      {:deliveries [{:hail       hail
-                     :crew       nil
-                     :session    nil
-                     :candidates (mapv #(candidate-entry cfg band hail %) matches)
-                     :attempts   0}]})))
+      {:delivery (unbound-delivery cfg band hail matches)})))
 
-(defn- write-deliveries! [root fs* hail deliveries]
-  (doseq [delivery deliveries]
-    (let [id       (delivery-id root fs*)
-          delivery (assoc delivery :id id)]
-      (write-record! (delivery-path id) delivery)))
+;; ----- Write phase (moves the hail file by lifecycle stage) -----
+
+(defn- write-delivery! [delivery]
+  (write-record! (delivery-path (:id delivery)) delivery)
+  (delete-pending! (:id delivery)))
+
+(defn- write-undeliverable! [hail]
+  (write-record! (undeliverable-path (:id hail)) hail)
   (delete-pending! (:id hail)))
 
-(defn- write-undeliverable! [hail record]
-  (write-record! (undeliverable-path (:id hail)) record)
-  (delete-pending! (:id hail)))
+(defn- write-broadcast! [root fs* parent child-addrs]
+  (let [parent-id (:id parent)
+        children  (mapv (fn [addr]
+                          (assoc parent
+                                 :id          (queue/next-id root fs*)
+                                 :source-hail parent-id
+                                 :crew        (:crew addr)
+                                 :session     (:session addr)
+                                 :attempts    0))
+                        child-addrs)]
+    (doseq [child children]
+      (write-record! (delivery-path (:id child)) child))
+    (write-record! (broadcast-path parent-id)
+                   (assoc parent :children (mapv (comp symbol :id) children)))
+    (delete-pending! parent-id)))
 
 (defn tick!
   [{:keys [cfg root] :as opts}]
@@ -237,12 +271,13 @@
         bands          (:hail cfg)
         sessions       (session-store/list-sessions session-store*)]
     (doseq [hail (list-pending)]
-      (let [{:keys [deliveries undeliverable]}
+      (let [{:keys [delivery broadcast undeliverable]}
             (resolve-obligations cfg bands sessions hail)]
         (cond
-          (seq deliveries)       (write-deliveries! root fs* hail deliveries)
-          undeliverable          (write-undeliverable! hail undeliverable)
-          :else                  (write-undeliverable! hail {:hail hail :reason :no-recipients}))))))
+          delivery      (write-delivery! delivery)
+          broadcast     (write-broadcast! root fs* (:parent broadcast) (:children broadcast))
+          undeliverable (write-undeliverable! undeliverable)
+          :else         (write-undeliverable! (assoc hail :reason :no-recipients)))))))
 
 (defn start!
   [{:keys [tick-ms]

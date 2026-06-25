@@ -16,20 +16,19 @@ Feature: Hail-delivered slash-like commands
     And the following model responses are queued:
       | type | content                | model  |
       | text | Acknowledged, Captain. | grover |
-    And the isaac EDN file hail/deliveries/delivery-1.edn exists with:
-      | path        | value                   |
-      | id          | delivery-1              |
-      | hail.id     | hail-1                  |
-      | hail.prompt | /prune dilithium-orchid |
-      | crew        | hieronymus              |
-      | session     | greenhouse              |
-      | attempts    | 0                       |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path     | value                   |
+      | id       | hail-1                  |
+      | prompt   | /prune dilithium-orchid |
+      | crew     | hieronymus              |
+      | session  | greenhouse              |
+      | attempts | 0                       |
     When the hail delivery worker ticks
     And the turn ends on session "greenhouse"
     Then session "greenhouse" has transcript matching:
       | type    | message.role | message.content         |
       | message | user         | /prune dilithium-orchid |
-    And the isaac file "hail/deliveries/delivery-1.edn" does not exist
-    And the isaac file "hail/delivered/delivery-1.edn" EDN contains:
-      | path | value      |
-      | id   | delivery-1 |
+    And the isaac file "hail/deliveries/hail-1.edn" does not exist
+    And the isaac file "hail/delivered/hail-1.edn" EDN contains:
+      | path | value  |
+      | id   | hail-1 |

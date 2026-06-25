@@ -6,7 +6,7 @@
 
 (def hail-subdirs
   "Subdirectories under <root>/hail/ scanned by find-by-id."
-  ["pending" "deliveries" "inflight" "delivered" "failed" "undeliverable"])
+  ["pending" "deliveries" "inflight" "delivered" "failed" "undeliverable" "broadcasts"])
 
 (defn- runtime-root []
   (or (loader/root) (throw (ex-info "hail store requires :root" {}))))

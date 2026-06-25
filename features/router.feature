@@ -17,7 +17,6 @@ Feature: Hail router
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
-  @wip
   Scenario: a reach-one band matching exactly one session binds immediately
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
@@ -46,7 +45,6 @@ Feature: Hail router
       | crew      | bartholomew                    | only one engineer → bound now |
       | session   | engine-room                    |                               |
 
-  @wip
   Scenario: a reach-one tag pool of many is left unbound with frozen candidates
     Given the isaac EDN file "config/crew/atticus.edn" exists with:
       | path  | value            |
@@ -76,7 +74,6 @@ Feature: Hail router
       | session    |                                                                             | unbound — nil        |
       | candidates | [{:crew :atticus :session :bridge} {:crew :cordelia :session :first-watch}] | frozen pool snapshot |
 
-  @wip
   Scenario: a hail processing-crew override beats the matched session crew
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value             |
@@ -104,7 +101,6 @@ Feature: Hail router
       | crew    | marvin      | hail :crew beats session crew |
       | session | engine-room |                               |
 
-  @wip
   Scenario: a direct session frequency binds to that exact session only
     Given the isaac EDN file "config/crew/mavis.edn" exists with:
       | path  | value              |
@@ -129,7 +125,6 @@ Feature: Hail router
       | session | charted-course | the targeted session |
     And the isaac file "hail/broadcasts/hail-1.edn" does not exist
 
-  @wip
   Scenario: reach :all becomes a broadcast parent plus one child delivery per matching session
     Given the isaac EDN file "config/crew/atticus.edn" exists with:
       | path  | value            |
@@ -170,7 +165,6 @@ Feature: Hail router
       | session     | first-watch |
     And the isaac file "hail/deliveries/hail-4.edn" does not exist
 
-  @wip
   Scenario: combined band and session-tag intersect to one bound delivery
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
@@ -198,7 +192,6 @@ Feature: Hail router
       | crew    | bartholomew    |                                            |
       | session | coil-tinkering | warp-coil session matched, engine-room not |
 
-  @wip
   Scenario: a band processing-crew default beats the matched session crew
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
@@ -230,7 +223,6 @@ Feature: Hail router
       | crew    | cordelia    | band :crew beats session |
       | session | engine-room |                          |
 
-  @wip
   Scenario: processing crew defaults to :main when no override is set
     And the following sessions exist:
       | name        | crew |
@@ -249,7 +241,6 @@ Feature: Hail router
       | crew    | main        | cfg [:defaults :crew] → :main  |
       | session | engine-room |                                |
 
-  @wip
   Scenario: an unknown band moves the hail to undeliverable
     Given the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                  | #comment                               |
@@ -265,7 +256,6 @@ Feature: Hail router
       | frequency | {:band "phantom-band"} |                           |
       | reason    | :unknown-band          | why it couldn't be routed |
 
-  @wip
   Scenario: a reach-one band with no matching session moves the hail to undeliverable
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
@@ -291,7 +281,6 @@ Feature: Hail router
       | id     | hail-1         |                                  |
       | reason | :no-recipients | band exists, no engineer matched |
 
-  @wip
   Scenario: reach :all matching zero sessions moves the hail to undeliverable
     Given the isaac EDN file "config/crew/hieronymus.edn" exists with:
       | path  | value             |

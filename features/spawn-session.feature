@@ -32,7 +32,6 @@ Feature: Hail-driven session spawning (get-or-create)
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
-  @wip
   Scenario: spawn-enabled reach-one with no matching session yields a spawn delivery
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value             |
@@ -56,7 +55,6 @@ Feature: Hail-driven session spawning (get-or-create)
       | crew                    | main   | resolved at router time (cfg default) |
       | session                 |        | nil                                   |
 
-  @wip
   Scenario: without spawn-session, no matching session is undeliverable
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value             |
@@ -77,7 +75,6 @@ Feature: Hail-driven session spawning (get-or-create)
       | id     | hail-1         |                                 |
       | reason | :no-recipients | spawn off — no existing session |
 
-  @wip
   Scenario: a spawn delivery with no existing session creates a tagged session and dispatches
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value             |
@@ -110,7 +107,6 @@ Feature: Hail-driven session spawning (get-or-create)
       | crew    | bartholomew |
       | session | session-1   |
 
-  @wip
   Scenario: a spawn delivery binds an existing matching session instead of spawning
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value             |
@@ -142,7 +138,6 @@ Feature: Hail-driven session spawning (get-or-create)
       | path    | value     |
       | session | coil-work |
 
-  @wip
   Scenario: a spawn delivery whose only matching session is in flight waits, no sibling
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path          | value             |
@@ -169,7 +164,6 @@ Feature: Hail-driven session spawning (get-or-create)
       | id       | hail-1 | matching session busy — wait, don't spawn a sibling |
       | attempts | 0      |                                                     |
 
-  @wip
   Scenario: a spawn delivery waits when the resolved processing crew is at capacity
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path          | value             |

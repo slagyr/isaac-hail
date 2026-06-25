@@ -58,13 +58,13 @@ Feature: Hail threading and reply-to
     When the hail router ticks
     When the hail delivery worker ticks
     And the turn ends on session "engine-room"
-    Then the EDN isaac file "hail/delivered/delivery-1.edn" contains:
-      | path           | value                                        |
-      | hail.id        | hail-1                                       |
-      | hail.prompt    | Resonance climbing on primary, drift 0.03.   |
-      | hail.params    | {:dilithium-leak true}                       |
-      | hail.thread-id | dilithium-thread-7                           |
-      | hail.reply-to  | hail-42                                      |
+    Then the EDN isaac file "hail/delivered/hail-1.edn" contains:
+      | path      | value                                        |
+      | id        | hail-1                                       |
+      | prompt    | Resonance climbing on primary, drift 0.03.   |
+      | params    | {:dilithium-leak true}                       |
+      | thread-id | dilithium-thread-7                           |
+      | reply-to  | hail-42                                      |
 
   Scenario: Thread and reply-to are carried and usable by agents (with templated context)
     Given a hail in a conversation carries :thread-id and :reply-to

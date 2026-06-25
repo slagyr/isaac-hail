@@ -24,7 +24,6 @@ Feature: Hail delivery
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
-  @wip
   Scenario: a bound delivery dispatches a turn and moves to delivered
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
@@ -54,7 +53,6 @@ Feature: Hail delivery
       | path | value  |
       | id   | hail-1 |
 
-  @wip
   Scenario: an unbound delivery binds the idle candidate over the in-flight one
     Given the isaac EDN file "config/crew/atticus.edn" exists with:
       | path  | value  |
@@ -87,7 +85,6 @@ Feature: Hail delivery
       | crew    | atticus | bound to the idle candidate        |
       | session | bridge  | first-watch was in flight, skipped |
 
-  @wip
   Scenario: a delivery to an in-flight session is left pending
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path          | value  | #comment                         |
@@ -112,7 +109,6 @@ Feature: Hail delivery
     And the isaac file "hail/inflight/hail-1.edn" does not exist
     And the isaac file "hail/delivered/hail-1.edn" does not exist
 
-  @wip
   Scenario: a delivery for an at-capacity crew is left pending
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path          | value  | #comment                         |
@@ -138,7 +134,6 @@ Feature: Hail delivery
     And the isaac file "hail/inflight/hail-1.edn" does not exist
     And the isaac file "hail/delivered/hail-1.edn" does not exist
 
-  @wip
   Scenario: the worker dispatches at most one turn per session, serializing across ticks
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path          | value  | #comment                      |
@@ -180,7 +175,6 @@ Feature: Hail delivery
       | path | value  |
       | id   | hail-2 |
 
-  @wip
   Scenario: a dispatch failure increments attempts and backs off
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
@@ -208,7 +202,6 @@ Feature: Hail delivery
     And the isaac file "hail/delivered/hail-1.edn" does not exist
     And the isaac file "hail/failed/hail-1.edn" does not exist
 
-  @wip
   Scenario: a delivery that exhausts max attempts dead-letters to failed
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
@@ -239,7 +232,6 @@ Feature: Hail delivery
       | error | :hail/dead-lettered | hail-1 | :exhausted |
     And the isaac file "hail/delivered/hail-1.edn" does not exist
 
-  @wip
   Scenario: a reach-all child delivery completes independently and leaves the broadcast parent untouched
     Given the isaac EDN file "config/crew/atticus.edn" exists with:
       | path  | value  |

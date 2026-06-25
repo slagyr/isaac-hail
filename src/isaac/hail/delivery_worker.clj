@@ -124,27 +124,33 @@
            (crew-available? cfg session-store crew-id)
            session))))
 
+;; A routed delivery file IS the hail (flat — enriched in place by the router);
+;; there is no :hail wrapper. A reach-:all child also carries :source-hail (it
+;; rides along; the worker treats the child like any other delivery).
 (defn- delivery-band [cfg delivery]
-  (when-let [band-name (get-in delivery [:hail :frequency :band])]
+  (when-let [band-name (get-in delivery [:frequency :band])]
     (get-in cfg [:hail band-name])))
 
 (defn- bind-candidate [cfg delivery session]
+  ;; Binding lands the delivery in an existing session — run it in THAT
+  ;; session's crew context. The delivery's routed :crew (a cfg-default like
+  ;; :main for an unbound/spawn delivery) must not shadow the session crew, so
+  ;; resolve as if the delivery carried no crew override.
   (let [band (delivery-band cfg delivery)]
     (-> delivery
-        (assoc :crew (router/effective-crew cfg band (:hail delivery) session)
+        (assoc :crew (router/effective-crew cfg band (dissoc delivery :crew) session)
                :session (router/state-id-value (:id session)))
         (dissoc :candidates))))
 
 (defn- spawn-delivery? [cfg delivery]
-  (let [band (delivery-band cfg delivery)
-        hail (:hail delivery)]
-    (and (= :one (router/effective-reach band hail))
-         (true? (router/effective-spawn band hail)))))
+  (let [band (delivery-band cfg delivery)]
+    (and (= :one (router/effective-reach band delivery))
+         (true? (router/effective-spawn band delivery)))))
 
 (defn- matching-spawn-sessions [cfg session-store delivery]
   (let [band     (delivery-band cfg delivery)
         sessions (store/list-sessions session-store)]
-    (:sessions (router/matching-sessions band sessions (:hail delivery)))))
+    (:sessions (router/matching-sessions band sessions delivery))))
 
 (defn- available-spawn-session [cfg session-store delivery]
   (some #(session-available? cfg session-store (normalize-id (:id %)))
@@ -156,9 +162,9 @@
     (session-ctx/create-with-resolved-behavior!
      name
      {:crew          host-crew
-      :tags          (router/normalize-tags (get-in delivery [:hail :frequency :session-tags]))
+      :tags          (router/normalize-tags (get-in delivery [:frequency :session-tags]))
       :origin        {:kind :hail
-                      :hail-id (normalize-id (get-in delivery [:hail :id]))}
+                      :hail-id (normalize-id (:id delivery))}
       :session-store session-store})))
 
 (defn- spawn-target [cfg session-store delivery]
@@ -246,16 +252,15 @@
       (:prompt hail)    (assoc :prompt (:prompt hail)))))
 
 (defn- delivery-with-prompt [cfg delivery]
-  (update delivery :hail hail-prepare/render-band-prompt cfg))
+  (hail-prepare/render-band-prompt delivery cfg))
 
 (defn- delivery-charge [cfg delivery]
-  (let [hail (:hail delivery)]
-    (charge/build {:config      cfg
-                   :comm        null-comm/channel
-                   :guidance    hail-guidance
-                   :session-key (normalize-id (:session delivery))
-                   :input       (:prompt hail)
-                   :origin      (hail-origin hail)})))
+  (charge/build {:config      cfg
+                 :comm        null-comm/channel
+                 :guidance    hail-guidance
+                 :session-key (normalize-id (:session delivery))
+                 :input       (:prompt delivery)
+                 :origin      (hail-origin delivery)}))
 
 (defn- run-delivery! [cfg delivery]
   (let [charge (delivery-charge cfg delivery)]
