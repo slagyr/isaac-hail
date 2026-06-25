@@ -74,32 +74,25 @@ Feature: Hail router
       | session    |                                                                             | unbound — nil        |
       | candidates | [{:crew :atticus :session :bridge} {:crew :cordelia :session :first-watch}] | frozen pool snapshot |
 
-  Scenario: a hail processing-crew override beats the matched session crew
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value             |
-      | model | grover            |
-      | tags  | #{:role/engineer} |
-    And the isaac EDN file "config/crew/marvin.edn" exists with:
-      | path  | value             |
-      | model | grover            |
-      | tags  | #{:role/engineer} |
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
+  Scenario: a frequency :crew selects sessions of that crew
+    Given the following sessions exist:
+      | name         | crew    |
+      | agile-voyage | main    |
+      | side-job     | marvin  |
     And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path      | value                       |
-      | id        | hail-1                      |
-      | crew      | :marvin                     |
-      | frequency | {:session [:engine-room]}   |
-      | prompt    | Override processing crew.   |
-      | from      | :cli                        |
+      | path      | value              |
+      | id        | hail-1             |
+      | frequency | {:crew "main"}     |
+      | reach     | :one               |
+      | prompt    | Work the backlog.  |
+      | from      | :cli               |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
     And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path    | value       | #comment                      |
-      | id      | hail-1      |                               |
-      | crew    | marvin      | hail :crew beats session crew |
-      | session | engine-room |                               |
+      | path    | value        | #comment                         |
+      | id      | hail-1       |                                  |
+      | crew    | main         | processing crew = session :crew |
+      | session | agile-voyage | only main-crew session matched   |
 
   Scenario: a direct session frequency binds to that exact session only
     Given the isaac EDN file "config/crew/mavis.edn" exists with:
@@ -192,23 +185,21 @@ Feature: Hail router
       | crew    | bartholomew    |                                            |
       | session | coil-tinkering | warp-coil session matched, engine-room not |
 
-  Scenario: a band processing-crew default beats the matched session crew
+  Scenario: a band :crew selects sessions whose crew matches
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
-      | path         | value             |
-      | crew         | "cordelia"        |
-      | session-tags | #{:role/engineer} |
-      | reach        | :one              |
+      | path | value        |
+      | crew | "bartholomew" |
+      | reach | :one        |
     And the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value             |
-      | model | grover            |
-      | tags  | #{:role/engineer} |
-    And the isaac EDN file "config/crew/cordelia.edn" exists with:
-      | path  | value             |
-      | model | grover            |
-      | tags  | #{:role/engineer} |
+      | path  | value  |
+      | model | grover |
+    And the isaac EDN file "config/crew/hieronymus.edn" exists with:
+      | path  | value  |
+      | model | grover |
     And the following sessions exist:
-      | name        | crew        | tags              |
-      | engine-room | bartholomew | #{:role/engineer} |
+      | name        | crew        |
+      | engine-room | bartholomew |
+      | greenhouse  | hieronymus  |
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                          |
       | id        | hail-1                         |
@@ -218,12 +209,29 @@ Feature: Hail router
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
     And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path    | value       | #comment                 |
-      | id      | hail-1      |                          |
-      | crew    | cordelia    | band :crew beats session |
-      | session | engine-room |                          |
+      | path    | value       | #comment                    |
+      | id      | hail-1      |                             |
+      | crew    | bartholomew | band :crew session selector |
+      | session | engine-room | hieronymus not selected     |
 
-  Scenario: processing crew defaults to :main when no override is set
+  Scenario: a frequency with no session selector moves the hail to undeliverable
+    Given the following sessions exist:
+      | name        | crew |
+      | engine-room | main |
+    And the isaac EDN file hail/pending/hail-1.edn exists with:
+      | path      | value           |
+      | id        | hail-1          |
+      | frequency | {:reach :one}   |
+      | prompt    | Orphan reach.   |
+      | from      | :cli            |
+    When the hail router ticks
+    Then the isaac file "hail/pending/hail-1.edn" does not exist
+    And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
+      | path   | value          | #comment                          |
+      | id     | hail-1         |                                   |
+      | reason | :no-recipients | absent selectors must not match-all |
+
+  Scenario: processing crew comes from the matched session
     And the following sessions exist:
       | name        | crew |
       | engine-room | main |
@@ -238,7 +246,7 @@ Feature: Hail router
     And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
       | path    | value       | #comment                       |
       | id      | hail-1      |                                |
-      | crew    | main        | cfg [:defaults :crew] → :main  |
+      | crew    | main        | session :crew, else cfg default  |
       | session | engine-room |                                |
 
   Scenario: an unknown band moves the hail to undeliverable

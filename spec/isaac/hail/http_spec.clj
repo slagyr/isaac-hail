@@ -65,7 +65,7 @@
       (should= 400 (:status response))
       (should= "application/json" (get-in response [:headers "Content-Type"]))
       (should= "missing frequency" (:error body))
-      (should= "include :frequency with at least one field" (:hint body))))
+      (should= "include :frequency with :band, :session, :session-tags, or :crew" (:hint body))))
 
   (it "returns 400 with a structured error when direct addressing omits prompt"
     (let [response (sut/handler (post-request "application/json"

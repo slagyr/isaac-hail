@@ -138,41 +138,54 @@
   (union-or (selector-tags (get band key))
             (selector-tags (get-in hail [:frequency key]))))
 
+(defn- crew-selector-set [value]
+  (when-let [id (id-keyword value)]
+    #{id}))
+
+(defn- effective-crew-filter [band hail]
+  (intersect-or (crew-selector-set (:crew band))
+                (crew-selector-set (get-in hail [:frequency :crew]))))
+
+(defn- has-session-selector? [session-ids session-tags crew-ids]
+  (boolean (or (seq session-ids) (seq session-tags) (seq crew-ids))))
+
 (defn effective-crew
-  "Resolve the processing crew after session match: hail :crew, band :crew,
-   session :crew, then cfg [:defaults :crew] (default :main)."
-  [cfg band hail session]
-  (or (id-keyword (:crew hail))
-      (id-keyword (:crew band))
-      (id-keyword (:crew session))
+  "Resolve the processing crew for a matched session: session :crew, then cfg
+   [:defaults :crew] (default :main)."
+  [cfg _band _hail session]
+  (or (id-keyword (:crew session))
       (id-keyword (get-in cfg [:defaults :crew]))
       :main))
 
 (defn spawn-crew
   "Resolve the processing crew for a spawn delivery (no session yet)."
-  [cfg band hail]
-  (or (id-keyword (:crew hail))
-      (id-keyword (:crew band))
-      (id-keyword (get-in cfg [:defaults :crew]))
+  [cfg _band _hail]
+  (or (id-keyword (get-in cfg [:defaults :crew]))
       :main))
 
 (defn matching-sessions [band sessions hail]
   (let [band-name    (get-in hail [:frequency :band])
         session-ids  (effective-id-filter band hail :session)
-        session-tags (effective-tag-filter band hail :session-tags)]
+        session-tags (effective-tag-filter band hail :session-tags)
+        crew-ids     (effective-crew-filter band hail)]
     (cond
       (and band-name (nil? band))
       {:reason :unknown-band}
+
+      (not (has-session-selector? session-ids session-tags crew-ids))
+      {:reason :no-recipients}
 
       :else
       {:sessions
        (->> sessions
             (filter (fn [session]
-                      (let [session-id (id-keyword (:id session))]
+                      (let [session-id (id-keyword (:id session))
+                            crew-id    (id-keyword (:crew session))]
                         (and
                           (or (nil? session-ids) (contains? session-ids session-id))
                           (or (nil? session-tags)
-                              (every? #(contains? (session-store/tags-of session) %) session-tags))))))
+                              (every? #(contains? (session-store/tags-of session) %) session-tags))
+                          (or (nil? crew-ids) (contains? crew-ids crew-id))))))
             (sort-by :id)
             vec)})))
 

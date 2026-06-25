@@ -48,5 +48,5 @@
     (let [result (schema/conform (hail-band-schema)
                                  {:reach :one})]
       (should (schema/error? result))
-      (should= {:addressing "must include at least one of :session, :session-tags"}
+      (should= {:addressing "must include at least one of :session, :session-tags, :crew"}
                (schema/message-map result)))))

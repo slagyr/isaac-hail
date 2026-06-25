@@ -84,24 +84,29 @@
     (cond-> frequency
       (:session frequency)      (update :session keywordize*)
       (:session-tags frequency) (update :session-tags keyword-set*)
-      (:reach frequency)        (update :reach ->keyword))))
+      (:reach frequency)        (update :reach ->keyword)
+      (:crew frequency)         (update :crew str))))
 
 (defn- direct-addressing? [frequency]
   (and (map? frequency)
        (boolean (some #(contains? frequency %)
-                      [:session :session-tags]))))
+                      [:session :session-tags :crew]))))
 
 (defn- has-addressing? [frequency]
   (and (map? frequency)
        (boolean (some #(contains? frequency %)
-                      [:band :session :session-tags]))))
+                      [:band :session :session-tags :crew]))))
 
 (defn- validate-record [record]
   (let [frequency (:frequency record)]
     (cond
+      (contains? record :crew)
+      {:error "invalid crew"
+       :hint  "put :crew in :frequency, not at the hail top level"}
+
       (not (has-addressing? frequency))
       {:error "missing frequency"
-       :hint  "include :frequency with at least one field"}
+       :hint  "include :frequency with :band, :session, :session-tags, or :crew"}
 
       (and (direct-addressing? frequency)
            (not (contains? frequency :band))
@@ -127,8 +132,7 @@
     (contains? payload :prompt)    (assoc :prompt (:prompt payload))
     (contains? payload :params)    (assoc :params (parse-params (:params payload)))
     (contains? payload :thread-id) (assoc :thread-id (:thread-id payload))
-    (contains? payload :reply-to)  (assoc :reply-to (:reply-to payload))
-    (contains? payload :crew)      (assoc :crew (->keyword (:crew payload)))))
+    (contains? payload :reply-to)  (assoc :reply-to (:reply-to payload))))
 
 (defn handler [request]
   (let [format  (response-format request)

@@ -14,7 +14,7 @@
 (def ^:private send-option-spec
   [["-h" "--help" "Show help"]
    [nil "--band NAME" "Band name"]
-   [nil "--crew ID" "Processing crew override"]
+   [nil "--crew ID" "Crew session selector (sessions whose :crew matches)"]
    [nil "--session ID" "Session id (repeatable)"
     :assoc-fn (fn [m k v] (update m k (fnil conj []) v))]
    [nil "--session-tag TAG" "Session tag (repeatable)"
@@ -42,7 +42,7 @@
        "Options:\n"
        "  -h, --help                 Show help\n"
        "      --band NAME            Band name\n"
-       "      --crew ID              Processing crew override\n"
+       "      --crew ID              Crew session selector\n"
        "      --session ID           Session id (repeatable)\n"
        "      --session-tag TAG      Session tag (repeatable)\n"
        "      --reach MODE           Reach mode (:one or :all) for direct/tag addressing\n"
@@ -71,15 +71,16 @@
 
 (defn- direct-addressing? [frequency]
   (boolean (some #(contains? frequency %)
-                 [:session :session-tags])))
+                 [:session :session-tags :crew])))
 
 (defn- has-addressing? [frequency]
   (boolean (some #(contains? frequency %)
-                 [:band :session :session-tags])))
+                 [:band :session :session-tags :crew])))
 
 (defn- frequency-from-options [options]
   (cond-> {}
     (:band options)        (assoc :band (:band options))
+    (:crew options)        (assoc :crew (:crew options))
     (:session options)     (assoc :session (keywordize* (:session options)))
     (:session-tag options) (assoc :session-tags (keyword-set* (:session-tag options)))
     (:reach options)       (assoc :reach (keyword (:reach options)))))
@@ -113,8 +114,11 @@
         direct?   (direct-addressing? frequency)
         band?     (contains? frequency :band)]
     (cond-> []
+      (contains? record :crew)
+      (conj "Top-level :crew is not supported; use :frequency {:crew ...}")
+
       (not (has-addressing? frequency))
-      (conj "Hail must include at least one addressing field")
+      (conj "Hail must include at least one addressing field (:band, :session, :session-tags, or :crew)")
 
       (and direct? (not band?) (str/blank? (:prompt record)))
       (conj "Direct/tag-addressed hails require :prompt")
@@ -141,7 +145,6 @@
     (assoc (parse-whole-hail options) :from :cli)
     (cond-> {:frequency (frequency-from-options options)
              :from      :cli}
-      (:crew options)     (assoc :crew (keyword (:crew options)))
       (:prompt options)   (assoc :prompt (:prompt options))
       (:params options)   (assoc :params (read-edn (:params options)))
       (:reply-to options) (assoc :reply-to (:reply-to options))

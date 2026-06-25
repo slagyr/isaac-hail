@@ -48,18 +48,30 @@
                            :attempts   0}}
                result)))
 
-  (it "uses a hail processing-crew override over the matched session crew"
+  (it "selects sessions whose :crew matches a frequency :crew selector"
+    (let [result (sut/resolve-obligations test-cfg
+                                          {}
+                                          [{:id "agile-voyage" :crew "main"}
+                                           {:id "side-job" :crew "marvin"}]
+                                          {:id        "hail-1"
+                                           :frequency {:crew "main"}
+                                           :reach     :one
+                                           :prompt    "Work"})]
+      (should= {:delivery {:id        "hail-1"
+                           :frequency {:crew "main"}
+                           :reach     :one
+                           :prompt    "Work"
+                           :crew      :main
+                           :session   :agile-voyage
+                           :attempts  0}}
+               result)))
+
+  (it "returns no-recipients when no session selector is present"
     (let [result (sut/resolve-obligations test-cfg
                                           {}
                                           [{:id "engine-room" :crew "bartholomew"}]
-                                          {:id        "hail-1"
-                                           :crew      :marvin
-                                           :frequency {:session [:engine-room]}})]
-      (should= {:delivery {:id        "hail-1"
-                           :crew      :marvin
-                           :frequency {:session [:engine-room]}
-                           :session   :engine-room
-                           :attempts  0}}
+                                          {:id "hail-1" :frequency {:reach :one}})]
+      (should= {:undeliverable {:id "hail-1" :frequency {:reach :one} :reason :no-recipients}}
                result)))
 
   (it "emits a spawn delivery with resolved crew when no session matches"

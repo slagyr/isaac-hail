@@ -52,12 +52,12 @@
                   :from      :cli}
                  (select-keys (sut/read-pending "hail-1") [:id :sent-at :frequency :from])))))
 
-  (it "accepts --crew and persists it at the hail top level"
+  (it "accepts --crew and persists it under :frequency :crew"
     (let [output (with-out-str
                    (should= 0 (sut/run-fn {:_raw-args ["send" "--crew" "marvin" "--session-tag" "wip" "--prompt" "Heads up" "--payload" "{:n 1}"]})))]
       (should= "hail-1\n" output)
-      (should= :marvin (:crew (sut/read-pending "hail-1")))
-      (should= {:session-tags #{:wip}} (:frequency (sut/read-pending "hail-1")))
+      (should= {:crew "marvin" :session-tags #{:wip}}
+               (:frequency (sut/read-pending "hail-1")))
       (should= "Heads up" (:prompt (sut/read-pending "hail-1")))))
 
   (it "accepts --session and persists it under :frequency :session"
@@ -76,12 +76,11 @@
       (should= {:session-tags #{:project/chess :wip}}
                (:frequency (sut/read-pending "hail-1")))))
 
-  (it "combines --crew with --session-tag into top-level crew and frequency routing"
+  (it "combines --crew with --session-tag into frequency selectors"
     (let [output (with-out-str
                    (should= 0 (sut/run-fn {:_raw-args ["send" "--crew" "marvin" "--session-tag" "project/chess" "--prompt" "go"]})))]
       (should= "hail-1\n" output)
-      (should= :marvin (:crew (sut/read-pending "hail-1")))
-      (should= {:session-tags #{:project/chess}}
+      (should= {:crew "marvin" :session-tags #{:project/chess}}
                (:frequency (sut/read-pending "hail-1")))))
 
   (it "accepts --reach for direct/tag addressing"

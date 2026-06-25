@@ -35,10 +35,10 @@
       {:type :ignore,
        :description "Derived: bands must address sessions",
        :validations
-       [[:requires-any? :session :session-tags]]},
+       [[:requires-any? :session :session-tags :crew]]},
       :crew
       {:type :string,
-       :description "Default processing crew for hails on this band",
+       :description "Sessions whose :crew matches this id are eligible",
        :validations [[:nil-or? [:crew-exists?]]]},
       :prompt
       {:type :string,
