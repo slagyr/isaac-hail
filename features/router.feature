@@ -317,3 +317,57 @@ Feature: Hail router
     Then the scheduled tasks include:
       | id         | trigger.kind | trigger.ms |
       | hail/route | interval     | 1000       |
+
+  # --- Conform :frequencies onto the shared session selector (isaac-c58s) ---
+  # :frequencies holds the same flat map the prompt command builds (select keys
+  # + :with-* override keys). --prefer orders the frozen reach-one candidates;
+  # --with-crew overrides the processing crew.
+
+  @wip
+  Scenario: --prefer orders the frozen candidates for a reach-one multi-match
+    Given the isaac EDN file "config/crew/atticus.edn" exists with:
+      | path  | value            |
+      | model | grover           |
+      | tags  | #{:role/command} |
+    And the isaac EDN file "config/crew/cordelia.edn" exists with:
+      | path  | value            |
+      | model | grover           |
+      | tags  | #{:role/command} |
+    And the following sessions exist:
+      | name        | crew     | tags             | updated-at          |
+      | bridge      | atticus  | #{:role/command} | 2026-04-12T15:00:00 |
+      | first-watch | cordelia | #{:role/command} | 2026-04-10T10:00:00 |
+    And the isaac EDN file hail/pending/hail-1.edn exists with:
+      | path                     | value            |
+      | id                       | hail-1           |
+      | frequencies.session-tags | #{:role/command} |
+      | frequencies.reach        | :one             |
+      | frequencies.prefer       | :oldest          |
+      | prompt                   | Status report?   |
+      | from                     | :cli             |
+    When the hail router ticks
+    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
+      | path       | value                                                                       | #comment                |
+      | candidates | [{:crew :cordelia :session :first-watch} {:crew :atticus :session :bridge}] | oldest-first by :prefer |
+
+  @wip
+  Scenario: --with-crew overrides the processing crew
+    Given the following sessions exist:
+      | name        | crew |
+      | engine-room | main |
+    And the isaac EDN file "config/crew/navigator.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the isaac EDN file hail/pending/hail-1.edn exists with:
+      | path                  | value             |
+      | id                    | hail-1            |
+      | frequencies.session   | [:engine-room]    |
+      | frequencies.with-crew | :navigator        |
+      | prompt                | Check the gauges. |
+      | from                  | :cli              |
+    When the hail router ticks
+    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
+      | path    | value       | #comment                                 |
+      | id      | hail-1      |                                          |
+      | crew    | navigator   | :with-crew override beats session's main |
+      | session | engine-room | selected by :session, unchanged          |

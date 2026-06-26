@@ -270,3 +270,38 @@ Feature: Hail delivery
     Then the scheduled tasks include:
       | id           | trigger.kind | trigger.ms |
       | hail/deliver | interval     | 1000       |
+
+  # --- Conform :frequencies onto the shared session selector (isaac-c58s) ---
+  # A :with-* override in the flat :frequencies map projects to behavioral-keys
+  # and applies to the dispatched turn, exactly like the prompt command.
+
+  @wip
+  Scenario: --with-model overrides the model on the dispatched turn
+    Given the isaac EDN file "config/models/grover2.edn" exists with:
+      | path           | value    |
+      | model          | echo-alt |
+      | provider       | grover   |
+      | context-window | 16384    |
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name      | crew        |
+      | coil-work | bartholomew |
+    And the following model responses are queued:
+      | model    | type | content |
+      | echo-alt | text | On it.  |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path                   | value               |
+      | id                     | hail-1              |
+      | crew                   | bartholomew         |
+      | session                | coil-work           |
+      | frequencies.with-model | grover2             |
+      | prompt                 | Resonance climbing. |
+      | attempts               | 0                   |
+    When the hail delivery worker ticks
+    And the turn ends on session "coil-work"
+    Then session "coil-work" has transcript matching:
+      | type    | message.role | message.model | message.content     |
+      | message | user         |               | Resonance climbing. |
+      | message | assistant    | echo-alt      | On it.              |
