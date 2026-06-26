@@ -7,6 +7,7 @@
     [isaac.config.root :as root]
     [isaac.fs :as fs]
     [isaac.hail.prepare :as prepare]
+    [isaac.hail.store :as store]
     [isaac.naming :as naming]
     [isaac.tool.memory :as memory]))
 
@@ -31,21 +32,43 @@
 (defn- temp-path [id]
   (str (pending-dir) "/" id ".tmp"))
 
-(defn- naming-strategy [_root _fs*]
-  (naming/->ShortUuidStrategy nil))
+(defn- naming-strategy-kw [cfg]
+  (let [value (get-in cfg [:hail-settings :naming-strategy])]
+    (cond (keyword? value) value
+          (string? value)  (keyword value)
+          :else            :short-uuid)))
 
-(defn next-id
-  "Mint a bare 8-hex hail id. Shared by send! and the router's reach-:all
-   child fan-out."
-  [root fs*]
-  (naming/generate (naming-strategy root fs*)))
+(defn- make-naming-strategy [cfg root fs*]
+  (case (naming-strategy-kw cfg)
+    :sequential (naming/->SequentialStrategy root "hail" "hail-" fs*)
+    :uuid       (naming/->UuidStrategy nil)
+    (naming/->ShortUuidStrategy nil)))
+
+(defn- sync-hail-counter! [root fs*]
+  (let [counter-file (str root "/hail/.counter")
+        max-seq      (store/max-hail-seq root fs*)
+        current      (or (when (fs/exists? fs* counter-file)
+                           (some-> (fs/slurp fs* counter-file) str/trim parse-long))
+                         0)]
+    (when (< current max-seq)
+      (fs/mkdirs fs* (str root "/hail"))
+      (fs/spit fs* counter-file (str max-seq)))))
 
 (defn- snapshot-config []
-  (or (when-let [root (or (loader/root) (root/current-root))]
+  (or (loader/snapshot "hail queue send")
+      (when-let [root (or (loader/root) (root/current-root))]
         (some-> (loader/load-config-result {:root root :fs (filesystem)})
                 :config))
-      (loader/snapshot "hail queue send")
       {}))
+
+(defn next-id
+  "Mint a hail id using the configured naming strategy. Shared by send! and
+   the router's reach-:all child fan-out."
+  [root fs*]
+  (let [cfg (snapshot-config)]
+    (when (= :sequential (naming-strategy-kw cfg))
+      (sync-hail-counter! root fs*))
+    (naming/generate (make-naming-strategy cfg root fs*))))
 
 (defn- read-record [path]
   (let [fs* (filesystem)]

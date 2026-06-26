@@ -15,7 +15,17 @@
    :path "/hail/send",
    :handler isaac.hail.http/handler}],
  :isaac.config/schema
- {:hail
+ {:hail-settings
+  {:schema
+   {:name :hail-settings,
+    :type :map,
+    :description "Hail queue settings",
+    :schema
+    {:naming-strategy
+     {:type :keyword,
+      :description "Hail id naming strategy: :short-uuid (default), :uuid, or :sequential",
+      :validations [[:one-of? :short-uuid :uuid :sequential]]}}}}
+  :hail
   {:entity-dir "hail",
    :frontmatter? true,
    :merge-root-entity? true,

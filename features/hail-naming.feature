@@ -1,4 +1,3 @@
-@wip
 Feature: Hail naming strategy
   Hail ids are minted from a configurable naming strategy. The default
   remains bare short-uuid, while installs may opt into full UUIDs or
