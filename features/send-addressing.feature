@@ -9,9 +9,9 @@ Feature: Hail send — direct addressing flags
   Scenario: --crew populates :crew in the frequency address map
     When isaac is run with "hail send --crew marvin --prompt 'Heads up' --payload '{:n 1}' --session-tag wip"
     Then the exit code is 0
-    And the isaac file "hail/pending/hail-1.edn" EDN contains:
+    And the sole pending hail EDN contains:
       | path      | value                                   |
-      | id        | hail-1                                  |
+      | id        | <short-uuid>                            |
       | frequency | {:crew "marvin" :session-tags #{:wip}}  |
       | prompt    | Heads up                                |
       | payload   | {:n 1}                                  |
@@ -20,9 +20,9 @@ Feature: Hail send — direct addressing flags
   Scenario: --session populates :session in the address map
     When isaac is run with "hail send --session tidy-cavern --prompt 'wake up' --payload '{:n 1}'"
     Then the exit code is 0
-    And the isaac file "hail/pending/hail-1.edn" EDN contains:
+    And the sole pending hail EDN contains:
       | path      | value                     |
-      | id        | hail-1                    |
+      | id        | <short-uuid>              |
       | frequency | {:session [:tidy-cavern]} |
       | prompt    | wake up                   |
       | payload   | {:n 1}                    |
@@ -31,9 +31,9 @@ Feature: Hail send — direct addressing flags
   Scenario: --session-tag populates :session-tags (repeatable AND-set)
     When isaac is run with "hail send --session-tag project/chess --session-tag wip --prompt 'go' --payload '{:n 1}'"
     Then the exit code is 0
-    And the isaac file "hail/pending/hail-1.edn" EDN contains:
+    And the sole pending hail EDN contains:
       | path      | value                                  |
-      | id        | hail-1                                 |
+      | id        | <short-uuid>                           |
       | frequency | {:session-tags #{:project/chess :wip}} |
       | prompt    | go                                     |
       | from      | :cli                                   |
@@ -41,9 +41,9 @@ Feature: Hail send — direct addressing flags
   Scenario: combining --crew with --session-tag sets both selectors in :frequency
     When isaac is run with "hail send --crew marvin --session-tag project/chess --prompt 'go' --payload '{:n 1}'"
     Then the exit code is 0
-    And the isaac file "hail/pending/hail-1.edn" EDN contains:
+    And the sole pending hail EDN contains:
       | path      | value                                              |
-      | id        | hail-1                                             |
+      | id        | <short-uuid>                                       |
       | frequency | {:crew "marvin" :session-tags #{:project/chess}}   |
       | prompt    | go                                                 |
       | from      | :cli                                               |
@@ -55,9 +55,9 @@ Feature: Hail send — direct addressing flags
       """
     When isaac is run with "hail send - --from-json"
     Then the exit code is 0
-    And the isaac file "hail/pending/hail-1.edn" EDN contains:
+    And the sole pending hail EDN contains:
       | path      | value                 |
-      | id        | hail-1                |
+      | id        | <short-uuid>          |
       | frequency | {:band "bean-pickup"} |
       | payload   | {:n 1}                |
       | from      | :cli                  |
@@ -72,9 +72,9 @@ Feature: Hail send — direct addressing flags
       """
     When isaac is run with "hail send -"
     Then the exit code is 0
-    And the isaac file "hail/pending/hail-1.edn" EDN contains:
+    And the sole pending hail EDN contains:
       | path      | value                                              |
-      | id        | hail-1                                             |
+      | id        | <short-uuid>                                       |
       | frequency | {:crew :marvin :session-tags #{:project/chess}}   |
       | prompt    | go                                                 |
       | payload   | {:n 1}                                             |

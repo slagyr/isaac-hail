@@ -7,11 +7,11 @@ Feature: Hail threading and reply-to
     When a crew calls hail-send with:
       | frequency | {:band "engineering-intercom" :session-tags #{:project/warp-coil}} |
       | params    | {:dilithium-leak true}                                      |
-    Then the result contains the assigned hail id "hail-1"
+    Then the assigned hail id is a bare short-uuid
     And the created hail record has:
-      | id        | hail-1 |
-      | thread-id | hail-1 |
-      | reply-to  | absent   |
+      | id        | <short-uuid> |
+      | thread-id | <short-uuid> |
+      | reply-to  | absent       |
 
   Scenario: Reply inherits thread-id from the replied-to hail
     Given an existing hail:
@@ -121,7 +121,7 @@ Feature: Hail threading and reply-to
     When the config is loaded
     When isaac is run with "hail send --band engineering-intercom --params '{:coil \"tertiary\", :drift 0.11}' --reply-to hail-1"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-2.edn" contains:
+    And the sole pending hail EDN contains:
       | path      | value                                        |
       | prompt    | Resonance climbing on tertiary, drift 0.11.  |
       | params    | {:coil "tertiary", :drift 0.11}              |

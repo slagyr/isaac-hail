@@ -1,13 +1,12 @@
 Feature: Hail send
   `isaac hail send [addressing flags] [--payload <edn>]` produces a
   hail by atomically writing an EDN record to <root>/hail/pending/.
-  The record carries an auto-generated id (counted via isaac-pctr's
-  SequentialStrategy), the address, the payload (if any), sender
-  identity, and a sent-at timestamp. This bean covers the substrate
-  (`hail.queue/send!` library function) and the `isaac hail send`
-  CLI surface. v1 supports `--band` addressing only; other addressing
-  flags (`--crew`, `--session`, `--crew-tag`, `--session-tag`) are
-  follow-up.
+  The record carries an auto-generated bare 8-hex short-uuid id, the
+  address, the payload (if any), sender identity, and a sent-at
+  timestamp. This bean covers the substrate (`hail.queue/send!` library
+  function) and the `isaac hail send` CLI surface. v1 supports `--band`
+  addressing only; other addressing flags (`--crew`, `--session`,
+  `--crew-tag`, `--session-tag`) are follow-up.
 
   Background:
     Given an Isaac root at "target/test-state"
@@ -15,22 +14,23 @@ Feature: Hail send
   Scenario: isaac hail send writes a hail record to pending/
     When isaac is run with "hail send --band bean-pickup --payload '{:n 1}'"
     Then the exit code is 0
-    And the isaac file "hail/pending/hail-1.edn" EDN contains:
+    And the sole pending hail EDN contains:
       | path      | value                 |
-      | id        | hail-1                |
+      | id        | <short-uuid>          |
       | frequency | {:band "bean-pickup"} |
       | payload   | {:n 1}                |
       | from      | :cli                  |
 
-  Scenario: each isaac hail send mints a unique sequential id
+  Scenario: each isaac hail send mints a unique short-uuid id
     When isaac is run with "hail send --band bean-pickup --payload '{:n 1}'"
     Then the exit code is 0
     When isaac is run with "hail send --band bean-pickup --payload '{:n 2}'"
     Then the exit code is 0
-    And the isaac file "hail/pending/hail-1.edn" EDN contains:
+    And pending hail ids are distinct
+    And pending hail 1 EDN contains:
       | path    | value  |
       | payload | {:n 1} |
-    And the isaac file "hail/pending/hail-2.edn" EDN contains:
+    And pending hail 2 EDN contains:
       | path    | value  |
       | payload | {:n 2} |
 
@@ -38,13 +38,13 @@ Feature: Hail send
     Given the clock is fixed at "2026-05-23T12:00:00Z"
     When isaac is run with "hail send --band bean-pickup --payload '{:n 1}'"
     Then the exit code is 0
-    And the isaac file "hail/pending/hail-1.edn" EDN contains:
+    And the sole pending hail EDN contains:
       | path    | value                |
       | sent-at | 2026-05-23T12:00:00Z |
 
   Scenario: isaac hail send prints the hail id to stdout
     When isaac is run with "hail send --band bean-pickup --payload '{:n 1}'"
-    Then the stdout contains "hail-1"
+    Then the stdout is a bare hail id
     And the exit code is 0
 
   Scenario: isaac hail send reads payload from stdin when "-" is given
@@ -54,7 +54,7 @@ Feature: Hail send
       """
     When isaac is run with "hail send --band bean-pickup --payload -"
     Then the exit code is 0
-    And the isaac file "hail/pending/hail-1.edn" EDN contains:
+    And the sole pending hail EDN contains:
       | path    | value  |
       | payload | {:n 1} |
 
@@ -62,9 +62,9 @@ Feature: Hail send
     Given the clock is fixed at "2026-05-23T12:00:00Z"
     When isaac is run with "hail send --band bean-pickup --payload '{:n 1}' --json"
     Then the exit code is 0
+    And the stdout JSON hail id is a bare short-uuid
     And the stdout JSON contains:
       | path           | value                  |
-      | id             | "hail-1"               |
       | frequency.band | "bean-pickup"          |
       | payload        | {"n": 1}               |
       | from           | "cli"                  |
@@ -74,9 +74,9 @@ Feature: Hail send
     Given the clock is fixed at "2026-05-23T12:00:00Z"
     When isaac is run with "hail send --band bean-pickup --payload '{:n 1}' --edn"
     Then the exit code is 0
+    And the stdout EDN hail id is a bare short-uuid
     And the stdout EDN contains:
       | path           | value                |
-      | id             | "hail-1"             |
       | frequency.band | "bean-pickup"        |
       | payload        | {:n 1}               |
       | sent-at        | 2026-05-23T12:00:00Z |
@@ -84,9 +84,9 @@ Feature: Hail send
   Scenario: isaac hail send works without a payload
     When isaac is run with "hail send --band bean-pickup"
     Then the exit code is 0
-    And the isaac file "hail/pending/hail-1.edn" EDN contains:
+    And the sole pending hail EDN contains:
       | path      | value                |
-      | id        | hail-1               |
+      | id        | <short-uuid>         |
       | frequency | {:band "bean-pickup"} |
       | from      | :cli                 |
 
@@ -97,9 +97,9 @@ Feature: Hail send
       """
     When isaac is run with "hail send -"
     Then the exit code is 0
-    And the isaac file "hail/pending/hail-1.edn" EDN contains:
+    And the sole pending hail EDN contains:
       | path      | value                 |
-      | id        | hail-1                |
+      | id        | <short-uuid>          |
       | frequency | {:band "bean-pickup"} |
       | payload   | {:n 1}                |
       | from      | :cli                  |

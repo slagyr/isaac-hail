@@ -8,6 +8,11 @@
     [isaac.tool.memory :as memory]
     [speclj.core :refer :all]))
 
+(def ^:private short-uuid-re #"^[0-9a-f]{8}$")
+
+(defn- short-uuid? [s]
+  (and (string? s) (re-matches short-uuid-re s)))
+
 (describe "hail.queue"
 
   #_{:clj-kondo/ignore [:unresolved-symbol]}
@@ -19,62 +24,71 @@
     (binding [memory/*now* (java.time.Instant/parse "2026-05-23T12:00:00Z")]
       (let [record (sut/send! {:frequency {:band "bean-pickup"}
                                :payload   {:n 1}
-                               :from      :cli})]
-        (should= {:id        "hail-1"
-                  :thread-id "hail-1"
+                               :from      :cli})
+            id     (:id record)]
+        (should (short-uuid? id))
+        (should= id (:thread-id record))
+        (should= {:id        id
+                  :thread-id id
                   :frequency {:band "bean-pickup"}
                   :payload   {:n 1}
                   :from      :cli
                   :sent-at   "2026-05-23T12:00:00Z"}
                  record)
-        (should= record
-                 (sut/read-pending "hail-1")))))
+        (should= record (sut/read-pending id)))))
 
-  (it "mints sequential hail ids"
-    (should= "hail-1" (:id (sut/send! {:frequency {:band "bean-pickup"} :from :cli})))
-    (should= "hail-2" (:id (sut/send! {:frequency {:band "bean-pickup"} :from :cli}))))
+  (it "mints a unique short-uuid each call"
+    (let [id1 (:id (sut/send! {:frequency {:band "bean-pickup"} :from :cli}))
+          id2 (:id (sut/send! {:frequency {:band "bean-pickup"} :from :cli}))]
+      (should (short-uuid? id1))
+      (should (short-uuid? id2))
+      (should-not= id1 id2)))
 
   (it "ignores caller-supplied id and sent-at"
     (binding [memory/*now* (java.time.Instant/parse "2026-05-23T12:00:00Z")]
       (let [record (sut/send! {:id        "spoofed"
                                :sent-at   "1999-01-01T00:00:00Z"
                                :frequency {:band "bean-pickup"}
-                               :from      :cli})]
-        (should= "hail-1" (:id record))
+                               :from      :cli})
+            id     (:id record)]
+        (should (short-uuid? id))
         (should= "2026-05-23T12:00:00Z" (:sent-at record))
-        (should= record (sut/read-pending "hail-1")))))
+        (should= record (sut/read-pending id)))))
 
   (it "writes through a temp file before moving into pending"
     (let [ops*      (atom [])
           real-spit fs/spit
-          real-move fs/move]
-      (with-redefs [fs/spit (fn [fs* path content]
-                              (swap! ops* conj [:spit path])
-                              (real-spit fs* path content))
-                    fs/move (fn [fs* source destination]
-                              (swap! ops* conj [:move source destination])
-                              (real-move fs* source destination))]
-        (sut/send! {:frequency {:band "bean-pickup"} :from :cli}))
+          real-move fs/move
+          record    (with-redefs [fs/spit (fn [fs* path content]
+                                            (swap! ops* conj [:spit path])
+                                            (real-spit fs* path content))
+                                  fs/move (fn [fs* source destination]
+                                            (swap! ops* conj [:move source destination])
+                                            (real-move fs* source destination))]
+                      (sut/send! {:frequency {:band "bean-pickup"} :from :cli}))
+          id        (:id record)]
       (let [[spit-op move-op] (filter (fn [[op path]]
                                         (or (and (= :spit op) (str/includes? path "/hail/pending/"))
                                             (and (= :move op) (str/includes? path "/hail/pending/"))))
                                       @ops*)]
         (should= :spit (first spit-op))
-        (should (not= "/test/isaac/hail/pending/hail-1.edn" (second spit-op)))
+        (should (not= (str "/test/isaac/hail/pending/" id ".edn") (second spit-op)))
         (should (.endsWith ^String (second spit-op) ".tmp"))
-        (should= [:move (second spit-op) "/test/isaac/hail/pending/hail-1.edn"] move-op)
+        (should= [:move (second spit-op) (str "/test/isaac/hail/pending/" id ".edn")] move-op)
         (should-not (fs/exists? (nexus/get :fs) (second spit-op))))))
 
   (it "stores the pending file at hail/pending/<id>.edn"
-    (sut/send! {:frequency {:band "bean-pickup"} :from :cli})
-    (should (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn")))
+    (let [id (:id (sut/send! {:frequency {:band "bean-pickup"} :from :cli}))]
+      (should (fs/exists? (nexus/get :fs) (str "/test/isaac/hail/pending/" id ".edn")))))
 
-  (it "mints hail-2 when hail-1 already exists outside pending"
+  (it "does not read or write hail/.counter when minting"
     (let [fs* (nexus/get :fs)]
       (fs/mkdirs fs* "/test/isaac/hail/delivered")
       (fs/spit fs* "/test/isaac/hail/delivered/hail-1.edn"
                (pr-str {:id "hail-1" :thread-id "thread-7"}))
-      (should= "hail-2" (:id (sut/send! {:frequency {:band "bean-pickup"} :from :cli})))))
+      (let [id (:id (sut/send! {:frequency {:band "bean-pickup"} :from :cli}))]
+        (should (short-uuid? id))
+        (should-not (fs/exists? fs* "/test/isaac/hail/.counter")))))
 
   (it "inherits thread-id from reply-to and defaults to the new id otherwise"
     (let [fs* (nexus/get :fs)]
@@ -86,11 +100,13 @@
                                :from      :cli})]
         (should= "thread-7" (:thread-id record))
         (should= "hail-42" (:reply-to record))
-        (should= "hail-43" (:id record)))))
+        (should (short-uuid? (:id record)))
+        (should-not= "hail-42" (:id record)))))
 
   (it "uses the CLI root binding when nexus :root is unset"
     (let [fs* (fs/mem-fs)]
       (nexus/-with-nexus {:fs fs*}
         (binding [root/*root* "/target/test-state"]
-          (sut/send! {:frequency {:session-tags #{:wip}} :prompt "go" :from :cli})
-          (should (fs/exists? fs* "/target/test-state/hail/pending/hail-1.edn")))))))
+          (let [id (:id (sut/send! {:frequency {:session-tags #{:wip}} :prompt "go" :from :cli}))]
+            (should (short-uuid? id))
+            (should (fs/exists? fs* (str "/target/test-state/hail/pending/" id ".edn")))))))))

@@ -9,7 +9,6 @@
     [isaac.fs :as fs]
     [isaac.hail.queue :as queue]
     [isaac.hail.store :as store]
-    [isaac.naming :as naming]
     [isaac.nexus :as nexus]
     [isaac.session.spec-helper :as session-helper]
     [isaac.session.store.memory :as memory]
@@ -94,6 +93,13 @@
 (defn- absent? [v]
   (= "absent" (str/trim (str v))))
 
+(def ^:private short-uuid-re #"^[0-9a-f]{8}$")
+(def ^:private short-uuid-sentinel "<short-uuid>")
+
+(defn- assert-short-uuid! [label value]
+  (when-not (re-matches short-uuid-re (str value))
+    (throw (ex-info (str label " must be a bare 8-hex short-uuid, got " (pr-str value)) {}))))
+
 (defn hail-band-md-containing [path content]
   (with-fs
     (fn []
@@ -144,8 +150,7 @@
     (nexus/-with-nested-nexus {:root (root-dir) :fs (mem-fs) :sessions {:store session-store}}
       (session-store/open-session! session-store "hail-sess" {:crew "main"})
       (install-config!)
-      (with-redefs [isaac.naming/generate (fn [_] "hail-123")]
-        (let [rows      (table-rows table)
+      (let [rows      (table-rows table)
               row-map   (into {} (keep (fn [r]
                                          (when-let [p (get r "path")]
                                            [p (get r "value")]))
@@ -161,7 +166,7 @@
           (put-state! :tool-result result)
           (put-state! :last-hail-id (:result result))
           (when-let [id (:result result)]
-            (put-state! :last-hail-record (store/find-by-id id))))))))
+            (put-state! :last-hail-record (store/find-by-id id)))))))
 
 (defn crew-sends-hail [table]
   (install-config!)
@@ -184,14 +189,28 @@
 (defn result-contains-assigned-hail-id [expected-id]
   (g/should= expected-id (or (get-state :last-hail-id) (:result (get-state :tool-result)))))
 
+(defn assigned-hail-id-is-bare-short-uuid []
+  (assert-short-uuid! "assigned hail id"
+                      (or (get-state :last-hail-id) (:result (get-state :tool-result)))))
+
 (defn created-hail-record-has [table]
   (let [record (or (get-state :last-hail-record) (latest-pending-hail))]
     (g/should (some? record))
     (doseq [row (table-rows table)]
       (let [path  (get row "path")
             value (get row "value")]
-        (if (absent? value)
+        (cond
+          (absent? value)
           (g/should (nil? (get record (keyword path))))
+
+          (= short-uuid-sentinel (str/trim value))
+          (case path
+            "id" (assert-short-uuid! "id" (:id record))
+            "thread-id" (do (assert-short-uuid! "thread-id" (:thread-id record))
+                            (g/should= (:id record) (:thread-id record)))
+            (throw (ex-info "unsupported <short-uuid> path" {:path path})))
+
+          :else
           (let [expected (parse-value value)
                 actual   (get record (keyword path))]
             (g/should= expected actual)))))))
@@ -324,6 +343,8 @@
 (defwhen "the turn is charged for the session" isaac.hail-hlt1-steps/turn-charged-for-session)
 
 (defthen #"the result contains the assigned hail id \"([^\"]+)\"" isaac.hail-hlt1-steps/result-contains-assigned-hail-id)
+
+(defthen "the assigned hail id is a bare short-uuid" isaac.hail-hlt1-steps/assigned-hail-id-is-bare-short-uuid)
 
 (defthen "the created hail record has:" isaac.hail-hlt1-steps/created-hail-record-has)
 

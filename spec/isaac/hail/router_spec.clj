@@ -1,5 +1,6 @@
 (ns isaac.hail.router-spec
   (:require
+    [clojure.string :as str]
     [isaac.fs :as fs]
     [isaac.hail.router :as sut]
     [isaac.nexus :as nexus]
@@ -7,6 +8,11 @@
     [isaac.session.store.spi :as store]
     [isaac.session.store.memory :as memory]
     [speclj.core :refer :all]))
+
+(def ^:private short-uuid-re #"^[0-9a-f]{8}$")
+
+(defn- short-uuid? [s]
+  (and (string? s) (re-matches short-uuid-re s)))
 
 (def ^:private test-cfg
   {:defaults {:crew "main"}})
@@ -133,13 +139,20 @@
                                          :cordelia {:tags #{:role/command}}}}
                   :session-store session-store})
       (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"))
-      (let [parent (read-string (fs/slurp (nexus/get :fs) "/test/isaac/hail/broadcasts/hail-1.edn"))
-            child2 (read-string (fs/slurp (nexus/get :fs) "/test/isaac/hail/deliveries/hail-2.edn"))]
+      (let [parent    (read-string (fs/slurp (nexus/get :fs) "/test/isaac/hail/broadcasts/hail-1.edn"))
+            child-ids (:children parent)
+            children  (mapv #(read-string (fs/slurp (nexus/get :fs)
+                                                      (str "/test/isaac/hail/deliveries/" % ".edn")))
+                            child-ids)
+            bridge    (first (filter #(= :bridge (:session %)) children))]
         (should= "hail-1" (:id parent))
-        (should= '[hail-2 hail-3] (:children parent))
-        (should= "hail-1" (:source-hail child2))
-        (should= :atticus (:crew child2))
-        (should= :bridge (:session child2)))))
+        (should= 2 (count child-ids))
+        (should= 2 (count (set child-ids)))
+        (doseq [id child-ids]
+          (should (short-uuid? id)))
+        (should= "hail-1" (:source-hail bridge))
+        (should= :atticus (:crew bridge))
+        (should= :bridge (:session bridge)))))
 
   (it "moves no-recipient hails to undeliverable on tick, enriched in place"
     (let [session-store (memory/create-store)]

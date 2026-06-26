@@ -16,13 +16,13 @@ Feature: Hail band prompt templating with params
     When the config is loaded
     When isaac is run with "hail send --band engineering-intercom --params '{:coil \"primary\", :drift 0.03}'"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And pending hail 1 EDN contains:
       | path   | value                                      |
       | prompt | Resonance climbing on primary, drift 0.03. |
       | params | {:coil "primary", :drift 0.03}             |
     When isaac is run with "hail send --band engineering-intercom --params '{:coil \"primary\", :drift 0.03}' --prompt 'Status report?'"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-2.edn" contains:
+    And pending hail 2 EDN contains:
       | path   | value                  |
       | prompt | Status report?         |
       | params | {:coil "primary", :drift 0.03} |
@@ -71,12 +71,12 @@ Feature: Hail band prompt templating with params
     When the config is loaded
     When isaac is run with "hail send --band engineering-intercom --params '{:coil \"primary\", :drift 0.03}'"
     Then the exit code is 0
-    And the stdout contains "hail-1"
-    And the EDN isaac file "hail/pending/hail-1.edn" contains:
+    And the stdout is a bare hail id
+    And the sole pending hail EDN contains:
       | path      | value                                      |
       | prompt    | Resonance climbing on primary, drift 0.03. |
       | params    | {:coil "primary", :drift 0.03}             |
-      | thread-id | hail-1                                     |
+      | thread-id | <short-uuid>                               |
 
   Scenario: An agent can use hail_get to retrieve a prior templated hail's rendered prompt and params, then send a follow-up on the thread using new params
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
@@ -104,7 +104,7 @@ Feature: Hail band prompt templating with params
     When the config is loaded
     When isaac is run with "hail send --band engineering-intercom --params '{:coil \"tertiary\", :drift 0.11}' --reply-to hail-1"
     Then the exit code is 0
-    And the EDN isaac file "hail/pending/hail-2.edn" contains:
+    And the sole pending hail EDN contains:
       | path      | value                                        |
       | prompt    | Resonance climbing on tertiary, drift 0.11.  |
       | params    | {:coil "tertiary", :drift 0.11}              |

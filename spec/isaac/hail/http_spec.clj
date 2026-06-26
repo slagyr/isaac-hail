@@ -2,6 +2,7 @@
   (:require
     [cheshire.core :as json]
     [clojure.edn :as edn]
+    [clojure.string :as str]
     [isaac.config.api :as config]
     [isaac.fs :as fs]
     [isaac.hail.http :as sut]
@@ -9,6 +10,11 @@
     [isaac.nexus :as nexus]
     [isaac.tool.memory :as memory]
     [speclj.core :refer :all]))
+
+(def ^:private short-uuid-re #"^[0-9a-f]{8}$")
+
+(defn- short-uuid? [s]
+  (and (string? s) (re-matches short-uuid-re s)))
 
 (defn- post-request [content-type body]
   {:request-method :post
@@ -28,30 +34,34 @@
     (binding [memory/*now* (java.time.Instant/parse "2026-05-24T17:00:00Z")]
       (let [response (sut/handler (post-request "application/json"
                                                 "{\"frequency\":{\"band\":\"bean-pickup\"},\"payload\":{\"n\":1}}"))
-            body     (json/parse-string (:body response) true)]
+            body     (json/parse-string (:body response) true)
+            id       (:id body)]
         (should= 201 (:status response))
         (should= "application/json" (get-in response [:headers "Content-Type"]))
-        (should= "/hail/hail-1" (get-in response [:headers "Location"]))
-        (should= "hail-1" (:id body))
+        (should (short-uuid? id))
+        (should= (str "/hail/" id) (get-in response [:headers "Location"]))
         (should= "http" (:from body))
-        (should= {:id        "hail-1"
-                  :thread-id "hail-1"
+        (should= id (:thread-id body))
+        (should= {:id        id
+                  :thread-id id
                   :frequency {:band "bean-pickup"}
                   :payload   {:n 1}
                   :from      :http
                   :sent-at   "2026-05-24T17:00:00Z"}
-                 (queue/read-pending "hail-1")))))
+                 (queue/read-pending id)))))
 
   (it "accepts EDN and returns 201 with the persisted hail as EDN"
     (binding [memory/*now* (java.time.Instant/parse "2026-05-24T17:00:00Z")]
       (let [response (sut/handler (post-request "application/edn"
                                                 "{:frequency {:band \"bean-pickup\"} :payload {:n 1}}"))
-            body     (edn/read-string (:body response))]
+            body     (edn/read-string (:body response))
+            id       (:id body)]
         (should= 201 (:status response))
         (should= "application/edn" (get-in response [:headers "Content-Type"]))
-        (should= "/hail/hail-1" (get-in response [:headers "Location"]))
-        (should= {:id        "hail-1"
-                  :thread-id "hail-1"
+        (should (short-uuid? id))
+        (should= (str "/hail/" id) (get-in response [:headers "Location"]))
+        (should= {:id        id
+                  :thread-id id
                   :frequency {:band "bean-pickup"}
                   :payload   {:n 1}
                   :from      :http

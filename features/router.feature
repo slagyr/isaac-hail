@@ -141,22 +141,22 @@ Feature: Hail router
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
     And the isaac file "hail/broadcasts/hail-1.edn" EDN contains:
-      | path     | value             | #comment                     |
-      | id       | hail-1            | durable broadcast parent     |
-      | children | [hail-2 hail-3]   | minted child delivery ids    |
-    And the isaac file "hail/deliveries/hail-2.edn" EDN contains:
-      | path        | value   | #comment                          |
-      | id          | hail-2  | child delivery, own id            |
-      | source-hail | hail-1  | back-ref to the broadcast parent  |
-      | crew        | atticus |                                   |
-      | session     | bridge  | children sorted by session        |
-    And the isaac file "hail/deliveries/hail-3.edn" EDN contains:
+      | path | value  | #comment                 |
+      | id   | hail-1 | durable broadcast parent |
+    And broadcast "hail-1" children are distinct bare short-uuids
+    And child delivery for session bridge EDN contains:
+      | path        | value   | #comment                         |
+      | id          | <short-uuid> | child delivery, own id      |
+      | source-hail | hail-1  | back-ref to the broadcast parent |
+      | crew        | :atticus |                                 |
+      | session     | :bridge | children sorted by session       |
+    And child delivery for session first-watch EDN contains:
       | path        | value       |
-      | id          | hail-3      |
+      | id          | <short-uuid> |
       | source-hail | hail-1      |
-      | crew        | cordelia    |
-      | session     | first-watch |
-    And the isaac file "hail/deliveries/hail-4.edn" does not exist
+      | crew        | :cordelia   |
+      | session     | :first-watch |
+    And delivery hail count is 2
 
   Scenario: combined band and session-tag intersect to one bound delivery
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:

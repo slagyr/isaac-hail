@@ -270,7 +270,7 @@
     (doseq [child children]
       (write-record! (delivery-path (:id child)) child))
     (write-record! (broadcast-path parent-id)
-                   (assoc parent :children (mapv (comp symbol :id) children)))
+                   (assoc parent :children (mapv :id children)))
     (delete-pending! parent-id)))
 
 (defn tick!

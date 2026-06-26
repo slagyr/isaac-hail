@@ -18,9 +18,9 @@ Feature: Hail crew tool
       | model | type      | content                                                      |
       | echo  | text      | Done.                                                        |
     When the user sends "send a hail" on session "work-sess"
-    Then the isaac file "hail/pending/hail-1.edn" EDN contains:
+    Then the sole pending hail EDN contains:
       | path      | value                 |
-      | id        | hail-1                |
+      | id        | <short-uuid>          |
       | frequency | {:band "bean-pickup"} |
       | payload   | {:n 1}                |
       | from      | :crew/main            |
