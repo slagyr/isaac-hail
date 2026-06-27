@@ -14,7 +14,7 @@
 (def ^:private send-option-spec
   [["-h" "--help" "Show help"]
    [nil "--band NAME" "Band name"]
-   [nil "--crew ID" "Crew session selector (sessions whose :crew matches)"]
+   [nil "--crew ID" "Crew session frequencies (sessions whose :crew matches)"]
    [nil "--session ID" "Session id (repeatable)"
     :assoc-fn (fn [m k v] (update m k (fnil conj []) v))]
    [nil "--session-tag TAG" "Session tag (repeatable)"
@@ -42,7 +42,7 @@
        "Options:\n"
        "  -h, --help                 Show help\n"
        "      --band NAME            Band name\n"
-       "      --crew ID              Crew session selector\n"
+       "      --crew ID              Crew session frequencies\n"
        "      --session ID           Session id (repeatable)\n"
        "      --session-tag TAG      Session tag (repeatable)\n"
        "      --reach MODE           Reach mode (:one or :all) for direct/tag addressing\n"

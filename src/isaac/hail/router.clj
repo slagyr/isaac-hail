@@ -98,11 +98,11 @@
 (defn normalize-tags [tags]
   (set (map keyword (or tags #{}))))
 
-(defn- selector-ids [selector]
-  (set (keep id-keyword selector)))
+(defn- frequency-ids [frequency]
+  (set (keep id-keyword frequency)))
 
-(defn- selector-tags [selector]
-  (normalize-tags selector))
+(defn- frequency-tags [frequency]
+  (normalize-tags frequency))
 
 (defn- intersect-or [left right]
   (cond
@@ -131,22 +131,22 @@
       false))
 
 (defn- effective-id-filter [band hail key]
-  (intersect-or (selector-ids (get band key))
-                (selector-ids (get-in hail [:frequency key]))))
+  (intersect-or (frequency-ids (get band key))
+                (frequency-ids (get-in hail [:frequency key]))))
 
 (defn- effective-tag-filter [band hail key]
-  (union-or (selector-tags (get band key))
-            (selector-tags (get-in hail [:frequency key]))))
+  (union-or (frequency-tags (get band key))
+            (frequency-tags (get-in hail [:frequency key]))))
 
-(defn- crew-selector-set [value]
+(defn- frequency-crew-set [value]
   (when-let [id (id-keyword value)]
     #{id}))
 
 (defn- effective-crew-filter [band hail]
-  (intersect-or (crew-selector-set (:crew band))
-                (crew-selector-set (get-in hail [:frequency :crew]))))
+  (intersect-or (frequency-crew-set (:crew band))
+                (frequency-crew-set (get-in hail [:frequency :crew]))))
 
-(defn- has-session-selector? [session-ids session-tags crew-ids]
+(defn- has-session-frequencies? [session-ids session-tags crew-ids]
   (boolean (or (seq session-ids) (seq session-tags) (seq crew-ids))))
 
 (defn effective-crew
@@ -172,7 +172,7 @@
       (and band-name (nil? band))
       {:reason :unknown-band}
 
-      (not (has-session-selector? session-ids session-tags crew-ids))
+      (not (has-session-frequencies? session-ids session-tags crew-ids))
       {:reason :no-recipients}
 
       :else
