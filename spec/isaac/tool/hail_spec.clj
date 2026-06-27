@@ -23,9 +23,9 @@
                                   (assoc record :id "hail-1"))]
         (should= {:result "hail-1"}
                  (sut/hail-send-tool {"session_key" "work-sess"
-                                      "frequency"   {:band "bean-pickup"}
+                                      "frequencies"   {:band "bean-pickup"}
                                       "payload"     {:n 1}}))
-        (should= {:frequency {:band "bean-pickup"}
+        (should= {:frequencies {:band "bean-pickup"}
                   :payload   {:n 1}
                   :from      :crew/main}
                  @sent*))))
@@ -37,15 +37,15 @@
                                   (reset! sent* record)
                                   (assoc record :id "hail-1"))]
         (sut/hail-send-tool {"session_key" "work-sess"
-                             "frequency"   {"band" "bean-pickup"}
+                             "frequencies"   {"band" "bean-pickup"}
                              "payload"     {"n" 1}})
-        (should= {:frequency {:band "bean-pickup"}
+        (should= {:frequencies {:band "bean-pickup"}
                   :payload   {"n" 1}
                   :from      :crew/main}
                  @sent*))))
 
   (it "errors when the session does not exist"
     (let [result (sut/hail-send-tool {"session_key" "missing"
-                                      "frequency"   {:band "bean-pickup"}})]
+                                      "frequencies"   {:band "bean-pickup"}})]
       (should (:isError result))
       (should= "session not found: missing" (:error result)))))

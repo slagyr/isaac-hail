@@ -1,6 +1,6 @@
 Feature: Hail router
   The hail router ticks on the shared scheduler, reads raw hails from
-  hail/pending/, and resolves each :frequency by enriching the hail IN
+  hail/pending/, and resolves each :frequencies by enriching the hail IN
   PLACE with the resolved processing crew + session — keeping its id and
   filename. A reach-one hail moves to hail/deliveries/ named by its own
   hail id. A reach-all hail becomes a durable broadcast PARENT in
@@ -32,7 +32,7 @@ Feature: Hail router
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                          |
       | id        | hail-1                         |
-      | frequency | {:band "engineering-intercom"} |
+      | frequencies | {:band "engineering-intercom"} |
       | payload   | {:dilithium-leak true}         |
       | from      | :cli                           |
     When the hail router ticks
@@ -40,7 +40,7 @@ Feature: Hail router
     And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
       | path      | value                          | #comment                      |
       | id        | hail-1                         | same id, enriched in place    |
-      | frequency | {:band "engineering-intercom"} |                               |
+      | frequencies | {:band "engineering-intercom"} |                               |
       | payload   | {:dilithium-leak true}         |                               |
       | crew      | bartholomew                    | only one engineer → bound now |
       | session   | engine-room                    |                               |
@@ -61,7 +61,7 @@ Feature: Hail router
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                            |
       | id        | hail-1                           |
-      | frequency | {:session-tags #{:role/command}} |
+      | frequencies | {:session-tags #{:role/command}} |
       | reach     | :one                             |
       | prompt    | Status report?                   |
       | from      | :cli                             |
@@ -82,7 +82,7 @@ Feature: Hail router
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value              |
       | id        | hail-1             |
-      | frequency | {:crew "main"}     |
+      | frequencies | {:crew "main"}     |
       | reach     | :one               |
       | prompt    | Work the backlog.  |
       | from      | :cli               |
@@ -106,7 +106,7 @@ Feature: Hail router
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                        |
       | id        | hail-1                       |
-      | frequency | {:session [:charted-course]} |
+      | frequencies | {:session [:charted-course]} |
       | prompt    | Adjust bearing 12 degrees.   |
       | from      | :cli                         |
     When the hail router ticks
@@ -134,7 +134,7 @@ Feature: Hail router
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                            |
       | id        | hail-1                           |
-      | frequency | {:session-tags #{:role/command}} |
+      | frequencies | {:session-tags #{:role/command}} |
       | reach     | :all                             |
       | prompt    | Red alert!                       |
       | from      | :cli                             |
@@ -174,7 +174,7 @@ Feature: Hail router
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                                                              |
       | id        | hail-1                                                             |
-      | frequency | {:band "engineering-intercom" :session-tags #{:project/warp-coil}} |
+      | frequencies | {:band "engineering-intercom" :session-tags #{:project/warp-coil}} |
       | payload   | {:resonance-drift 0.03}                                            |
       | from      | :cli                                                               |
     When the hail router ticks
@@ -203,7 +203,7 @@ Feature: Hail router
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                          |
       | id        | hail-1                         |
-      | frequency | {:band "engineering-intercom"} |
+      | frequencies | {:band "engineering-intercom"} |
       | payload   | {:n 1}                         |
       | from      | :cli                           |
     When the hail router ticks
@@ -221,7 +221,7 @@ Feature: Hail router
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value           |
       | id        | hail-1          |
-      | frequency | {:reach :one}   |
+      | frequencies | {:reach :one}   |
       | prompt    | Orphan reach.   |
       | from      | :cli            |
     When the hail router ticks
@@ -238,7 +238,7 @@ Feature: Hail router
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                      |
       | id        | hail-1                     |
-      | frequency | {:session [:engine-room]}  |
+      | frequencies | {:session [:engine-room]}  |
       | prompt    | Check the gauges.          |
       | from      | :cli                       |
     When the hail router ticks
@@ -253,7 +253,7 @@ Feature: Hail router
     Given the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                  | #comment                               |
       | id        | hail-1                 |                                        |
-      | frequency | {:band "phantom-band"} | no config/hail/phantom-band.edn exists |
+      | frequencies | {:band "phantom-band"} | no config/hail/phantom-band.edn exists |
       | payload   | {:n 1}                 |                                        |
       | from      | :cli                   |                                        |
     When the hail router ticks
@@ -261,7 +261,7 @@ Feature: Hail router
     And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
       | path      | value                  | #comment                  |
       | id        | hail-1                 | same id, :reason added    |
-      | frequency | {:band "phantom-band"} |                           |
+      | frequencies | {:band "phantom-band"} |                           |
       | reason    | :unknown-band          | why it couldn't be routed |
 
   Scenario: a reach-one band with no matching session moves the hail to undeliverable
@@ -279,7 +279,7 @@ Feature: Hail router
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                          |
       | id        | hail-1                         |
-      | frequency | {:band "engineering-intercom"} |
+      | frequencies | {:band "engineering-intercom"} |
       | payload   | {:n 1}                         |
       | from      | :cli                           |
     When the hail router ticks
@@ -300,7 +300,7 @@ Feature: Hail router
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path      | value                            | #comment                  |
       | id        | hail-1                           |                           |
-      | frequency | {:session-tags #{:role/command}} | no command-tagged session |
+      | frequencies | {:session-tags #{:role/command}} | no command-tagged session |
       | reach     | :all                             |                           |
       | prompt    | All hands!                       |                           |
       | from      | :cli                             |                           |
@@ -323,7 +323,6 @@ Feature: Hail router
   # + :with-* override keys). --prefer orders the frozen reach-one candidates;
   # --with-crew overrides the processing crew.
 
-  @wip
   Scenario: --prefer orders the frozen candidates for a reach-one multi-match
     Given the isaac EDN file "config/crew/atticus.edn" exists with:
       | path  | value            |
@@ -350,7 +349,6 @@ Feature: Hail router
       | path       | value                                                                       | #comment                |
       | candidates | [{:crew :cordelia :session :first-watch} {:crew :atticus :session :bridge}] | oldest-first by :prefer |
 
-  @wip
   Scenario: --with-crew overrides the processing crew
     Given the following sessions exist:
       | name        | crew |

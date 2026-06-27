@@ -275,7 +275,6 @@ Feature: Hail delivery
   # A :with-* override in the flat :frequencies map projects to behavioral-keys
   # and applies to the dispatched turn, exactly like the prompt command.
 
-  @wip
   Scenario: --with-model overrides the model on the dispatched turn
     Given the isaac EDN file "config/models/grover2.edn" exists with:
       | path           | value    |

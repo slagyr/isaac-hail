@@ -15,13 +15,13 @@
 
   (it "renders a band prompt from template and params when prompt is omitted"
     (let [cfg {:hail {"engineering-intercom" {:prompt "Hello {{name}}."}}}
-          record {:frequency {:band "engineering-intercom"} :params {:name "Marigold"}}]
+          record {:frequencies {:band "engineering-intercom"} :params {:name "Marigold"}}]
       (should= "Hello Marigold."
                (:prompt (sut/render-band-prompt record cfg)))))
 
   (it "keeps an explicit prompt override"
     (let [cfg {:hail {"engineering-intercom" {:prompt "Hello {{name}}."}}}
-          record {:frequency {:band "engineering-intercom"}
+          record {:frequencies {:band "engineering-intercom"}
                   :params    {:name "Marigold"}
                   :prompt    "Override."}]
       (should= "Override." (:prompt (sut/render-band-prompt record cfg)))))

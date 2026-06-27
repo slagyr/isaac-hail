@@ -20,7 +20,7 @@ Feature: Hail naming strategy
       | path      | value                 |
       | id        | hail-2                |
       | thread-id | hail-2                |
-      | frequency | {:band "bean-pickup"} |
+      | frequencies | {:band "bean-pickup"} |
       | payload   | {:n 2}                |
       | from      | :cli                  |
 
@@ -33,7 +33,7 @@ Feature: Hail naming strategy
       | path           | value                                                              |
       | id             | #"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$":hail-id |
       | thread-id      | #hail-id                                                           |
-      | frequency.band | "bean-pickup"                                                      |
+      | frequencies.band | "bean-pickup"                                                      |
       | payload        | {"n": 1}                                                           |
       | from           | "cli"                                                              |
 
@@ -55,7 +55,7 @@ Feature: Hail naming strategy
     And the isaac EDN file "hail/pending/hail-1.edn" exists with:
       | path      | value                            |
       | id        | hail-1                           |
-      | frequency | {:session-tags #{:role/command}} |
+      | frequencies | {:session-tags #{:role/command}} |
       | reach     | :all                             |
       | prompt    | Red alert!                       |
       | from      | :cli                             |
@@ -85,6 +85,6 @@ Feature: Hail naming strategy
       | path           | value                  |
       | id             | #"^[0-9a-f]{8}$":hail-id |
       | thread-id      | #hail-id               |
-      | frequency.band | "bean-pickup"          |
+      | frequencies.band | "bean-pickup"          |
       | payload        | {"n": 1}               |
       | from           | "cli"                  |

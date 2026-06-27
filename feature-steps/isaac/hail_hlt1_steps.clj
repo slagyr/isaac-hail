@@ -77,7 +77,7 @@
         s))
     v))
 
-(defn- parse-frequency [v]
+(defn- parse-frequencies [v]
   (let [parsed (parse-value v)]
     (cond
       (map? parsed) parsed
@@ -155,11 +155,11 @@
                                          (when-let [p (get r "path")]
                                            [p (get r "value")]))
                                        rows))
-              frequency (parse-frequency (get row-map "frequency"))
+              frequencies (parse-frequencies (get row-map "frequencies"))
               params    (parse-value (get row-map "params"))
               reply-to  (get row-map "reply-to")
               args      (cond-> {"session_key" "hail-sess"
-                                 "frequency"   frequency}
+                                 "frequencies"   frequencies}
                           params   (assoc "params" params)
                           reply-to (assoc "reply-to" reply-to))
               result    (hail-tool/hail-send-tool args)]
@@ -176,10 +176,10 @@
                                      (when-not (str/starts-with? p "(")
                                        [p (get r "value")])))
                                  rows))
-        frequency (parse-frequency (get row-map "frequency"))
+        frequencies (parse-frequencies (get row-map "frequencies"))
         params    (parse-value (get row-map "params"))
         reply-to  (get row-map "reply-to")
-        record    (cond-> {:frequency frequency :from :cli}
+        record    (cond-> {:frequencies frequencies :from :cli}
                      params   (assoc :params params)
                      reply-to (assoc :reply-to reply-to))
         sent      (queue/send! record)]

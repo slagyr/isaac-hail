@@ -126,9 +126,9 @@
       (write-delivery! {:id       "hail-1"
                         :crew     :bartholomew
                         :prompt   "Resonance climbing."
-                        :frequency {:session-tags #{:project/warp-coil}
+                        :frequencies {:session-tags #{:project/warp-coil}
                                     :reach :one
-                                    :spawn-session true}
+                                    :create :if-missing}
                         :attempts 0})
       (with-redefs [isaac.drive.turn/run-turn! (fn [_] {})]
         @(first (sut/tick! {:cfg cfg :session-store session-store})))
@@ -152,9 +152,9 @@
                              {:id       "hail-1"
                               :crew     :main
                               :prompt   "Resonance climbing."
-                              :frequency {:session-tags #{:project/warp-coil}
+                              :frequencies {:session-tags #{:project/warp-coil}
                                           :reach :one
-                                          :spawn-session true}
+                                          :create :if-missing}
                               :attempts 0})
                             [:crew :session]))
       (should-be-nil (store/get-session session-store "session-1"))))
@@ -170,9 +170,9 @@
                 {:id       "hail-1"
                  :crew     :bartholomew
                  :prompt   "Resonance climbing."
-                 :frequency {:session-tags #{:project/warp-coil}
+                 :frequencies {:session-tags #{:project/warp-coil}
                              :reach :one
-                             :spawn-session true}
+                             :create :if-missing}
                  :attempts 0}))))
 
   (it "waits on a busy matching session for a spawn delivery and does not create a sibling"
@@ -190,9 +190,9 @@
                 {:id       "hail-1"
                  :crew     :main
                  :prompt   "Resonance climbing."
-                 :frequency {:session-tags #{:project/warp-coil}
+                 :frequencies {:session-tags #{:project/warp-coil}
                              :reach :one
-                             :spawn-session true}
+                             :create :if-missing}
                  :attempts 0}))
       (should-be-nil (store/get-session session-store "session-1"))))
 
@@ -211,9 +211,9 @@
                 {:id       "hail-1"
                  :crew     :bartholomew
                  :prompt   "Resonance climbing."
-                 :frequency {:session-tags #{:project/warp-coil}
+                 :frequencies {:session-tags #{:project/warp-coil}
                              :reach :one
-                             :spawn-session true}
+                             :create :if-missing}
                  :attempts 0}))))
 
   (it "leaves a delivery pending when its session is already in flight"

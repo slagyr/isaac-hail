@@ -9,6 +9,7 @@
     [isaac.hail.queue :as queue]
     [isaac.nexus :as nexus]
     [isaac.scheduler.runtime :as scheduler]
+    [isaac.session.frequencies :as session-frequencies]
     [isaac.session.store.spi :as session-store]))
 
 (def default-tick-ms 1000)
@@ -24,7 +25,7 @@
       (throw (ex-info "hail router requires :root" {}))))
 
 (defn- filesystem []
-  (or (fs/instance) (throw (ex-info "hail.router requires :fs in system" {}))))
+  (or (fs/instance) (throw (ex-info "hail router requires :fs in system" {}))))
 
 (defn- pending-dir []
   (str (runtime-root) "/hail/pending"))
@@ -98,11 +99,11 @@
 (defn normalize-tags [tags]
   (set (map keyword (or tags #{}))))
 
-(defn- frequency-ids [frequency]
-  (set (keep id-keyword frequency)))
+(defn- frequencies-ids [value]
+  (set (keep id-keyword value)))
 
-(defn- frequency-tags [frequency]
-  (normalize-tags frequency))
+(defn- frequencies-tags [value]
+  (normalize-tags value))
 
 (defn- intersect-or [left right]
   (cond
@@ -118,82 +119,129 @@
     (seq right)                  right
     :else                        nil))
 
-(defn effective-reach [band hail]
-  (or (:reach hail)
-      (get-in hail [:frequency :reach])
-      (:reach band)
-      :one))
+(defn- hail-frequencies [hail]
+  (or (:frequencies hail) {}))
 
-(defn effective-spawn [band hail]
-  (or (:spawn-session hail)
-      (get-in hail [:frequency :spawn-session])
-      (:spawn-session band)
-      false))
-
-(defn- effective-id-filter [band hail key]
-  (intersect-or (frequency-ids (get band key))
-                (frequency-ids (get-in hail [:frequency key]))))
-
-(defn- effective-tag-filter [band hail key]
-  (union-or (frequency-tags (get band key))
-            (frequency-tags (get-in hail [:frequency key]))))
+(defn- band-frequencies [band]
+  (when band
+    (select-keys band [:session :session-tags :crew :reach :prefer :create
+                       :with-crew :with-model :with-effort :with-context-mode])))
 
 (defn- frequency-crew-set [value]
   (when-let [id (id-keyword value)]
     #{id}))
 
-(defn- effective-crew-filter [band hail]
-  (intersect-or (frequency-crew-set (:crew band))
-                (frequency-crew-set (get-in hail [:frequency :crew]))))
+(defn- merge-session-ids [band hail]
+  (let [band-ids (frequencies-ids (:session band))
+        hail-ids (frequencies-ids (:session hail))]
+    (cond
+      (and (seq band-ids) (seq hail-ids)) (vec (set/intersection band-ids hail-ids))
+      (seq hail-ids)                      (vec hail-ids)
+      (seq band-ids)                      (vec band-ids)
+      :else                               nil)))
 
-(defn- has-session-frequencies? [session-ids session-tags crew-ids]
-  (boolean (or (seq session-ids) (seq session-tags) (seq crew-ids))))
+(defn- merge-session-tags [band hail]
+  (let [merged (union-or (frequencies-tags (:session-tags band))
+                         (frequencies-tags (:session-tags hail)))]
+    (when (seq merged) (vec merged))))
+
+(defn- merge-crew [band hail]
+  (let [band-crew (frequency-crew-set (:crew band))
+        hail-crew (frequency-crew-set (:crew hail))]
+    (cond
+      (and band-crew hail-crew)
+      (first (set/intersection band-crew hail-crew))
+
+      hail-crew (first hail-crew)
+      band-crew (first band-crew)
+      :else     nil)))
+
+(defn effective-frequencies
+  "Merge band defaults with hail :frequencies into one shared selector map."
+  [band hail]
+  (let [band* (band-frequencies band)
+        hail* (hail-frequencies hail)]
+    (cond-> {}
+      (seq (merge-session-ids band* hail*))
+      (assoc :session (merge-session-ids band* hail*))
+
+      (seq (merge-session-tags band* hail*))
+      (assoc :session-tags (merge-session-tags band* hail*))
+
+      (merge-crew band* hail*)
+      (assoc :crew (merge-crew band* hail*))
+
+      (or (:reach hail*) (:reach hail) (:reach band*))
+      (assoc :reach (or (:reach hail*) (:reach hail) (:reach band*) :one))
+
+      (or (:prefer hail*) (:prefer band*))
+      (assoc :prefer (or (:prefer hail*) (:prefer band*)))
+
+      (or (:create hail*) (:create band*))
+      (assoc :create (or (:create hail*) (:create band*)))
+
+      (:with-crew hail*) (assoc :with-crew (:with-crew hail*))
+      (:with-model hail*) (assoc :with-model (:with-model hail*))
+      (:with-effort hail*) (assoc :with-effort (:with-effort hail*))
+      (:with-context-mode hail*) (assoc :with-context-mode (:with-context-mode hail*)))))
+
+(defn effective-reach [band hail]
+  (or (:reach hail)
+      (get-in hail [:frequencies :reach])
+      (:reach band)
+      :one))
+
+(defn effective-create [band hail]
+  (or (:create hail)
+      (get-in hail [:frequencies :create])
+      (:create band)
+      :never))
+
+(defn- has-session-frequencies? [frequencies]
+  (boolean (or (seq (:session frequencies))
+               (seq (:session-tags frequencies))
+               (:crew frequencies))))
 
 (defn effective-crew
-  "Resolve the processing crew for a matched session: session :crew, then cfg
-   [:defaults :crew] (default :main)."
-  [cfg _band _hail session]
-  (or (id-keyword (:crew session))
+  "Resolve the processing crew for a matched session: :with-crew override,
+   session :crew, cfg [:defaults :crew] (default :main)."
+  [cfg _band hail session]
+  (or (id-keyword (get-in hail [:frequencies :with-crew]))
+      (id-keyword (:crew session))
       (id-keyword (get-in cfg [:defaults :crew]))
       :main))
 
 (defn spawn-crew
-  "Resolve the processing crew for a spawn delivery (no session yet)."
-  [cfg _band _hail]
-  (or (id-keyword (get-in cfg [:defaults :crew]))
+  "Resolve the processing crew for a create delivery (no session yet)."
+  [cfg _band hail]
+  (or (id-keyword (get-in hail [:frequencies :with-crew]))
+      (id-keyword (get-in cfg [:defaults :crew]))
       :main))
 
+(defn- sort-by-prefer [sessions prefer]
+  (let [sorted (sort-by :updated-at sessions)]
+    (case (or prefer :recent)
+      :oldest sorted
+      :recent (reverse sorted))))
+
 (defn matching-sessions [band sessions hail]
-  (let [band-name    (get-in hail [:frequency :band])
-        session-ids  (effective-id-filter band hail :session)
-        session-tags (effective-tag-filter band hail :session-tags)
-        crew-ids     (effective-crew-filter band hail)]
+  (let [band-name   (get-in hail [:frequencies :band])
+        frequencies (effective-frequencies band hail)]
     (cond
       (and band-name (nil? band))
       {:reason :unknown-band}
 
-      (not (has-session-frequencies? session-ids session-tags crew-ids))
+      (not (has-session-frequencies? frequencies))
       {:reason :no-recipients}
 
       :else
-      {:sessions
-       (->> sessions
-            (filter (fn [session]
-                      (let [session-id (id-keyword (:id session))
-                            crew-id    (id-keyword (:crew session))]
-                        (and
-                          (or (nil? session-ids) (contains? session-ids session-id))
-                          (or (nil? session-tags)
-                              (every? #(contains? (session-store/tags-of session) %) session-tags))
-                          (or (nil? crew-ids) (contains? crew-ids crew-id))))))
-            (sort-by :id)
-            vec)})))
+      {:sessions (session-frequencies/matching-sessions frequencies sessions)})))
 
 ;; ----- Obligation resolution (pure) -----
 ;;
 ;; An id is identity: a routed hail keeps its id and filename. resolve-obligations
 ;; enriches the hail IN PLACE (flat — no :hail wrapper) and returns one of:
-;;   {:delivery flat-hail}              reach :one bound / unbound pool / spawn
+;;   {:delivery flat-hail}              reach :one bound / unbound pool / create
 ;;   {:broadcast {:parent hail
 ;;                :children [{:crew :session} ...]}}  reach :all (child ids minted at write)
 ;;   {:undeliverable flat-hail}         routing failure, carries :reason
@@ -204,7 +252,7 @@
          :session  (state-id-value (:id session))
          :attempts 0))
 
-(defn- spawn-delivery [cfg band hail]
+(defn- create-delivery [cfg band hail]
   (assoc hail
          :crew     (spawn-crew cfg band hail)
          :session  nil
@@ -214,18 +262,26 @@
   {:crew    (effective-crew cfg band hail session)
    :session (state-id-value (:id session))})
 
-(defn- unbound-delivery [cfg band hail matches]
+(defn- order-candidates [matches prefer]
+  (if prefer
+    (sort-by-prefer matches prefer)
+    (sort-by :id matches)))
+
+(defn- unbound-delivery [cfg band hail matches prefer]
   (assoc hail
          :crew       nil
          :session    nil
-         :candidates (mapv #(candidate-entry cfg band hail %) matches)
+         :candidates (mapv #(candidate-entry cfg band hail %)
+                           (order-candidates matches prefer))
          :attempts   0))
 
 (defn resolve-obligations [cfg bands sessions hail]
-  (let [band-name    (get-in hail [:frequency :band])
+  (let [band-name    (get-in hail [:frequencies :band])
         band         (when band-name (get bands band-name))
         reach        (effective-reach band hail)
-        spawn?       (effective-spawn band hail)
+        create       (effective-create band hail)
+        frequencies  (effective-frequencies band hail)
+        prefer       (:prefer frequencies)
         match-result (matching-sessions band sessions hail)
         matches      (:sessions match-result)]
     (cond
@@ -233,19 +289,20 @@
       {:undeliverable (assoc hail :reason (:reason match-result))}
 
       (empty? matches)
-      (if (and spawn? (= :one reach))
-        {:delivery (spawn-delivery cfg band hail)}
+      (if (and (= :if-missing create) (= :one reach))
+        {:delivery (create-delivery cfg band hail)}
         {:undeliverable (assoc hail :reason :no-recipients)})
 
       (= :all reach)
       {:broadcast {:parent   hail
-                   :children (mapv #(candidate-entry cfg band hail %) matches)}}
+                   :children (mapv #(candidate-entry cfg band hail %)
+                                   (sort-by :id matches))}}
 
       (= 1 (count matches))
       {:delivery (bound-delivery cfg band hail (first matches))}
 
       :else
-      {:delivery (unbound-delivery cfg band hail matches)})))
+      {:delivery (unbound-delivery cfg band hail matches prefer)})))
 
 ;; ----- Write phase (moves the hail file by lifecycle stage) -----
 

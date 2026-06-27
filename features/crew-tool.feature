@@ -14,14 +14,14 @@ Feature: Hail crew tool
       | work-sess |
     And the following model responses are queued:
       | model | tool_call | arguments                                                    |
-      | echo  | hail-send | {"frequency": {"band": "bean-pickup"}, "payload": {"n": 1}} |
+      | echo  | hail-send | {"frequencies": {"band": "bean-pickup"}, "payload": {"n": 1}} |
       | model | type      | content                                                      |
       | echo  | text      | Done.                                                        |
     When the user sends "send a hail" on session "work-sess"
     Then the sole pending hail EDN contains:
       | path      | value                 |
       | id        | <short-uuid>          |
-      | frequency | {:band "bean-pickup"} |
+      | frequencies | {:band "bean-pickup"} |
       | payload   | {:n 1}                |
       | from      | :crew/main            |
 

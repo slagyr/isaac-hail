@@ -33,7 +33,7 @@
   (it "accepts JSON and returns 201 with the persisted hail as JSON"
     (binding [memory/*now* (java.time.Instant/parse "2026-05-24T17:00:00Z")]
       (let [response (sut/handler (post-request "application/json"
-                                                "{\"frequency\":{\"band\":\"bean-pickup\"},\"payload\":{\"n\":1}}"))
+                                                "{\"frequencies\":{\"band\":\"bean-pickup\"},\"payload\":{\"n\":1}}"))
             body     (json/parse-string (:body response) true)
             id       (:id body)]
         (should= 201 (:status response))
@@ -44,7 +44,7 @@
         (should= id (:thread-id body))
         (should= {:id        id
                   :thread-id id
-                  :frequency {:band "bean-pickup"}
+                  :frequencies {:band "bean-pickup"}
                   :payload   {:n 1}
                   :from      :http
                   :sent-at   "2026-05-24T17:00:00Z"}
@@ -53,7 +53,7 @@
   (it "accepts EDN and returns 201 with the persisted hail as EDN"
     (binding [memory/*now* (java.time.Instant/parse "2026-05-24T17:00:00Z")]
       (let [response (sut/handler (post-request "application/edn"
-                                                "{:frequency {:band \"bean-pickup\"} :payload {:n 1}}"))
+                                                "{:frequencies {:band \"bean-pickup\"} :payload {:n 1}}"))
             body     (edn/read-string (:body response))
             id       (:id body)]
         (should= 201 (:status response))
@@ -62,24 +62,24 @@
         (should= (str "/hail/" id) (get-in response [:headers "Location"]))
         (should= {:id        id
                   :thread-id id
-                  :frequency {:band "bean-pickup"}
+                  :frequencies {:band "bean-pickup"}
                   :payload   {:n 1}
                   :from      :http
                   :sent-at   "2026-05-24T17:00:00Z"}
                  body))))
 
-  (it "returns 400 with a structured error when frequency is missing"
+  (it "returns 400 with a structured error when frequencies is missing"
     (let [response (sut/handler (post-request "application/json"
                                               "{\"payload\":{\"n\":1}}"))
           body     (json/parse-string (:body response) true)]
       (should= 400 (:status response))
       (should= "application/json" (get-in response [:headers "Content-Type"]))
-      (should= "missing frequency" (:error body))
-      (should= "include :frequency with :band, :session, :session-tags, or :crew" (:hint body))))
+      (should= "missing frequencies" (:error body))
+      (should= "include :frequencies with :band, :session, :session-tags, or :crew" (:hint body))))
 
   (it "returns 400 with a structured error when direct addressing omits prompt"
     (let [response (sut/handler (post-request "application/json"
-                                              "{\"frequency\":{\"session-tags\":[\"wip\"]}}"))
+                                              "{\"frequencies\":{\"session-tags\":[\"wip\"]}}"))
           body     (json/parse-string (:body response) true)]
       (should= 400 (:status response))
       (should= "missing prompt" (:error body))

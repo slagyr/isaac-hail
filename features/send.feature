@@ -17,7 +17,7 @@ Feature: Hail send
     And the sole pending hail EDN contains:
       | path      | value                 |
       | id        | <short-uuid>          |
-      | frequency | {:band "bean-pickup"} |
+      | frequencies | {:band "bean-pickup"} |
       | payload   | {:n 1}                |
       | from      | :cli                  |
 
@@ -65,7 +65,7 @@ Feature: Hail send
     And the stdout JSON hail id is a bare short-uuid
     And the stdout JSON contains:
       | path           | value                  |
-      | frequency.band | "bean-pickup"          |
+      | frequencies.band | "bean-pickup"          |
       | payload        | {"n": 1}               |
       | from           | "cli"                  |
       | sent-at        | "2026-05-23T12:00:00Z" |
@@ -77,7 +77,7 @@ Feature: Hail send
     And the stdout EDN hail id is a bare short-uuid
     And the stdout EDN contains:
       | path           | value                |
-      | frequency.band | "bean-pickup"        |
+      | frequencies.band | "bean-pickup"        |
       | payload        | {:n 1}               |
       | sent-at        | 2026-05-23T12:00:00Z |
 
@@ -87,19 +87,19 @@ Feature: Hail send
     And the sole pending hail EDN contains:
       | path      | value                |
       | id        | <short-uuid>         |
-      | frequency | {:band "bean-pickup"} |
+      | frequencies | {:band "bean-pickup"} |
       | from      | :cli                 |
 
   Scenario: isaac hail send accepts a whole hail record from stdin
     Given stdin is:
       """
-      {:frequency {:band "bean-pickup"} :payload {:n 1}}
+      {:frequencies {:band "bean-pickup"} :payload {:n 1}}
       """
     When isaac is run with "hail send -"
     Then the exit code is 0
     And the sole pending hail EDN contains:
       | path      | value                 |
       | id        | <short-uuid>          |
-      | frequency | {:band "bean-pickup"} |
+      | frequencies | {:band "bean-pickup"} |
       | payload   | {:n 1}                |
       | from      | :cli                  |

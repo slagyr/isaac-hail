@@ -69,15 +69,15 @@
 (defn- keyword-set* [values]
   (into #{} (map keyword) values))
 
-(defn- direct-addressing? [frequency]
-  (boolean (some #(contains? frequency %)
+(defn- direct-addressing? [frequencies]
+  (boolean (some #(contains? frequencies %)
                  [:session :session-tags :crew])))
 
-(defn- has-addressing? [frequency]
-  (boolean (some #(contains? frequency %)
+(defn- has-addressing? [frequencies]
+  (boolean (some #(contains? frequencies %)
                  [:band :session :session-tags :crew])))
 
-(defn- frequency-from-options [options]
+(defn- frequencies-from-options [options]
   (cond-> {}
     (:band options)        (assoc :band (:band options))
     (:crew options)        (assoc :crew (:crew options))
@@ -92,10 +92,10 @@
       (read-edn text))))
 
 (defn- build-errors [whole-hail? options]
-  (let [frequency         (when-not whole-hail? (frequency-from-options options))
-        direct?           (direct-addressing? frequency)
-        band?             (contains? frequency :band)
-        has-addressing?   (has-addressing? frequency)]
+  (let [frequencies       (when-not whole-hail? (frequencies-from-options options))
+        direct?           (direct-addressing? frequencies)
+        band?             (contains? frequencies :band)
+        has-addressing?   (has-addressing? frequencies)]
     (cond-> []
       (and (not whole-hail?) (not has-addressing?))
       (conj "At least one addressing option is required")
@@ -110,20 +110,20 @@
       (conj "Choose either --json or --edn, not both"))))
 
 (defn- validate-hail [record]
-  (let [frequency (or (:frequency record) {})
-        direct?   (direct-addressing? frequency)
-        band?     (contains? frequency :band)]
+  (let [frequencies (or (:frequencies record) {})
+        direct?     (direct-addressing? frequencies)
+        band?       (contains? frequencies :band)]
     (cond-> []
       (contains? record :crew)
-      (conj "Top-level :crew is not supported; use :frequency {:crew ...}")
+      (conj "Top-level :crew is not supported; use :frequencies {:crew ...}")
 
-      (not (has-addressing? frequency))
+      (not (has-addressing? frequencies))
       (conj "Hail must include at least one addressing field (:band, :session, :session-tags, or :crew)")
 
       (and direct? (not band?) (str/blank? (:prompt record)))
       (conj "Direct/tag-addressed hails require :prompt")
 
-      (and (:reach frequency) (not direct?))
+      (and (:reach frequencies) (not direct?))
       (conj "Hails with :reach require direct/tag addressing"))))
 
 (defn- parse-send-opts [args]
@@ -143,8 +143,8 @@
 (defn- build-hail [{:keys [arguments options]}]
   (if (whole-hail-stdin? arguments)
     (assoc (parse-whole-hail options) :from :cli)
-    (cond-> {:frequency (frequency-from-options options)
-             :from      :cli}
+    (cond-> {:frequencies (frequencies-from-options options)
+             :from        :cli}
       (:prompt options)   (assoc :prompt (:prompt options))
       (:params options)   (assoc :params (read-edn (:params options)))
       (:reply-to options) (assoc :reply-to (:reply-to options))

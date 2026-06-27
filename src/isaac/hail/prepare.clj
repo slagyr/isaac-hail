@@ -8,7 +8,7 @@
   (or (nil? v) (and (string? v) (str/blank? v))))
 
 (defn- band-name [record]
-  (get-in record [:frequency :band]))
+  (get-in record [:frequencies :band]))
 
 (defn- band-entry [cfg band-name]
   (when (and cfg band-name)

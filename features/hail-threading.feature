@@ -5,7 +5,7 @@ Feature: Hail threading and reply-to
 
   Scenario: New hail without thread or reply gets its own id as thread-id
     When a crew calls hail-send with:
-      | frequency | {:band "engineering-intercom" :session-tags #{:project/warp-coil}} |
+      | frequencies | {:band "engineering-intercom" :session-tags #{:project/warp-coil}} |
       | params    | {:dilithium-leak true}                                      |
     Then the assigned hail id is a bare short-uuid
     And the created hail record has:
@@ -18,7 +18,7 @@ Feature: Hail threading and reply-to
       | id        | hail-42            |
       | thread-id | dilithium-thread-7 |
     When a crew sends a hail with:
-      | frequency | {:band "engineering-intercom" :session-tags #{:project/warp-coil}} |
+      | frequencies | {:band "engineering-intercom" :session-tags #{:project/warp-coil}} |
       | params    | {:report "fracture confirmed"}                              |
       | reply-to  | hail-42                                                     |
       | (no thread-id)                                                          |
@@ -50,7 +50,7 @@ Feature: Hail threading and reply-to
     And the EDN isaac file "hail/pending/hail-1.edn" exists with:
       | path      | value                                        |
       | id        | hail-1                                       |
-      | frequency | {:band "engineering-intercom"}               |
+      | frequencies | {:band "engineering-intercom"}               |
       | prompt    | Resonance climbing on primary, drift 0.03.   |
       | params    | {:dilithium-leak true}                       |
       | thread-id | dilithium-thread-7                           |
@@ -85,7 +85,7 @@ Feature: Hail threading and reply-to
       | id        | hail-42            |
       | thread-id | dilithium-thread-7 |
     When a crew sends a hail with:
-      | frequency | {:band "engineering-intercom" :session-tags #{:project/warp-coil}} |
+      | frequencies | {:band "engineering-intercom" :session-tags #{:project/warp-coil}} |
       | params    | {:coil "secondary", :drift 0.07}                              |
       | reply-to  | hail-42                                                     |
       | (no thread-id)                                                          |

@@ -1,7 +1,7 @@
 Feature: Hail send — direct addressing flags
   Beyond `--band`, `isaac hail send` accepts `--crew` (session selector in
-  :frequency), `--session`, `--session-tag`, and `--from-json`. Routing
-  selectors live in `:frequency`.
+  :frequencies), `--session`, `--session-tag`, and `--from-json`. Routing
+  selectors live in `:frequencies`.
 
   Background:
     Given an Isaac root at "target/test-state"
@@ -12,7 +12,7 @@ Feature: Hail send — direct addressing flags
     And the sole pending hail EDN contains:
       | path      | value                                   |
       | id        | <short-uuid>                            |
-      | frequency | {:crew "marvin" :session-tags #{:wip}}  |
+      | frequencies | {:crew "marvin" :session-tags #{:wip}}  |
       | prompt    | Heads up                                |
       | payload   | {:n 1}                                  |
       | from      | :cli                                    |
@@ -23,7 +23,7 @@ Feature: Hail send — direct addressing flags
     And the sole pending hail EDN contains:
       | path      | value                     |
       | id        | <short-uuid>              |
-      | frequency | {:session [:tidy-cavern]} |
+      | frequencies | {:session [:tidy-cavern]} |
       | prompt    | wake up                   |
       | payload   | {:n 1}                    |
       | from      | :cli                      |
@@ -34,38 +34,38 @@ Feature: Hail send — direct addressing flags
     And the sole pending hail EDN contains:
       | path      | value                                  |
       | id        | <short-uuid>                           |
-      | frequency | {:session-tags #{:project/chess :wip}} |
+      | frequencies | {:session-tags #{:project/chess :wip}} |
       | prompt    | go                                     |
       | from      | :cli                                   |
 
-  Scenario: combining --crew with --session-tag sets both selectors in :frequency
+  Scenario: combining --crew with --session-tag sets both selectors in :frequencies
     When isaac is run with "hail send --crew marvin --session-tag project/chess --prompt 'go' --payload '{:n 1}'"
     Then the exit code is 0
     And the sole pending hail EDN contains:
       | path      | value                                              |
       | id        | <short-uuid>                                       |
-      | frequency | {:crew "marvin" :session-tags #{:project/chess}}   |
+      | frequencies | {:crew "marvin" :session-tags #{:project/chess}}   |
       | prompt    | go                                                 |
       | from      | :cli                                               |
 
   Scenario: --from-json reads the whole hail from stdin as JSON
     Given stdin is:
       """
-      {"frequency": {"band": "bean-pickup"}, "payload": {"n": 1}}
+      {"frequencies": {"band": "bean-pickup"}, "payload": {"n": 1}}
       """
     When isaac is run with "hail send - --from-json"
     Then the exit code is 0
     And the sole pending hail EDN contains:
       | path      | value                 |
       | id        | <short-uuid>          |
-      | frequency | {:band "bean-pickup"} |
+      | frequencies | {:band "bean-pickup"} |
       | payload   | {:n 1}                |
       | from      | :cli                  |
 
   Scenario: bare - reads the whole hail from stdin as EDN
     Given stdin is:
       """
-      {:frequency {:crew :marvin
+      {:frequencies {:crew :marvin
                    :session-tags #{:project/chess}}
        :prompt    "go"
        :payload   {:n 1}}
@@ -75,7 +75,7 @@ Feature: Hail send — direct addressing flags
     And the sole pending hail EDN contains:
       | path      | value                                              |
       | id        | <short-uuid>                                       |
-      | frequency | {:crew :marvin :session-tags #{:project/chess}}   |
+      | frequencies | {:crew :marvin :session-tags #{:project/chess}}   |
       | prompt    | go                                                 |
       | payload   | {:n 1}                                             |
       | from      | :cli                                               |

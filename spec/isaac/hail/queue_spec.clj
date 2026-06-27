@@ -28,7 +28,7 @@
 
   (it "writes a hail record under hail/pending"
     (binding [memory/*now* (java.time.Instant/parse "2026-05-23T12:00:00Z")]
-      (let [record (sut/send! {:frequency {:band "bean-pickup"}
+      (let [record (sut/send! {:frequencies {:band "bean-pickup"}
                                :payload   {:n 1}
                                :from      :cli})
             id     (:id record)]
@@ -36,7 +36,7 @@
         (should= id (:thread-id record))
         (should= {:id        id
                   :thread-id id
-                  :frequency {:band "bean-pickup"}
+                  :frequencies {:band "bean-pickup"}
                   :payload   {:n 1}
                   :from      :cli
                   :sent-at   "2026-05-23T12:00:00Z"}
@@ -44,8 +44,8 @@
         (should= record (sut/read-pending id)))))
 
   (it "mints a unique short-uuid each call"
-    (let [id1 (:id (sut/send! {:frequency {:band "bean-pickup"} :from :cli}))
-          id2 (:id (sut/send! {:frequency {:band "bean-pickup"} :from :cli}))]
+    (let [id1 (:id (sut/send! {:frequencies {:band "bean-pickup"} :from :cli}))
+          id2 (:id (sut/send! {:frequencies {:band "bean-pickup"} :from :cli}))]
       (should (short-uuid? id1))
       (should (short-uuid? id2))
       (should-not= id1 id2)))
@@ -54,7 +54,7 @@
     (binding [memory/*now* (java.time.Instant/parse "2026-05-23T12:00:00Z")]
       (let [record (sut/send! {:id        "spoofed"
                                :sent-at   "1999-01-01T00:00:00Z"
-                               :frequency {:band "bean-pickup"}
+                               :frequencies {:band "bean-pickup"}
                                :from      :cli})
             id     (:id record)]
         (should (short-uuid? id))
@@ -71,7 +71,7 @@
                                   fs/move (fn [fs* source destination]
                                             (swap! ops* conj [:move source destination])
                                             (real-move fs* source destination))]
-                      (sut/send! {:frequency {:band "bean-pickup"} :from :cli}))
+                      (sut/send! {:frequencies {:band "bean-pickup"} :from :cli}))
           id        (:id record)]
       (let [[spit-op move-op] (filter (fn [[op path]]
                                         (or (and (= :spit op) (str/includes? path "/hail/pending/"))
@@ -84,7 +84,7 @@
         (should-not (fs/exists? (nexus/get :fs) (second spit-op))))))
 
   (it "stores the pending file at hail/pending/<id>.edn"
-    (let [id (:id (sut/send! {:frequency {:band "bean-pickup"} :from :cli}))]
+    (let [id (:id (sut/send! {:frequencies {:band "bean-pickup"} :from :cli}))]
       (should (fs/exists? (nexus/get :fs) (str "/test/isaac/hail/pending/" id ".edn")))))
 
   (it "does not read or write hail/.counter when minting short-uuids"
@@ -92,7 +92,7 @@
       (fs/mkdirs fs* "/test/isaac/hail/delivered")
       (fs/spit fs* "/test/isaac/hail/delivered/hail-1.edn"
                (pr-str {:id "hail-1" :thread-id "thread-7"}))
-      (let [id (:id (sut/send! {:frequency {:band "bean-pickup"} :from :cli}))]
+      (let [id (:id (sut/send! {:frequencies {:band "bean-pickup"} :from :cli}))]
         (should (short-uuid? id))
         (should-not (fs/exists? fs* "/test/isaac/hail/.counter")))))
 
@@ -102,13 +102,13 @@
       (fs/mkdirs fs* "/test/isaac/hail/delivered")
       (fs/spit fs* "/test/isaac/hail/delivered/hail-1.edn"
                (pr-str {:id "hail-1" :thread-id "hail-1"}))
-      (let [record (sut/send! {:frequency {:band "bean-pickup"} :payload {:n 2} :from :cli})]
+      (let [record (sut/send! {:frequencies {:band "bean-pickup"} :payload {:n 2} :from :cli})]
         (should= "hail-2" (:id record))
         (should= "hail-2" (:thread-id record)))))
 
   (it "uuid strategy mints a full UUID hail id"
     (config/dangerously-install-config! {:hail-settings {:naming-strategy :uuid}} "spec")
-    (let [record (sut/send! {:frequency {:band "bean-pickup"} :from :cli})
+    (let [record (sut/send! {:frequencies {:band "bean-pickup"} :from :cli})
           id     (:id record)]
       (should (full-uuid? id))
       (should= id (:thread-id record)))))
@@ -118,7 +118,7 @@
       (fs/mkdirs fs* "/test/isaac/hail/pending")
       (fs/spit fs* "/test/isaac/hail/pending/hail-42.edn"
                (pr-str {:id "hail-42" :thread-id "thread-7"}))
-      (let [record (sut/send! {:frequency {:band "bean-pickup"}
+      (let [record (sut/send! {:frequencies {:band "bean-pickup"}
                                :reply-to  "hail-42"
                                :from      :cli})]
         (should= "thread-7" (:thread-id record))
@@ -130,6 +130,6 @@
     (let [fs* (fs/mem-fs)]
       (nexus/-with-nexus {:fs fs*}
         (binding [root/*root* "/target/test-state"]
-          (let [id (:id (sut/send! {:frequency {:session-tags #{:wip}} :prompt "go" :from :cli}))]
+          (let [id (:id (sut/send! {:frequencies {:session-tags #{:wip}} :prompt "go" :from :cli}))]
             (should (short-uuid? id))
             (should (fs/exists? fs* (str "/target/test-state/hail/pending/" id ".edn"))))))))

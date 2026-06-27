@@ -79,42 +79,44 @@
 (defn- keyword-set* [values]
   (into #{} (map ->keyword) values))
 
-(defn- normalize-frequency [frequency]
-  (let [frequency (some-> frequency walk/keywordize-keys)]
-    (cond-> frequency
-      (:session frequency)      (update :session keywordize*)
-      (:session-tags frequency) (update :session-tags keyword-set*)
-      (:reach frequency)        (update :reach ->keyword)
-      (:crew frequency)         (update :crew str))))
+(defn- normalize-frequencies [frequencies]
+  (let [frequencies (some-> frequencies walk/keywordize-keys)]
+    (cond-> frequencies
+      (:session frequencies)      (update :session keywordize*)
+      (:session-tags frequencies) (update :session-tags keyword-set*)
+      (:reach frequencies)        (update :reach ->keyword)
+      (:create frequencies)       (update :create ->keyword)
+      (:prefer frequencies)        (update :prefer ->keyword)
+      (:crew frequencies)         (update :crew str))))
 
-(defn- direct-addressing? [frequency]
-  (and (map? frequency)
-       (boolean (some #(contains? frequency %)
+(defn- direct-addressing? [frequencies]
+  (and (map? frequencies)
+       (boolean (some #(contains? frequencies %)
                       [:session :session-tags :crew]))))
 
-(defn- has-addressing? [frequency]
-  (and (map? frequency)
-       (boolean (some #(contains? frequency %)
+(defn- has-addressing? [frequencies]
+  (and (map? frequencies)
+       (boolean (some #(contains? frequencies %)
                       [:band :session :session-tags :crew]))))
 
 (defn- validate-record [record]
-  (let [frequency (:frequency record)]
+  (let [frequencies (:frequencies record)]
     (cond
       (contains? record :crew)
       {:error "invalid crew"
-       :hint  "put :crew in :frequency, not at the hail top level"}
+       :hint  "put :crew in :frequencies, not at the hail top level"}
 
-      (not (has-addressing? frequency))
-      {:error "missing frequency"
-       :hint  "include :frequency with :band, :session, :session-tags, or :crew"}
+      (not (has-addressing? frequencies))
+      {:error "missing frequencies"
+       :hint  "include :frequencies with :band, :session, :session-tags, or :crew"}
 
-      (and (direct-addressing? frequency)
-           (not (contains? frequency :band))
+      (and (direct-addressing? frequencies)
+           (not (contains? frequencies :band))
            (str/blank? (:prompt record)))
       {:error "missing prompt"
        :hint  "include :prompt for non-band hails"}
 
-      (and (:reach frequency) (not (direct-addressing? frequency)))
+      (and (:reach frequencies) (not (direct-addressing? frequencies)))
       {:error "invalid reach"
        :hint  "include direct addressing when using :reach"})))
 
@@ -126,8 +128,8 @@
     :else           value))
 
 (defn- build-record [payload]
-  (cond-> {:frequency (normalize-frequency (:frequency payload))
-           :from      :http}
+  (cond-> {:frequencies (normalize-frequencies (:frequencies payload))
+           :from        :http}
     (contains? payload :payload)   (assoc :payload (:payload payload))
     (contains? payload :prompt)    (assoc :prompt (:prompt payload))
     (contains? payload :params)    (assoc :params (parse-params (:params payload)))

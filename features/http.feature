@@ -14,12 +14,12 @@ Feature: Hail HTTP route POST /hail/send
       | key                  | value                                                       |
       | header.Content-Type  | application/json                                            |
       | header.Authorization | Bearer secret123                                            |
-      | body                 | {"frequency": {"band": "bean-pickup"}, "payload": {"n": 1}} |
+      | body                 | {"frequencies": {"band": "bean-pickup"}, "payload": {"n": 1}} |
     Then the response status is 201
     And the sole pending hail EDN contains:
       | path      | value                 |
       | id        | <short-uuid>          |
-      | frequency | {:band "bean-pickup"} |
+      | frequencies | {:band "bean-pickup"} |
       | payload   | {:n 1}                |
       | from      | :http                 |
 
@@ -28,12 +28,12 @@ Feature: Hail HTTP route POST /hail/send
       | key                  | value                                              |
       | header.Content-Type  | application/edn                                    |
       | header.Authorization | Bearer secret123                                   |
-      | body                 | {:frequency {:band "bean-pickup"} :payload {:n 1}} |
+      | body                 | {:frequencies {:band "bean-pickup"} :payload {:n 1}} |
     Then the response status is 201
     And the sole pending hail EDN contains:
       | path      | value                 |
       | id        | <short-uuid>          |
-      | frequency | {:band "bean-pickup"} |
+      | frequencies | {:band "bean-pickup"} |
       | payload   | {:n 1}                |
       | from      | :http                 |
 
@@ -42,7 +42,7 @@ Feature: Hail HTTP route POST /hail/send
       | key                  | value                 | #comment                                  |
       | header.Content-Type  | application/json      |                                           |
       | header.Authorization | Bearer secret123      |                                           |
-      | body                 | {"payload": {"n": 1}} | no "frequency" key in body — must reject  |
+      | body                 | {"payload": {"n": 1}} | no "frequencies" key in body — must reject  |
     Then the response status is 400
     And the response body has a "error" key
 

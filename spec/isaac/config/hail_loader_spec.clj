@@ -18,11 +18,11 @@
     (let [result (schema/conform (hail-band-schema)
                                  {:session-tags  [:project/chess]
                                   :reach         :one
-                                  :spawn-session true})]
+                                  :create :if-missing})]
       (should-not (schema/error? result))
       (should= {:session-tags  [:project/chess]
                 :reach         :one
-                :spawn-session true}
+                :create :if-missing}
                result)))
 
   (it "conforms hail prompts on band declarations"

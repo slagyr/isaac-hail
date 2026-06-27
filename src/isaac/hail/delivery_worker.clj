@@ -15,6 +15,7 @@
     [isaac.nexus :as nexus]
     [isaac.scheduler.runtime :as scheduler]
     [isaac.session.context :as session-ctx]
+    [isaac.session.frequencies :as session-frequencies]
     [isaac.session.store.spi :as store]
     [isaac.tool.memory :as memory])
   (:import
@@ -128,7 +129,7 @@
 ;; there is no :hail wrapper. A reach-:all child also carries :source-hail (it
 ;; rides along; the worker treats the child like any other delivery).
 (defn- delivery-band [cfg delivery]
-  (when-let [band-name (get-in delivery [:frequency :band])]
+  (when-let [band-name (get-in delivery [:frequencies :band])]
     (get-in cfg [:hail band-name])))
 
 (defn- bind-candidate [cfg delivery session]
@@ -142,10 +143,10 @@
                :session (router/state-id-value (:id session)))
         (dissoc :candidates))))
 
-(defn- spawn-delivery? [cfg delivery]
+(defn- create-delivery? [cfg delivery]
   (let [band (delivery-band cfg delivery)]
     (and (= :one (router/effective-reach band delivery))
-         (true? (router/effective-spawn band delivery)))))
+         (= :if-missing (router/effective-create band delivery)))))
 
 (defn- matching-spawn-sessions [cfg session-store delivery]
   (let [band     (delivery-band cfg delivery)
@@ -156,16 +157,17 @@
   (some #(session-available? cfg session-store (normalize-id (:id %)))
         (matching-spawn-sessions cfg session-store delivery)))
 
-(defn- spawn-session! [session-store delivery host-crew]
+(defn- create-session! [session-store delivery host-crew]
   (let [root (runtime-root {})
-        name      (naming/generate (naming/->SequentialStrategy root "sessions" "session-" (filesystem)))]
+        name (naming/generate (naming/->SequentialStrategy root "sessions" "session-" (filesystem)))]
     (session-ctx/create-with-resolved-behavior!
      name
-     {:crew          host-crew
-      :tags          (router/normalize-tags (get-in delivery [:frequency :session-tags]))
-      :origin        {:kind :hail
-                      :hail-id (normalize-id (:id delivery))}
-      :session-store session-store})))
+     (merge {:crew          host-crew
+             :tags          (router/normalize-tags (get-in delivery [:frequencies :session-tags]))
+             :origin        {:kind :hail
+                             :hail-id (normalize-id (:id delivery))}
+             :session-store session-store}
+            (session-frequencies/behavioral-override (:frequencies delivery))))))
 
 (defn- spawn-target [cfg session-store delivery]
   (if-let [session (available-spawn-session cfg session-store delivery)]
@@ -181,12 +183,12 @@
   (let [{:keys [action session crew-id]} (spawn-target cfg session-store delivery)]
     (case action
       :bind  (bind-candidate cfg delivery session)
-      :spawn (bind-candidate cfg delivery (spawn-session! session-store delivery crew-id))
+      :spawn (bind-candidate cfg delivery (create-session! session-store delivery crew-id))
       nil)))
 
 (defn- runnable-delivery [cfg session-store delivery]
   (cond
-    (spawn-delivery? cfg delivery)
+    (create-delivery? cfg delivery)
     (spawn-runnable-delivery cfg session-store delivery)
 
     :else
@@ -255,12 +257,15 @@
   (hail-prepare/render-band-prompt delivery cfg))
 
 (defn- delivery-charge [cfg delivery]
-  (charge/build {:config      cfg
-                 :comm        null-comm/channel
-                 :guidance    hail-guidance
-                 :session-key (normalize-id (:session delivery))
-                 :input       (:prompt delivery)
-                 :origin      (hail-origin delivery)}))
+  (let [override (session-frequencies/behavioral-override (:frequencies delivery))]
+    (charge/build {:config         cfg
+                   :comm           null-comm/channel
+                   :guidance       hail-guidance
+                   :session-key    (normalize-id (:session delivery))
+                   :input          (:prompt delivery)
+                   :origin         (hail-origin delivery)
+                   :crew           (or (:crew override) (normalize-id (:crew delivery)))
+                   :model-override (:model override)})))
 
 (defn- run-delivery! [cfg delivery]
   (let [charge (delivery-charge cfg delivery)]

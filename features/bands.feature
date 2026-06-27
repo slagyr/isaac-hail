@@ -25,7 +25,7 @@ Feature: Hail bands declared in config
       {:crew         "ops"
        :session-tags [:project/chess]
        :reach        :one
-       :spawn-session true}
+       :create :if-missing}
       """
     When isaac is run with "config validate"
     Then the stdout contains "OK"
