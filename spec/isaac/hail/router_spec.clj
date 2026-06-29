@@ -165,6 +165,17 @@
       (should= {:id "hail-1" :frequencies {:session-tags #{:role/command}} :from :cli :reason :no-recipients}
                (read-string (fs/slurp (nexus/get :fs) "/test/isaac/hail/undeliverable/hail-1.edn")))))
 
+  (it "requires a registered session store when tick omits :session-store"
+    (nexus/-with-nested-nexus {:sessions {}}
+      (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/pending")
+      (fs/spit (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"
+               (pr-str {:id "hail-1" :frequencies {:session [:engine-room]} :from :cli}))
+      (let [error (try (sut/tick! {})
+                       nil
+                       (catch clojure.lang.ExceptionInfo e e))]
+        (should-not-be-nil error)
+        (should (str/includes? (ex-message error) ":sessions :store")))))
+
   (it "registers the shared scheduler task"
     (let [scheduler (scheduler/create {})]
       (try

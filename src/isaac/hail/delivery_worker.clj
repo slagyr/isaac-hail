@@ -305,8 +305,8 @@
   (let [cfg           (or cfg (loader/snapshot "hail delivery tick wake boundary — config may have changed") {})
         root     (runtime-root opts)
         session-store (or session-store
-                          (nexus/get-in [:sessions :store])
-                          (store/create root))
+                          (store/registered-store)
+                          (throw (ex-info "hail delivery worker requires :session-store or registered [:sessions :store]" {})))
         now           (or now (memory/now))]
     (->> (list-deliveries root)
          (filter #(due? % now))

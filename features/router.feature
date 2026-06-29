@@ -17,6 +17,27 @@ Feature: Hail router
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
+  Scenario: a session activated via sessions set is routable by band session-tags
+    Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
+      | path         | value             |
+      | session-tags | #{:role/engineer} |
+      | reach        | :one              |
+    When isaac is run with "sessions set relay.tags.role/engineer"
+    Then the exit code is 0
+    And the isaac EDN file hail/pending/hail-1.edn exists with:
+      | path      | value                          |
+      | id        | hail-1                         |
+      | frequencies | {:band "engineering-intercom"} |
+      | payload   | {:n 1}                         |
+      | from      | :cli                           |
+    When the hail router ticks
+    Then the isaac file "hail/pending/hail-1.edn" does not exist
+    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
+      | path    | value  | #comment                 |
+      | id      | hail-1 |                          |
+      | crew    | :main  | activated session crew   |
+      | session | :relay | visible via store SPI    |
+
   Scenario: a reach-one band matching exactly one session binds immediately
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |

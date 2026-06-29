@@ -27,6 +27,11 @@
 (defn- filesystem []
   (or (fs/instance) (throw (ex-info "hail router requires :fs in system" {}))))
 
+(defn- require-session-store [opts]
+  (or (:session-store opts)
+      (session-store/registered-store)
+      (throw (ex-info "hail router requires :session-store or registered [:sessions :store]" {}))))
+
 (defn- pending-dir []
   (str (runtime-root) "/hail/pending"))
 
@@ -335,9 +340,7 @@
   (let [cfg            (or cfg (loader/snapshot "hail router tick wake boundary — config may have changed") {})
         root           (or root (runtime-root))
         fs*            (filesystem)
-        session-store* (or (:session-store opts)
-                           (session-store/registered-store)
-                           (session-store/create root))
+        session-store* (require-session-store opts)
         bands          (:hail cfg)
         sessions       (session-store/list-sessions session-store*)]
     (doseq [hail (list-pending)]
