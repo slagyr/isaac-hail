@@ -66,6 +66,12 @@
                       [freq-k v]))))
               args)))
 
+(defn- safe-keyword [x]
+  (cond
+    (keyword? x) x
+    (string? x) (keyword (if (str/starts-with? x ":") (subs x 1) x))
+    :else (keyword (str x))))
+
 (defn- normalize-frequencies [frequencies]
   (when frequencies
     (let [frequencies (walk/keywordize-keys frequencies)]
@@ -75,7 +81,7 @@
                                   (if (sequential? %) % [%])))
 
         (:session-tags frequencies)
-        (update :session-tags #(into #{} (map keyword)
+        (update :session-tags #(into #{} (map safe-keyword)
                                      (if (sequential? %) % [%])))
 
         (:reach frequencies)         (update :reach keyword)
@@ -97,6 +103,7 @@
   "Send a hail from the calling crew session.
    Address keys (band, session, session_tags, crew, …) are flat top-level args
    in snake_case; the handler builds the internal :frequencies map.
+   For compatibility, also accepts legacy nested 'frequencies' or 'frequency'.
    Args: band, session, session_tags, crew, reach, prefer, create, with_*,
    payload, prompt, params, thread_id, reply_to, session_key (runtime-injected)."
   [arguments]
@@ -105,7 +112,9 @@
         crew-id     (session-crew args)]
     (if-not crew-id
       {:isError true :error (str "session not found: " session-key)}
-      (let [freqs (normalize-frequencies (collect-frequencies args))]
+      (let [nested (or (get args "frequencies") (get args "frequency"))
+            flat (collect-frequencies args)
+            freqs (normalize-frequencies (if nested nested flat))]
         (cond
           (not (has-addressing? freqs))
           {:isError true

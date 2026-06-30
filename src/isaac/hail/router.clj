@@ -7,6 +7,7 @@
     [isaac.config.root :as root]
     [isaac.fs :as fs]
     [isaac.hail.queue :as queue]
+    [isaac.logger :as log]
     [isaac.nexus :as nexus]
     [isaac.scheduler.runtime :as scheduler]
     [isaac.session.frequencies :as session-frequencies]
@@ -62,7 +63,11 @@
 (defn- read-record [path]
   (let [fs* (filesystem)]
     (when (fs/exists? fs* path)
-      (edn/read-string (fs/slurp fs* path)))))
+      (try
+        (edn/read-string (fs/slurp fs* path))
+        (catch Exception e
+          (log/error :hail/bad-record :path path :error (.getMessage e))
+          nil)))))
 
 (defn- write-record! [path record]
   (let [fs*  (filesystem)
@@ -79,7 +84,12 @@
         dir (pending-dir)]
     (if-let [children (fs/children fs* dir)]
       (->> children
-           (map #(read-record (str dir "/" %)))
+           (map (fn [p]
+                  (try
+                    (read-record (str dir "/" p))
+                    (catch Exception e
+                      (log/error :hail/bad-pending-record :path p :error (.getMessage e))
+                      nil))))
            (remove nil?)
            (sort-by :id)
            vec)
