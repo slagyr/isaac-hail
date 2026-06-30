@@ -5,8 +5,9 @@ Feature: Hail threading and reply-to
 
   Scenario: New hail without thread or reply gets its own id as thread-id
     When a crew calls hail-send with:
-      | frequencies | {:band "engineering-intercom" :session-tags #{:project/warp-coil}} |
-      | params    | {:dilithium-leak true}                                      |
+      | band         | engineering-intercom        |
+      | session_tags | #{:project/warp-coil}       |
+      | params       | {:dilithium-leak true}      |
     Then the assigned hail id is a bare short-uuid
     And the created hail record has:
       | id        | <short-uuid> |
@@ -18,10 +19,11 @@ Feature: Hail threading and reply-to
       | id        | hail-42            |
       | thread-id | dilithium-thread-7 |
     When a crew sends a hail with:
-      | frequencies | {:band "engineering-intercom" :session-tags #{:project/warp-coil}} |
-      | params    | {:report "fracture confirmed"}                              |
-      | reply-to  | hail-42                                                     |
-      | (no thread-id)                                                          |
+      | band         | engineering-intercom        |
+      | session_tags | #{:project/warp-coil}       |
+      | params       | {:report "fracture confirmed"} |
+      | reply_to     | hail-42                     |
+      | (no thread-id)                              |
     Then the new hail record has:
       | thread-id | dilithium-thread-7 |
       | reply-to  | hail-42            |
@@ -85,10 +87,11 @@ Feature: Hail threading and reply-to
       | id        | hail-42            |
       | thread-id | dilithium-thread-7 |
     When a crew sends a hail with:
-      | frequencies | {:band "engineering-intercom" :session-tags #{:project/warp-coil}} |
-      | params    | {:coil "secondary", :drift 0.07}                              |
-      | reply-to  | hail-42                                                     |
-      | (no thread-id)                                                          |
+      | band         | engineering-intercom        |
+      | session_tags | #{:project/warp-coil}       |
+      | params       | {:coil "secondary", :drift 0.07} |
+      | reply_to     | hail-42                     |
+      | (no thread-id)                              |
     Then the new hail record has:
       | prompt    | Resonance climbing on secondary, drift 0.07. |
       | params    | {:coil "secondary", :drift 0.07}             |

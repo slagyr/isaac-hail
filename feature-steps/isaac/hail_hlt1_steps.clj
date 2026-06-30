@@ -77,6 +77,9 @@
         s))
     v))
 
+(defn- keyword->snake [kw]
+  (str/replace (name kw) "-" "_"))
+
 (defn- parse-frequencies [v]
   (let [parsed (parse-value v)]
     (cond
@@ -84,6 +87,22 @@
       (string? parsed) (try (edn/read-string (str/replace parsed #"\"(\w+)\"" ":$1"))
                             (catch Exception _ parsed))
       :else parsed)))
+
+(defn- frequencies->flat-tool-args [frequencies]
+  (into {}
+        (map (fn [[k v]] [(keyword->snake k) v])
+             frequencies)))
+
+(def ^:private hail-send-meta-keys
+  #{"params" "reply_to" "reply-to" "thread_id" "thread-id" "prompt" "payload" "frequencies"})
+
+(defn- frequencies-from-row-map [row-map]
+  (or (parse-frequencies (get row-map "frequencies"))
+      (into {}
+            (keep (fn [[k v]]
+                    (when (and (string? k) (not (hail-send-meta-keys k)))
+                      [(keyword (str/replace k "_" "-")) (parse-value v)]))
+                  row-map))))
 
 (defn- get-path [data path-str]
   (if (str/includes? path-str "/")
@@ -155,13 +174,13 @@
                                          (when-let [p (get r "path")]
                                            [p (get r "value")]))
                                        rows))
-              frequencies (parse-frequencies (get row-map "frequencies"))
+              frequencies (frequencies-from-row-map row-map)
               params    (parse-value (get row-map "params"))
-              reply-to  (get row-map "reply-to")
-              args      (cond-> {"session_key" "hail-sess"
-                                 "frequencies"   frequencies}
+              reply-to  (or (get row-map "reply_to") (get row-map "reply-to"))
+              args      (cond-> (merge {"session_key" "hail-sess"}
+                                       (frequencies->flat-tool-args frequencies))
                           params   (assoc "params" params)
-                          reply-to (assoc "reply-to" reply-to))
+                          reply-to (assoc "reply_to" reply-to))
               result    (hail-tool/hail-send-tool args)]
           (put-state! :tool-result result)
           (put-state! :last-hail-id (:result result))
@@ -176,9 +195,9 @@
                                      (when-not (str/starts-with? p "(")
                                        [p (get r "value")])))
                                  rows))
-        frequencies (parse-frequencies (get row-map "frequencies"))
+        frequencies (frequencies-from-row-map row-map)
         params    (parse-value (get row-map "params"))
-        reply-to  (get row-map "reply-to")
+        reply-to  (or (get row-map "reply_to") (get row-map "reply-to"))
         record    (cond-> {:frequencies frequencies :from :cli}
                      params   (assoc :params params)
                      reply-to (assoc :reply-to reply-to))
