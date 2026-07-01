@@ -127,7 +127,8 @@
                          (contains? args "prompt")    (assoc :prompt (get args "prompt"))
                          (contains? args "params")    (assoc :params (parse-params (get args "params")))
                          (contains? args "thread_id") (assoc :thread-id (get args "thread_id"))
-                         (contains? args "reply_to")  (assoc :reply-to (get args "reply_to")))]
+                         (contains? args "reply_to")  (assoc :reply-to (get args "reply_to"))
+                         (contains? args "submitter_session") (assoc :submitter-session (get args "submitter_session")))]
             {:result (:id (queue/send! record))}))))))
 
 (defn hail-send-tool-factory [_]

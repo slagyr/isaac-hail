@@ -2,6 +2,7 @@
   (:require
     [clojure.edn :as edn]
     [clojure.pprint :as pprint]
+    [clojure.string :as str]
     [isaac.charge :as charge]
     [isaac.comm.null :as null-comm]
     [isaac.config.loader :as loader]
@@ -256,11 +257,34 @@
 (defn- delivery-with-prompt [cfg delivery]
   (hail-prepare/render-band-prompt delivery cfg))
 
+(defn- meta-line [label value]
+  (when (some? value) (str label ": " (normalize-id value))))
+
+(defn- metadata-preamble
+  "The delivery turn's system-preamble guidance: the autonomy line plus a
+   model-friendly metadata block — the delivery-bound session id, hail id,
+   thread, submitter/reply-to origin, and the hail's :params as data. Built at
+   delivery time (the bound session id is only known once a candidate is bound)
+   so exact-session handbacks and reach-one bindings surface the right target.
+   :params are ALWAYS echoed here — even when a band template already consumed
+   them — so they never silently drop on the explicit-prompt path."
+  [delivery]
+  (let [{:keys [session id thread-id reply-to submitter-session params]} delivery
+        lines (->> [(meta-line "Session" session)
+                    (meta-line "Hail id" id)
+                    (meta-line "Thread" thread-id)
+                    (meta-line "Submitter session" submitter-session)
+                    (meta-line "Reply-to" reply-to)
+                    (meta-line "From crew" (or (:from-crew delivery) (:from delivery)))
+                    (when (seq params) (str "Params: " (pr-str params)))]
+                   (remove nil?))]
+    (str/join "\n" (concat [hail-guidance "--- Hail metadata ---"] lines))))
+
 (defn- delivery-charge [cfg delivery]
   (let [override (session-frequencies/behavioral-override (:frequencies delivery))]
     (charge/build {:config         cfg
                    :comm           null-comm/channel
-                   :guidance       hail-guidance
+                   :guidance       (metadata-preamble delivery)
                    :session-key    (normalize-id (:session delivery))
                    :input          (:prompt delivery)
                    :origin         (hail-origin delivery)

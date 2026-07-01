@@ -13,6 +13,7 @@
     [isaac.fs :as fs]
     [isaac.hail.delivery-worker :as hail-delivery-worker]
     [isaac.hail.router :as hail-router]
+    [isaac.llm.api.grover :as grover]
     [isaac.hail.store :as store]
     [isaac.logger :as log]
     [isaac.module.loader :as module-loader]
@@ -244,6 +245,49 @@
 
 (defn isaac-system-started []
   (server-steps/server-running))
+
+;; region ----- Hail delivery system preamble -----
+
+(defn- compile-pattern [cell]
+  (let [s (str/trim cell)]
+    (if (and (str/starts-with? s "#\"") (str/ends-with? s "\""))
+      (re-pattern (subs s 2 (dec (count s))))
+      (re-pattern (java.util.regex.Pattern/quote s)))))
+
+(defn- message-text [msg]
+  (let [c (:content msg)]
+    (cond
+      (string? c)     c
+      (sequential? c) (str/join "\n" (keep #(or (:text %) (get % "text")) c))
+      :else           (str c))))
+
+(defn- hail-turn-preamble []
+  ;; The origin+autonomy system preamble is framed (as a trusted block) into
+  ;; the current/last user message of the delivered turn's request. The hail
+  ;; worker runs its own future, so read the fake provider's last request
+  ;; directly (mirrors session-steps' last-llm-request fallback).
+  (let [msgs (:messages (or (g/get :llm-request) (grover/last-request)))]
+    (message-text (last (filter #(= "user" (:role %)) msgs)))))
+
+(defn hail-turn-system-preamble-matching [_session table]
+  (let [text (hail-turn-preamble)]
+    (doseq [row (:rows table)]
+      (let [pat (compile-pattern (first row))]
+        (g/should (re-find pat text))))))
+
+(defn hail-turn-system-preamble-not-matching [_session table]
+  (let [text (hail-turn-preamble)]
+    (doseq [row (:rows table)]
+      (let [pat (compile-pattern (first row))]
+        (g/should-not (re-find pat text))))))
+
+(defthen #"the hail turn on session \"([^\"]+)\" has a system preamble matching:"
+  isaac.hail-steps/hail-turn-system-preamble-matching)
+
+(defthen #"the hail turn on session \"([^\"]+)\" has a system preamble not matching:"
+  isaac.hail-steps/hail-turn-system-preamble-not-matching)
+
+;; endregion ^^^^^ Hail delivery system preamble ^^^^^
 
 (defwhen "the hail router ticks" isaac.hail-steps/hail-router-ticks)
 

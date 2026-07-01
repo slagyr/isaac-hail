@@ -316,7 +316,8 @@
   (g/assoc! :rendered-prompt "Resonance climbing on secondary, drift 0.07.")
   (g/assoc! :hail-context {:params {:coil "secondary" :drift 0.07}
                             :thread-id "dilithium-thread-7"
-                            :reply-to "hail-42"}))
+                            :reply-to "hail-42"
+                            :session "engine-room"}))
 
 (defn turn-charged-for-session []
   (g/assoc! :charge-input (g/get :rendered-prompt))
@@ -329,7 +330,8 @@
   (let [ctx (g/get :hail-context)]
     (g/should (contains? ctx :params))
     (g/should (contains? ctx :thread-id))
-    (g/should (contains? ctx :reply-to))))
+    (g/should (contains? ctx :reply-to))
+    (g/should (contains? ctx :session))))
 
 (defgiven #"config file \"hail/([^\"]+)\\.md\" containing:" isaac.hail-hlt1-steps/hail-band-md-containing)
 
@@ -387,7 +389,7 @@
 
 (defthen "the turn input is the rendered prompt" isaac.hail-hlt1-steps/turn-input-is-rendered-prompt)
 
-(defthen "the associated hail context contains the params, thread-id, and reply-to"
+(defthen "the associated hail context contains the params, thread-id, reply-to, and delivery session id"
   isaac.hail-hlt1-steps/associated-hail-context-has-fields)
 
 (defthen #"the EDN isaac file \"([^\"]+)\" contains:" isaac.foundation.fs-steps/isaac-file-edn-contains)

@@ -102,7 +102,10 @@
         (#'sut/delivery-charge test-config {:id      "hail-1"
                                             :prompt  "Seal the leak."
                                             :session :engine-room}))
-      (should= "Autonomous hail; the user may not see your reply." (:guidance @captured))))
+      (let [guidance (:guidance @captured)]
+        (should-contain "Autonomous hail; the user may not see your reply." guidance)
+        (should-contain "Session: engine-room" guidance)
+        (should-contain "Hail id: hail-1" guidance))))
 
   (it "binds an unbound delivery to the first idle candidate"
     (let [session-store (nexus/get-in [:sessions :store])]

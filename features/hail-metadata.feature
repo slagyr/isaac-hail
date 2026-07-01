@@ -1,4 +1,3 @@
-@wip
 Feature: Hail delivery embeds metadata and params in the turn's system preamble
   Every hail delivered to a session opens its turn with a system preamble carrying
   standard, model-friendly context — the delivery-bound session id, hail id, thread,
