@@ -81,8 +81,14 @@
                                   (if (sequential? %) % [%])))
 
         (:session-tags frequencies)
-        (update :session-tags #(into #{} (map safe-keyword)
-                                     (if (sequential? %) % [%])))
+        (update :session-tags
+                (fn [tags]
+                  (into #{}
+                        (map safe-keyword)
+                        (cond
+                          (set? tags) tags
+                          (sequential? tags) tags
+                          :else [tags]))))
 
         (:reach frequencies)         (update :reach keyword)
         (:create frequencies)        (update :create keyword)

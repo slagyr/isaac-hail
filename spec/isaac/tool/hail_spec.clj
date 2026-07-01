@@ -45,6 +45,20 @@
                   :from      :crew/main}
                  @sent*))))
 
+  (it "accepts session_tags as an EDN set (feature table shape)"
+    (helper/create-session! "/test/isaac" "work-sess" {:crew "main"})
+    (let [sent* (atom nil)]
+      (with-redefs [queue/send! (fn [record]
+                                  (reset! sent* record)
+                                  (assoc record :id "hail-1"))]
+        (sut/hail-send-tool {"session_key"  "work-sess"
+                             "band"         "engineering-intercom"
+                             "session_tags" #{:project/warp-coil}})
+        (should= {:frequencies {:band "engineering-intercom"
+                                :session-tags #{:project/warp-coil}}
+                  :from        :crew/main}
+                 @sent*))))
+
   (it "accepts thread_id and reply_to in snake_case"
     (helper/create-session! "/test/isaac" "work-sess" {:crew "main"})
     (let [sent* (atom nil)]
