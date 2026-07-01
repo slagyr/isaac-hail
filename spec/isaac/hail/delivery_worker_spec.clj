@@ -27,12 +27,15 @@
    :providers {"grover" {}}})
 
 (defn- setup-runtime [example]
-  (let [session-store (memory-store/create-store "/test/isaac")
-        cfg          (loader/normalize-config test-config)]
-    (nexus/-with-nexus {:fs        (fs/mem-fs)
-                        :config    (atom cfg)
-                        :root "/test/isaac"
-                        :sessions  {:store session-store}}
+  ;; Install the fs BEFORE normalizing the config: normalize-config composes the
+  ;; module index from the foundation manifest, which reads via fs/instance.
+  ;; Otherwise this spec only passes when a prior spec left a global fs installed
+  ;; (full-suite order) and dies with "no filesystem available" when run alone.
+  (nexus/-with-nexus {:fs (fs/mem-fs) :root "/test/isaac"}
+    (let [session-store (memory-store/create-store "/test/isaac")
+          cfg           (loader/normalize-config test-config)]
+      (nexus/register! [:config] (atom cfg))
+      (nexus/register! [:sessions] {:store session-store})
       (config/dangerously-install-config! cfg "spec")
       (example))))
 
