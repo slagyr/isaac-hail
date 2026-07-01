@@ -116,4 +116,4 @@ Feature: Hail band prompt templating with params
     Given the setup for a templated hail delivered to a session
     When the turn is charged for the session
     Then the turn input is the rendered prompt
-    And the associated hail context contains the params, thread-id, and reply-to
+    And the associated hail context contains the params, thread-id, reply-to, and delivery session id
