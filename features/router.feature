@@ -61,7 +61,7 @@ Feature: Hail router
     And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
       | path      | value                          | #comment                      |
       | id        | hail-1                         | same id, enriched in place    |
-      | frequencies | {:band "engineering-intercom"} |                               |
+      | frequencies | {:band "engineering-intercom" :session-tags [:role/engineer] :reach :one} | merged selector |
       | params    | {:dilithium-leak true}         |                               |
       | crew      | bartholomew                    | only one engineer → bound now |
       | session   | engine-room                    |                               |

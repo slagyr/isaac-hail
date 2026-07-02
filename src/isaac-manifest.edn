@@ -76,4 +76,20 @@
       :session-tags
       {:type :seq,
        :description "Tags sessions must carry",
-       :spec {:type :keyword}}}}}}}}
+       :spec {:type :keyword}},
+      :with-crew
+      {:type :string,
+       :description "Override crew for deliveries on this band",
+       :validations [[:nil-or? [:crew-exists?]]]},
+      :with-model
+      {:type :string,
+       :description "Override model for deliveries on this band",
+       :validations [[:nil-or? [:model-exists?]]]},
+      :with-effort
+      {:type :int,
+       :description "Override effort for deliveries on this band"},
+      :with-context-mode
+      {:type :keyword,
+       :description "Override context mode for deliveries on this band"}}}}}}
+ :isaac.config/check
+ {:hail-band-inheritance {:fn isaac.hail.band-resolve/check-config}}}
