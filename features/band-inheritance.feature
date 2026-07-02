@@ -63,7 +63,7 @@ Feature: Hail band inheritance via base template bands
       | path         | value                                                     |
       | session-tags | #{:project/warp-coil}                                     |
       | reach        | :one                                                      |
-      | data         | {:notification-channel "pub", :bean-repo "git@x:a/b.git"} |
+      | data         | {:notification-channel "shipwide", :bean-repo "git@x:a/b.git"} |
     And the isaac EDN file "config/hail/engineering-work.edn" exists with:
       | path | value                            |
       | base | _engineering-template            |
