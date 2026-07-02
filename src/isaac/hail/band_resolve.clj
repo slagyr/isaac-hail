@@ -55,32 +55,31 @@
       [])))
 
 (defn resolve-slice
-  "Resolve all addressable bands in raw-slice. Templates stay out of :bands."
+  "Resolve bands in raw-slice. Templates are validated but omitted from :bands."
   [raw-slice]
   (reduce
     (fn [{:keys [bands errors]} [band-id band]]
-      (if (template-band? band-id)
-        {:bands bands :errors errors}
-        (try
-          (let [resolved (resolve-band band-id band raw-slice #{})]
-            {:bands  (assoc bands band-id resolved)
-             :errors errors})
-          (catch clojure.lang.ExceptionInfo e
-            (let [data (ex-data e)]
-              (case (:type data)
-                :hail-band/cycle
-                {:bands  bands
-                 :errors (conj errors (error-row band-id
-                                                  (str "base cycle: "
-                                                       (str/join " -> " (map name (:visited data)))
-                                                       " -> " (name band-id))))}
+      (try
+        (let [resolved (resolve-band band-id band raw-slice #{})]
+          (if (template-band? band-id)
+            {:bands bands :errors errors}
+            {:bands (assoc bands band-id resolved) :errors errors}))
+        (catch clojure.lang.ExceptionInfo e
+          (let [data (ex-data e)]
+            (case (:type data)
+              :hail-band/cycle
+              {:bands  bands
+               :errors (conj errors (error-row band-id
+                                                (str "base cycle: "
+                                                     (str/join " -> " (map name (:visited data)))
+                                                     " -> " (name band-id))))}
 
-                :hail-band/missing-base
-                {:bands  bands
-                 :errors (conj errors (error-row band-id
-                                                  (str "missing base band: " (:base data))))}
+              :hail-band/missing-base
+              {:bands  bands
+               :errors (conj errors (error-row band-id
+                                                (str "missing base band: " (:base data))))}
 
-                (throw e)))))))
+              (throw e))))))
     {:bands {} :errors []}
     raw-slice))
 

@@ -66,6 +66,13 @@
                           (.contains (:value %) "missing"))
                     errors))))
 
+  (it "detects cycles between template bands"
+    (let [raw {"_alpha" {:base "_beta"}
+               "_beta"  {:base "_alpha"}}
+          {:keys [bands errors]} (sut/resolve-slice raw)]
+      (should (empty? bands))
+      (should (some #(and (.contains (:value %) "cycle") %) errors))))
+
   (it "excludes underscore-prefixed template bands from the resolved slice"
     (let [raw {"_template" {:session-tags [:isaac] :reach :one}
                "isaac-work" {:base "_template" :crew "worker"}}

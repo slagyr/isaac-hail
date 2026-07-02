@@ -1,4 +1,3 @@
-@wip
 Feature: Hail band inheritance via base template bands
   A band may declare :base — another band file it composes over — so shared
   coordinates (bean-repo, notification-comm, ...) live once per project in a
