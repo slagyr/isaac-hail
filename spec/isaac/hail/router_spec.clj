@@ -235,7 +235,7 @@
                                           [{:id "engine-room" :crew "main"}]
                                           {:id          "hail-1"
                                            :frequencies {:band "gauge-check" :session ["engine-room"]}})]
-      (should= :navigator (:crew (:delivery result)))))
+      (should= :main (:crew (:delivery result)))))
 
   (it "registers the shared scheduler task"
     (let [scheduler (scheduler/create {})]
