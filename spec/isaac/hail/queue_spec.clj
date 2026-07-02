@@ -38,7 +38,6 @@
                   :thread-id   id
                   :frequencies {:band "bean-pickup"}
                   :params      {:n 1}
-                  :data        {:n 1}
                   :from        :cli
                   :sent-at     "2026-05-23T12:00:00Z"}
                  record)
