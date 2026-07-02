@@ -1,6 +1,6 @@
 Feature: Hail delivery embeds metadata and params in the turn's system preamble
   Every hail delivered to a session opens its turn with a system preamble carrying
-  standard, model-friendly context — the delivery-bound session id, hail id, thread,
+  standard, model-friendly context — the hail id, thread,
   reply-to, submitter/origin, and the hail's :params as data — so autonomous handoffs
   work without the model re-threading data by hand.
 
@@ -40,7 +40,6 @@ Feature: Hail delivery embeds metadata and params in the turn's system preamble
     And the turn ends on session "engine-room"
     Then the hail turn on session "engine-room" has a system preamble matching:
       | pattern                                    |
-      | #"(?s).*[Ss]ession:\s*engine-room.*"       |
       | #"(?s).*[Hh]ail id:\s*hail-1.*"            |
       | #"(?s).*[Tt]hread:\s*dilithium-thread-7.*" |
       | #"(?s).*coil.*port.*"                      |
@@ -76,7 +75,6 @@ Feature: Hail delivery embeds metadata and params in the turn's system preamble
     And the turn ends on session "engine-room"
     Then the hail turn on session "engine-room" has a system preamble matching:
       | pattern                              |
-      | #"(?s).*[Ss]ession:\s*engine-room.*" |
       | #"(?s).*coil.*primary.*"             |
       | #"(?s).*drift.*0\.03.*"              |
 
@@ -105,12 +103,11 @@ Feature: Hail delivery embeds metadata and params in the turn's system preamble
     And the turn ends on session "engine-room"
     Then the hail turn on session "engine-room" has a system preamble matching:
       | pattern                                    |
-      | #"(?s).*[Ss]ession:\s*engine-room.*"       |
       | #"(?s).*[Ss]ubmitter.?session:\s*bridge.*" |
       | #"(?s).*[Rr]eply.?to:\s*hail-1.*"          |
       | #"(?s).*coil.*port.*"                      |
 
-  Scenario: A reach-one hail bound at delivery shows the delivery-selected session id in the preamble
+  Scenario: A reach-one hail bound at delivery delivers to the delivery-selected session
     Given the isaac EDN file "config/crew/atticus.edn" exists with:
       | path  | value  |
       | model | grover |
@@ -136,7 +133,6 @@ Feature: Hail delivery embeds metadata and params in the turn's system preamble
     And the turn ends on session "bridge"
     Then the hail turn on session "bridge" has a system preamble matching:
       | pattern                         |
-      | #"(?s).*[Ss]ession:\s*bridge.*" |
       | #"(?s).*sector.*gamma.*"        |
 
   Scenario: A hail with a prompt and no params is delivered as-is, with metadata and no params section
@@ -161,7 +157,6 @@ Feature: Hail delivery embeds metadata and params in the turn's system preamble
     And the turn ends on session "engine-room"
     Then the hail turn on session "engine-room" has a system preamble matching:
       | pattern                              |
-      | #"(?s).*[Ss]ession:\s*engine-room.*" |
       | #"(?s).*[Hh]ail id:\s*hail-5.*"      |
     And the hail turn on session "engine-room" has a system preamble not matching:
       | pattern          |
@@ -169,3 +164,32 @@ Feature: Hail delivery embeds metadata and params in the turn's system preamble
     And session "engine-room" has transcript matching:
       | message.role | message.content       |
       | user         | #"(?s).*All stop\..*" |
+
+  @wip
+  Scenario: the delivery preamble carries per-delivery facts only — identity is ambient (isaac-sx4g)
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the following model responses are queued:
+      | type | content | model  |
+      | text | On it.  | grover |
+    And the isaac EDN file hail/deliveries/hail-9.edn exists with:
+      | path      | value                           |
+      | id        | hail-9                          |
+      | session   | engine-room                     |
+      | crew      | bartholomew                     |
+      | thread-id | dilithium-thread-9              |
+      | prompt    | Recalibrate the port warp coil. |
+      | attempts  | 0                               |
+    When the hail delivery worker ticks
+    And the turn ends on session "engine-room"
+    Then the hail turn on session "engine-room" has a system preamble matching:
+      | pattern                                     | #comment                |
+      | #"(?s).*[Hh]ail id:\s*hail-9.*"             | per-delivery facts stay |
+      | #"(?s).*[Tt]hread:\s*dilithium-thread-9.*"  |                         |
+    And the hail turn on session "engine-room" has a system preamble not matching:
+      | pattern               | #comment                                     |
+      | #"(?sm).*^Session:.*" | identity is ambient in the system prompt now |
