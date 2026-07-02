@@ -36,6 +36,27 @@
                 :reach        :all}
                result)))
 
+  (it "conforms optional band :data maps"
+    (let [result (schema/conform (hail-band-schema)
+                                 {:session-tags [:bean/ready]
+                                  :reach        :one
+                                  :data         {:bean-repo "isaac"
+                                                 :bean-id   "{{bean-id}}"}})]
+      (should-not (schema/error? result))
+      (should= {:session-tags [:bean/ready]
+                :reach        :one
+                :data         {:bean-repo "isaac"
+                               :bean-id   "{{bean-id}}"}}
+               result)))
+
+  (it "rejects band :data that is not a map"
+    (let [result (schema/conform (hail-band-schema)
+                                 {:session-tags [:bean/ready]
+                                  :reach        :one
+                                  :data         "not-a-map"})]
+      (should (schema/error? result))
+      (should (.contains (pr-str (schema/message-map result)) "data"))))
+
   (it "rejects :crew as a seq"
     (let [result (schema/conform (hail-band-schema)
                                  {:crew         [:ops]

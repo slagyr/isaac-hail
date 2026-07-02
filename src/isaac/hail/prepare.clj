@@ -25,6 +25,26 @@
       (assoc record :prompt (template/render template (or (:params record) {})))
       record)))
 
+(defn- render-data-value [value bindings]
+  (cond
+    (string? value) (template/render value bindings)
+    (map? value)    (into {} (map (fn [[k v]] [k (render-data-value v bindings)]) value))
+    :else           value))
+
+(defn- effective-data [cfg record]
+  (let [band-data (:data (band-entry cfg (band-name record)))
+        params    (or (:params record) {})]
+    (when (or (seq band-data) (seq params))
+      (render-data-value (merge band-data params) params))))
+
+(defn enrich-band-data
+  "Merge band :data with per-hail :params (params win), interpolate {{var}}
+   placeholders in string values, and persist the result on :data."
+  [record cfg]
+  (if-let [data (effective-data cfg record)]
+    (assoc record :data data)
+    (dissoc record :data)))
+
 (defn inherit-thread-id
   "When :reply-to is set and :thread-id is omitted, inherit from the parent hail."
   [record]
@@ -47,4 +67,5 @@
   ([record cfg]
    (-> record
        inherit-thread-id
-       (render-band-prompt cfg))))
+       (render-band-prompt cfg)
+       (enrich-band-data cfg))))

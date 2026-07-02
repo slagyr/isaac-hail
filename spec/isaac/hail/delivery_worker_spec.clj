@@ -110,6 +110,19 @@
         (should-contain "Session: engine-room" guidance)
         (should-contain "Hail id: hail-1" guidance))))
 
+  (it "includes band data in the metadata preamble"
+    (let [captured (atom nil)]
+      (with-redefs [isaac.charge/build (fn [request]
+                                         (reset! captured request)
+                                         {:charge/type :charge})]
+        (#'sut/delivery-charge test-config {:id      "hail-1"
+                                            :prompt  "Pick up the bean."
+                                            :session :engine-room
+                                            :data    {:bean-repo "isaac" :bean-id "isaac-iz3a"}}))
+      (let [guidance (:guidance @captured)]
+        (should-contain "--- Hail metadata ---" guidance)
+        (should-contain "Data: {:bean-repo \"isaac\", :bean-id \"isaac-iz3a\"}" guidance))))
+
   (it "binds an unbound delivery to the first idle candidate"
     (let [session-store (nexus/get-in [:sessions :store])]
       (store/open-session! session-store "bridge" {:crew "atticus"})

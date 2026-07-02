@@ -252,6 +252,7 @@
       (:thread-id hail) (assoc :thread-id (normalize-id (:thread-id hail)))
       (:reply-to hail)  (assoc :reply-to (normalize-id (:reply-to hail)))
       (:params hail)    (assoc :params (:params hail))
+      (:data hail)      (assoc :data (:data hail))
       (:prompt hail)    (assoc :prompt (:prompt hail)))))
 
 (defn- delivery-with-prompt [cfg delivery]
@@ -269,13 +270,14 @@
    :params are ALWAYS echoed here — even when a band template already consumed
    them — so they never silently drop on the explicit-prompt path."
   [delivery]
-  (let [{:keys [session id thread-id reply-to submitter-session params]} delivery
+  (let [{:keys [session id thread-id reply-to submitter-session params data]} delivery
         lines (->> [(meta-line "Session" session)
                     (meta-line "Hail id" id)
                     (meta-line "Thread" thread-id)
                     (meta-line "Submitter session" submitter-session)
                     (meta-line "Reply-to" reply-to)
                     (meta-line "From crew" (or (:from-crew delivery) (:from delivery)))
+                    (when (seq data) (str "Data: " (pr-str data)))
                     (when (seq params) (str "Params: " (pr-str params)))]
                    (remove nil?))]
     (str/join "\n" (concat [hail-guidance "--- Hail metadata ---"] lines))))

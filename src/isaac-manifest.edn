@@ -61,6 +61,11 @@
       {:type :keyword,
        :description "Create policy when :reach is :one and no matching session is available (:never or :if-missing).",
        :validations [[:one-of? :never :if-missing]]},
+      :data
+      {:type :map,
+       :description "Band-level data delivered with every hail (merged with per-hail :params)",
+       :key-spec {:type :keyword},
+       :value-spec {:type :any}},
       :session
       {:type :seq,
        :description "Explicit session ids eligible for the band",

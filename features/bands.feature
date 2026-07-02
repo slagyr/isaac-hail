@@ -52,6 +52,35 @@ Feature: Hail bands declared in config
     Then the stderr contains "crew"
     And the exit code is 1
 
+  Scenario: config validate accepts a band with data frontmatter
+    Given config file "crew/ops.edn" containing:
+      """
+      {:model :grover}
+      """
+    And config file "models/grover.edn" containing:
+      """
+      {:model "echo" :provider :grover :context-window 32768}
+      """
+    And config file "providers/grover.edn" containing:
+      """
+      {}
+      """
+    And config file "hail/bean-pickup.md" containing:
+      """
+      ---
+      session-tags:
+        - :project/chess
+      reach: :one
+      data:
+        bean-repo: isaac
+        bean-id: "{{bean-id}}"
+      ---
+      Pick up the bean.
+      """
+    When isaac is run with "config validate"
+    Then the stdout contains "OK"
+    And the exit code is 0
+
   Scenario: config validate accepts a band defined as a single .md with frontmatter
     Given config file "crew/ops.edn" containing:
       """

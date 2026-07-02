@@ -126,6 +126,19 @@
         (should (short-uuid? (:id record)))
         (should-not= "hail-42" (:id record)))))
 
+  (it "persists effective band data on the hail record"
+    (config/dangerously-install-config!
+     {:hail {"bean-pickup" {:session-tags [:project/chess]
+                            :reach        :one
+                            :data         {:bean-repo "isaac"
+                                           :bean-id   "{{bean-id}}"}}}}
+     "spec")
+    (let [record (sut/send! {:frequencies {:band "bean-pickup"}
+                             :params    {:bean-id "isaac-iz3a"}
+                             :from      :cli})]
+      (should= {:bean-repo "isaac" :bean-id "isaac-iz3a"} (:data record))
+      (should= (:data record) (:data (sut/read-pending (:id record))))))
+
   (it "uses the CLI root binding when nexus :root is unset"
     (let [fs* (fs/mem-fs)]
       (nexus/-with-nexus {:fs fs*}

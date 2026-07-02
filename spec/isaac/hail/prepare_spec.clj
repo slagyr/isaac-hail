@@ -35,4 +35,25 @@
                (:thread-id (sut/inherit-thread-id {:reply-to "hail-42"})))))
 
   (it "defaults thread-id to the hail id"
-    (should= "hail-1" (:thread-id (sut/default-thread-id {:id "hail-1"})))))
+    (should= "hail-1" (:thread-id (sut/default-thread-id {:id "hail-1"}))))
+
+  (it "merges band data with params and interpolates string values"
+    (let [cfg {:hail {"bean-pickup" {:data {:bean-repo "isaac"
+                                            :bean-id   "{{bean-id}}"}}}}
+          record {:frequencies {:band "bean-pickup"}
+                  :params    {:bean-id "isaac-iz3a"}}]
+      (should= {:bean-repo "isaac" :bean-id "isaac-iz3a"}
+               (:data (sut/enrich-band-data record cfg)))))
+
+  (it "lets params override same-named band data keys"
+    (let [cfg {:hail {"bean-pickup" {:data {:bean-repo "isaac"
+                                            :sector    "alpha"}}}}
+          record {:frequencies {:band "bean-pickup"}
+                  :params    {:sector "gamma"}}]
+      (should= {:bean-repo "isaac" :sector "gamma"}
+               (:data (sut/enrich-band-data record cfg)))))
+
+  (it "omits :data when the band has no data and params are absent"
+    (let [cfg {:hail {"bean-pickup" {:prompt "Go."}}}
+          record {:frequencies {:band "bean-pickup"}}]
+      (should-not (contains? (sut/enrich-band-data record cfg) :data)))))
