@@ -2,7 +2,6 @@
   (:require
     [cheshire.core :as json]
     [clojure.edn :as edn]
-    [clojure.string :as str]
     [isaac.config.api :as config]
     [isaac.fs :as fs]
     [isaac.hail.http :as sut]
@@ -33,7 +32,7 @@
   (it "accepts JSON and returns 201 with the persisted hail as JSON"
     (binding [memory/*now* (java.time.Instant/parse "2026-05-24T17:00:00Z")]
       (let [response (sut/handler (post-request "application/json"
-                                                "{\"frequencies\":{\"band\":\"bean-pickup\"},\"payload\":{\"n\":1}}"))
+                                                "{\"frequencies\":{\"band\":\"bean-pickup\"},\"params\":{\"n\":1}}"))
             body     (json/parse-string (:body response) true)
             id       (:id body)]
         (should= 201 (:status response))
@@ -42,35 +41,35 @@
         (should= (str "/hail/" id) (get-in response [:headers "Location"]))
         (should= "http" (:from body))
         (should= id (:thread-id body))
-        (should= {:id        id
-                  :thread-id id
+        (should= {:id          id
+                  :thread-id   id
                   :frequencies {:band "bean-pickup"}
-                  :payload   {:n 1}
-                  :from      :http
-                  :sent-at   "2026-05-24T17:00:00Z"}
+                  :params      {:n 1}
+                  :from        :http
+                  :sent-at     "2026-05-24T17:00:00Z"}
                  (queue/read-pending id)))))
 
   (it "accepts EDN and returns 201 with the persisted hail as EDN"
     (binding [memory/*now* (java.time.Instant/parse "2026-05-24T17:00:00Z")]
       (let [response (sut/handler (post-request "application/edn"
-                                                "{:frequencies {:band \"bean-pickup\"} :payload {:n 1}}"))
+                                                "{:frequencies {:band \"bean-pickup\"} :params {:n 1}}"))
             body     (edn/read-string (:body response))
             id       (:id body)]
         (should= 201 (:status response))
         (should= "application/edn" (get-in response [:headers "Content-Type"]))
         (should (short-uuid? id))
         (should= (str "/hail/" id) (get-in response [:headers "Location"]))
-        (should= {:id        id
-                  :thread-id id
+        (should= {:id          id
+                  :thread-id   id
                   :frequencies {:band "bean-pickup"}
-                  :payload   {:n 1}
-                  :from      :http
-                  :sent-at   "2026-05-24T17:00:00Z"}
+                  :params      {:n 1}
+                  :from        :http
+                  :sent-at     "2026-05-24T17:00:00Z"}
                  body))))
 
   (it "returns 400 with a structured error when frequencies is missing"
     (let [response (sut/handler (post-request "application/json"
-                                              "{\"payload\":{\"n\":1}}"))
+                                              "{\"params\":{\"n\":1}}"))
           body     (json/parse-string (:body response) true)]
       (should= 400 (:status response))
       (should= "application/json" (get-in response [:headers "Content-Type"]))

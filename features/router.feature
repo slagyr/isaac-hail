@@ -28,7 +28,7 @@ Feature: Hail router
       | path      | value                          |
       | id        | hail-1                         |
       | frequencies | {:band "engineering-intercom"} |
-      | payload   | {:n 1}                         |
+      | params    | {:n 1}                         |
       | from      | :cli                           |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
@@ -54,7 +54,7 @@ Feature: Hail router
       | path      | value                          |
       | id        | hail-1                         |
       | frequencies | {:band "engineering-intercom"} |
-      | payload   | {:dilithium-leak true}         |
+      | params    | {:dilithium-leak true}         |
       | from      | :cli                           |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
@@ -62,7 +62,7 @@ Feature: Hail router
       | path      | value                          | #comment                      |
       | id        | hail-1                         | same id, enriched in place    |
       | frequencies | {:band "engineering-intercom"} |                               |
-      | payload   | {:dilithium-leak true}         |                               |
+      | params    | {:dilithium-leak true}         |                               |
       | crew      | bartholomew                    | only one engineer → bound now |
       | session   | engine-room                    |                               |
 
@@ -196,7 +196,7 @@ Feature: Hail router
       | path      | value                                                              |
       | id        | hail-1                                                             |
       | frequencies | {:band "engineering-intercom" :session-tags #{:project/warp-coil}} |
-      | payload   | {:resonance-drift 0.03}                                            |
+      | params    | {:resonance-drift 0.03}                                            |
       | from      | :cli                                                               |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
@@ -225,7 +225,7 @@ Feature: Hail router
       | path      | value                          |
       | id        | hail-1                         |
       | frequencies | {:band "engineering-intercom"} |
-      | payload   | {:n 1}                         |
+      | params    | {:n 1}                         |
       | from      | :cli                           |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
@@ -275,7 +275,7 @@ Feature: Hail router
       | path      | value                  | #comment                               |
       | id        | hail-1                 |                                        |
       | frequencies | {:band "phantom-band"} | no config/hail/phantom-band.edn exists |
-      | payload   | {:n 1}                 |                                        |
+      | params    | {:n 1}                 |                                        |
       | from      | :cli                   |                                        |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist
@@ -301,7 +301,7 @@ Feature: Hail router
       | path      | value                          |
       | id        | hail-1                         |
       | frequencies | {:band "engineering-intercom"} |
-      | payload   | {:n 1}                         |
+      | params    | {:n 1}                         |
       | from      | :cli                           |
     When the hail router ticks
     Then the isaac file "hail/pending/hail-1.edn" does not exist

@@ -11,38 +11,38 @@ Feature: Hail HTTP route POST /hail/send
 
   Scenario: POST with JSON body and valid auth persists a hail
     When a POST request is made to "/hail/send":
-      | key                  | value                                                       |
-      | header.Content-Type  | application/json                                            |
-      | header.Authorization | Bearer secret123                                            |
-      | body                 | {"frequencies": {"band": "bean-pickup"}, "payload": {"n": 1}} |
+      | key                  | value                                                      |
+      | header.Content-Type  | application/json                                           |
+      | header.Authorization | Bearer secret123                                           |
+      | body                 | {"frequencies": {"band": "bean-pickup"}, "params": {"n": 1}} |
     Then the response status is 201
     And the sole pending hail EDN contains:
-      | path      | value                 |
-      | id        | <short-uuid>          |
+      | path        | value                 |
+      | id          | <short-uuid>          |
       | frequencies | {:band "bean-pickup"} |
-      | payload   | {:n 1}                |
-      | from      | :http                 |
+      | params      | {:n 1}                |
+      | from        | :http                 |
 
   Scenario: POST with EDN body and valid auth persists a hail
     When a POST request is made to "/hail/send":
-      | key                  | value                                              |
-      | header.Content-Type  | application/edn                                    |
-      | header.Authorization | Bearer secret123                                   |
-      | body                 | {:frequencies {:band "bean-pickup"} :payload {:n 1}} |
+      | key                  | value                                             |
+      | header.Content-Type  | application/edn                                   |
+      | header.Authorization | Bearer secret123                                  |
+      | body                 | {:frequencies {:band "bean-pickup"} :params {:n 1}} |
     Then the response status is 201
     And the sole pending hail EDN contains:
-      | path      | value                 |
-      | id        | <short-uuid>          |
+      | path        | value                 |
+      | id          | <short-uuid>          |
       | frequencies | {:band "bean-pickup"} |
-      | payload   | {:n 1}                |
-      | from      | :http                 |
+      | params      | {:n 1}                |
+      | from        | :http                 |
 
   Scenario: POST with missing frequency returns 400
     When a POST request is made to "/hail/send":
-      | key                  | value                 | #comment                                  |
-      | header.Content-Type  | application/json      |                                           |
-      | header.Authorization | Bearer secret123      |                                           |
-      | body                 | {"payload": {"n": 1}} | no "frequencies" key in body — must reject  |
+      | key                  | value                 | #comment                                 |
+      | header.Content-Type  | application/json      |                                          |
+      | header.Authorization | Bearer secret123      |                                          |
+      | body                 | {"params": {"n": 1}} | no "frequencies" key in body — must reject |
     Then the response status is 400
     And the response body has a "error" key
 

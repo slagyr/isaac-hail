@@ -23,11 +23,11 @@
                                   (assoc record :id "hail-1"))]
         (let [result (sut/hail-send-tool {"session_key" "work-sess"
                                           "band"        "bean-pickup"
-                                          "payload"     {"n" 1}})]
+                                          "params"      {"n" 1}})]
           (should= "hail-1" (:result result))
           (should= {:frequencies {:band "bean-pickup"}
-                    :payload   {"n" 1}
-                    :from      :crew/main}
+                    :params      {"n" 1}
+                    :from        :crew/main}
                    @sent*)))))
 
   (it "normalizes JSON-shaped frequency keys before persisting"
@@ -39,10 +39,10 @@
         (sut/hail-send-tool {"session_key"  "work-sess"
                              "band"         "bean-pickup"
                              "session_tags" ["project/warp-coil"]
-                             "payload"      {"n" 1}})
+                             "params"       {"n" 1}})
         (should= {:frequencies {:band "bean-pickup" :session-tags #{:project/warp-coil}}
-                  :payload   {"n" 1}
-                  :from      :crew/main}
+                  :params      {"n" 1}
+                  :from        :crew/main}
                  @sent*))))
 
   (it "accepts session_tags as an EDN set (feature table shape)"
@@ -77,8 +77,7 @@
 
   (it "errors when no addressing field is provided"
     (helper/create-session! "/test/isaac" "work-sess" {:crew "main"})
-    (let [result (sut/hail-send-tool {"session_key" "work-sess"
-                                      "payload"     {:n 1}})]
+    (let [result (sut/hail-send-tool {"session_key" "work-sess"})]
       (should (:isError result))
       (should= "At least one addressing field is required (band, session, session_tags, or crew)"
                (:error result))))
@@ -97,6 +96,7 @@
       (should (contains? props "session_tags"))
       (should (contains? props "with_crew"))
       (should (contains? props "params"))
+      (should-not (contains? props "payload"))
       (should= "object" (get-in props ["params" :type]))
       (should-not (re-find #"EDN" (str (get-in props ["params" :description]))))
       (should= "Sessions whose :crew matches this id"

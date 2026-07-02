@@ -7,85 +7,83 @@ Feature: Hail send — direct addressing flags
     Given an Isaac root at "target/test-state"
 
   Scenario: --crew populates :crew in the frequency address map
-    When isaac is run with "hail send --crew marvin --prompt 'Heads up' --payload '{:n 1}' --session-tag wip"
+    When isaac is run with "hail send --crew marvin --prompt 'Heads up' --session-tag wip"
     Then the exit code is 0
     And the sole pending hail EDN contains:
-      | path      | value                                   |
-      | id        | <short-uuid>                            |
-      | frequencies | {:crew "marvin" :session-tags #{:wip}}  |
-      | prompt    | Heads up                                |
-      | payload   | {:n 1}                                  |
-      | from      | :cli                                    |
+      | path        | value                                  |
+      | id          | <short-uuid>                           |
+      | frequencies | {:crew "marvin" :session-tags #{:wip}} |
+      | prompt      | Heads up                               |
+      | from        | :cli                                   |
 
   Scenario: --session populates :session in the address map
-    When isaac is run with "hail send --session tidy-cavern --prompt 'wake up' --payload '{:n 1}'"
+    When isaac is run with "hail send --session tidy-cavern --prompt 'wake up'"
     Then the exit code is 0
     And the sole pending hail EDN contains:
-      | path      | value                     |
-      | id        | <short-uuid>              |
+      | path        | value                     |
+      | id          | <short-uuid>              |
       | frequencies | {:session [:tidy-cavern]} |
-      | prompt    | wake up                   |
-      | payload   | {:n 1}                    |
-      | from      | :cli                      |
+      | prompt      | wake up                   |
+      | from        | :cli                      |
 
   Scenario: --session-tag populates :session-tags (repeatable AND-set)
-    When isaac is run with "hail send --session-tag project/chess --session-tag wip --prompt 'go' --payload '{:n 1}'"
+    When isaac is run with "hail send --session-tag project/chess --session-tag wip --prompt 'go'"
     Then the exit code is 0
     And the sole pending hail EDN contains:
-      | path      | value                                  |
-      | id        | <short-uuid>                           |
+      | path        | value                                  |
+      | id          | <short-uuid>                           |
       | frequencies | {:session-tags #{:project/chess :wip}} |
-      | prompt    | go                                     |
-      | from      | :cli                                   |
+      | prompt      | go                                     |
+      | from        | :cli                                   |
 
   Scenario: combining --crew with --session-tag sets both selectors in :frequencies
-    When isaac is run with "hail send --crew marvin --session-tag project/chess --prompt 'go' --payload '{:n 1}'"
+    When isaac is run with "hail send --crew marvin --session-tag project/chess --prompt 'go'"
     Then the exit code is 0
     And the sole pending hail EDN contains:
-      | path      | value                                              |
-      | id        | <short-uuid>                                       |
-      | frequencies | {:crew "marvin" :session-tags #{:project/chess}}   |
-      | prompt    | go                                                 |
-      | from      | :cli                                               |
+      | path        | value                                            |
+      | id          | <short-uuid>                                     |
+      | frequencies | {:crew "marvin" :session-tags #{:project/chess}} |
+      | prompt      | go                                               |
+      | from        | :cli                                             |
 
   Scenario: --from-json reads the whole hail from stdin as JSON
     Given stdin is:
       """
-      {"frequencies": {"band": "bean-pickup"}, "payload": {"n": 1}}
+      {"frequencies": {"band": "bean-pickup"}, "params": {"n": 1}}
       """
     When isaac is run with "hail send - --from-json"
     Then the exit code is 0
     And the sole pending hail EDN contains:
-      | path      | value                 |
-      | id        | <short-uuid>          |
+      | path        | value                 |
+      | id          | <short-uuid>          |
       | frequencies | {:band "bean-pickup"} |
-      | payload   | {:n 1}                |
-      | from      | :cli                  |
+      | params      | {:n 1}                |
+      | from        | :cli                  |
 
   Scenario: bare - reads the whole hail from stdin as EDN
     Given stdin is:
       """
       {:frequencies {:crew :marvin
-                   :session-tags #{:project/chess}}
-       :prompt    "go"
-       :payload   {:n 1}}
+                     :session-tags #{:project/chess}}
+       :prompt      "go"
+       :params      {:n 1}}
       """
     When isaac is run with "hail send -"
     Then the exit code is 0
     And the sole pending hail EDN contains:
-      | path      | value                                              |
-      | id        | <short-uuid>                                       |
-      | frequencies | {:crew :marvin :session-tags #{:project/chess}}   |
-      | prompt    | go                                                 |
-      | payload   | {:n 1}                                             |
-      | from      | :cli                                               |
+      | path        | value                                            |
+      | id          | <short-uuid>                                     |
+      | frequencies | {:crew :marvin :session-tags #{:project/chess}}  |
+      | prompt      | go                                               |
+      | params      | {:n 1}                                           |
+      | from        | :cli                                             |
 
   Scenario: send rejects a frequency with no session selector
-    When isaac is run with "hail send --reach one --prompt 'orphan' --payload '{:n 1}'"
+    When isaac is run with "hail send --reach one --prompt 'orphan'"
     Then the stderr contains "addressing"
     And the exit code is 1
 
   Scenario: direct addressing without --prompt errors clearly
-    When isaac is run with "hail send --session-tag wip --payload '{:n 1}'"
+    When isaac is run with "hail send --session-tag wip"
     Then the stderr contains "prompt"
     And the exit code is 1

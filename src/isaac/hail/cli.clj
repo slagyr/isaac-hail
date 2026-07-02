@@ -24,7 +24,6 @@
    [nil "--params EDN" "Band template parameters (EDN map)"]
    [nil "--reply-to ID" "Hail id this message replies to"]
    [nil "--thread-id ID" "Thread id (defaults to hail id or inherited from reply-to)"]
-   [nil "--payload EDN" "Payload EDN, or '-' to read payload from stdin"]
    [nil "--from-json" "Read whole-hail stdin input as JSON"]
    [nil "--json" "Print the full hail record as JSON"]
    [nil "--edn" "Print the full hail record as EDN"]])
@@ -36,7 +35,7 @@
        "  send    Persist a hail record to hail/pending\n"))
 
 (defn- send-help []
-  (str "Usage: isaac hail send [addressing flags] [--prompt <text>] [--payload <edn>|-] [--json|--edn]\n"
+  (str "Usage: isaac hail send [addressing flags] [--prompt <text>] [--params <edn>] [--json|--edn]\n"
        "       isaac hail send - [--from-json]\n\n"
        "Persist a hail record to hail/pending.\n\n"
        "Options:\n"
@@ -47,7 +46,7 @@
        "      --session-tag TAG      Session tag (repeatable)\n"
        "      --reach MODE           Reach mode (:one or :all) for direct/tag addressing\n"
        "      --prompt TEXT          Prompt for direct/tag-addressed hails\n"
-       "      --payload EDN          Payload EDN, or '-' to read payload from stdin\n"
+       "      --params EDN           Band template parameters (EDN map)\n"
        "      --from-json            Read whole-hail stdin input as JSON\n"
        "      --json                 Print the full hail record as JSON\n"
        "      --edn                  Print the full hail record as EDN\n"))
@@ -148,10 +147,7 @@
       (:prompt options)   (assoc :prompt (:prompt options))
       (:params options)   (assoc :params (read-edn (:params options)))
       (:reply-to options) (assoc :reply-to (:reply-to options))
-      (:thread-id options) (assoc :thread-id (:thread-id options))
-      (:payload options)  (assoc :payload (if (= "-" (:payload options))
-                                           (read-edn (or (slurp-stdin) "nil"))
-                                           (read-edn (:payload options)))))))
+      (:thread-id options) (assoc :thread-id (:thread-id options)))))
 
 (defn- print-record! [record options]
   (cond

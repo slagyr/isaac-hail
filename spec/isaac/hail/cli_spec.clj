@@ -25,29 +25,30 @@
 
   (it "prints the hail id by default"
     (let [output (with-out-str
-                   (should= 0 (sut/run-fn {:_raw-args ["send" "--band" "bean-pickup" "--payload" "{:n 1}"]})))]
+                   (should= 0 (sut/run-fn {:_raw-args ["send" "--band" "bean-pickup" "--params" "{:n 1}"]})))]
       (let [id (hail-id-from-output output)]
         (should (short-uuid? id))
-        (should= "{:n 1}" (pr-str (:payload (sut/read-pending id)))))))
+        (should= {:n 1} (:params (sut/read-pending id))))))
 
   (it "prints the full hail record as JSON"
     (binding [memory/*now* (java.time.Instant/parse "2026-05-23T12:00:00Z")]
       (let [output (with-out-str
-                     (should= 0 (sut/run-fn {:_raw-args ["send" "--band" "bean-pickup" "--payload" "{:n 1}" "--json"]})))
+                     (should= 0 (sut/run-fn {:_raw-args ["send" "--band" "bean-pickup" "--params" "{:n 1}" "--json"]})))
             value  (json/parse-string output true)]
         (should (short-uuid? (:id value)))
         (should= "bean-pickup" (get-in value [:frequencies :band]))
-        (should= 1 (get-in value [:payload :n]))
+        (should= 1 (get-in value [:params :n]))
         (should= "cli" (:from value))
         (should= "2026-05-23T12:00:00Z" (:sent-at value)))))
 
   (it "reads a whole hail record from stdin"
-    (let [output (with-in-str "{:frequencies {:band \"bean-pickup\"} :payload {:n 1}}"
+    (let [output (with-in-str "{:frequencies {:band \"bean-pickup\"} :params {:n 1}}"
                    (with-out-str
                      (should= 0 (sut/run-fn {:_raw-args ["send" "-"]}))))]
       (let [id (hail-id-from-output output)]
         (should (short-uuid? id))
-        (should= {:band "bean-pickup"} (:frequencies (sut/read-pending id))))))
+        (should= {:band "bean-pickup"} (:frequencies (sut/read-pending id)))
+        (should= {:n 1} (:params (sut/read-pending id))))))
 
   (it "ignores stdin-supplied id and sent-at"
     (binding [memory/*now* (java.time.Instant/parse "2026-05-23T12:00:00Z")]
@@ -56,15 +57,15 @@
                        (should= 0 (sut/run-fn {:_raw-args ["send" "-"]}))))]
         (let [id (hail-id-from-output output)]
           (should (short-uuid? id))
-          (should= {:id        id
-                    :sent-at   "2026-05-23T12:00:00Z"
+          (should= {:id          id
+                    :sent-at     "2026-05-23T12:00:00Z"
                     :frequencies {:band "bean-pickup"}
-                    :from      :cli}
+                    :from        :cli}
                    (select-keys (sut/read-pending id) [:id :sent-at :frequencies :from]))))))
 
   (it "accepts --crew and persists it under :frequencies :crew"
     (let [output (with-out-str
-                   (should= 0 (sut/run-fn {:_raw-args ["send" "--crew" "marvin" "--session-tag" "wip" "--prompt" "Heads up" "--payload" "{:n 1}"]})))]
+                   (should= 0 (sut/run-fn {:_raw-args ["send" "--crew" "marvin" "--session-tag" "wip" "--prompt" "Heads up"]})))]
       (let [id (hail-id-from-output output)]
         (should (short-uuid? id))
         (should= {:crew "marvin" :session-tags #{:wip}} (:frequencies (sut/read-pending id)))
@@ -72,7 +73,7 @@
 
   (it "accepts --session and persists it under :frequencies :session"
     (let [output (with-out-str
-                   (should= 0 (sut/run-fn {:_raw-args ["send" "--session" "alpha" "--prompt" "Heads up" "--payload" "{:n 1}"]})))]
+                   (should= 0 (sut/run-fn {:_raw-args ["send" "--session" "alpha" "--prompt" "Heads up"]})))]
       (let [id (hail-id-from-output output)]
         (should (short-uuid? id))
         (should= {:session [:alpha]} (:frequencies (sut/read-pending id)))
@@ -102,18 +103,18 @@
                  (:frequencies (sut/read-pending id))))))
 
   (it "reads a whole hail record from stdin as JSON when --from-json is given"
-    (let [output (with-in-str "{\"frequencies\":{\"band\":\"bean-pickup\"},\"payload\":{\"n\":1}}"
+    (let [output (with-in-str "{\"frequencies\":{\"band\":\"bean-pickup\"},\"params\":{\"n\":1}}"
                    (with-out-str
                      (should= 0 (sut/run-fn {:_raw-args ["send" "-" "--from-json"]}))))]
       (let [id (hail-id-from-output output)]
         (should (short-uuid? id))
         (should= {:band "bean-pickup"} (:frequencies (sut/read-pending id)))
-        (should= {:n 1} (:payload (sut/read-pending id))))))
+        (should= {:n 1} (:params (sut/read-pending id))))))
 
   (it "rejects direct addressing without a prompt"
     (let [err* (java.io.StringWriter.)]
       (binding [*err* err*]
-        (should= 1 (sut/run-fn {:_raw-args ["send" "--session-tag" "wip" "--payload" "{:n 1}"]})))
+        (should= 1 (sut/run-fn {:_raw-args ["send" "--session-tag" "wip"]})))
       (let [err (str err*)]
         (should (.contains err "--prompt")))))
 

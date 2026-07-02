@@ -130,7 +130,6 @@
 (defn- build-record [payload]
   (cond-> {:frequencies (normalize-frequencies (:frequencies payload))
            :from        :http}
-    (contains? payload :payload)   (assoc :payload (:payload payload))
     (contains? payload :prompt)    (assoc :prompt (:prompt payload))
     (contains? payload :params)    (assoc :params (parse-params (:params payload)))
     (contains? payload :thread-id) (assoc :thread-id (:thread-id payload))

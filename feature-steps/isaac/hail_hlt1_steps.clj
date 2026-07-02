@@ -94,7 +94,7 @@
              frequencies)))
 
 (def ^:private hail-send-meta-keys
-  #{"params" "reply_to" "reply-to" "thread_id" "thread-id" "prompt" "payload" "frequencies"})
+  #{"params" "reply_to" "reply-to" "thread_id" "thread-id" "prompt" "frequencies"})
 
 (defn- frequencies-from-row-map [row-map]
   (or (parse-frequencies (get row-map "frequencies"))

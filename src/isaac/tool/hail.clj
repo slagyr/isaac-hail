@@ -15,7 +15,7 @@
               :crew))))
 
 (def ^:private non-frequency-tool-keys
-  #{"session_key" "payload" "prompt" "params" "thread_id" "reply_to"})
+  #{"session_key" "prompt" "params" "thread_id" "reply_to"})
 
 (def ^:private address-keys
   (conj frequencies/frequencies-keys :band))
@@ -111,7 +111,7 @@
    in snake_case; the handler builds the internal :frequencies map.
    For compatibility, also accepts legacy nested 'frequencies' or 'frequency'.
    Args: band, session, session_tags, crew, reach, prefer, create, with_*,
-   payload, prompt, params, thread_id, reply_to, session_key (runtime-injected)."
+   prompt, params, thread_id, reply_to, session_key (runtime-injected)."
   [arguments]
   (let [args        (bounds/string-key-map arguments)
         session-key (get args "session_key")
@@ -129,7 +129,6 @@
           :else
           (let [record (cond-> {:frequencies freqs
                                 :from        (keyword (str "crew/" crew-id))}
-                         (contains? args "payload")   (assoc :payload (get args "payload"))
                          (contains? args "prompt")    (assoc :prompt (get args "prompt"))
                          (contains? args "params")    (assoc :params (parse-params (get args "params")))
                          (contains? args "thread_id") (assoc :thread-id (get args "thread_id"))
@@ -141,8 +140,7 @@
   {:description "Send a hail to a band or session target."
    :parameters  {:type       "object"
                  :properties (merge (frequency-tool-properties)
-                                    {"payload"   {:description "Optional hail payload"}
-                                     "prompt"    {:type "string" :description "Optional prompt override"}
+                                    {"prompt"    {:type "string" :description "Optional prompt override"}
                                      "params"    {:type "object" :description "Band template parameters as a JSON object"}
                                      "thread_id" {:type "string" :description "Optional thread id"}
                                      "reply_to"  {:type "string" :description "Optional hail id being replied to"}})}

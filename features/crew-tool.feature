@@ -13,17 +13,17 @@ Feature: Hail crew tool
       | name      |
       | work-sess |
     And the following model responses are queued:
-      | model | tool_call | arguments                                                    |
-      | echo  | hail-send | {"band": "bean-pickup", "payload": {"n": 1}} |
-      | model | type      | content                                                      |
-      | echo  | text      | Done.                                                        |
+      | model | tool_call | arguments                                     |
+      | echo  | hail-send | {"band": "bean-pickup", "params": {"n": 1}} |
+      | model | type      | content                                       |
+      | echo  | text      | Done.                                         |
     When the user sends "send a hail" on session "work-sess"
     Then the sole pending hail EDN contains:
-      | path      | value                 |
-      | id        | <short-uuid>          |
+      | path        | value                 |
+      | id          | <short-uuid>          |
       | frequencies | {:band "bean-pickup"} |
-      | payload   | {:n 1}                |
-      | from      | :crew/main            |
+      | params      | {:n 1}                |
+      | from        | :crew/main            |
 
   Scenario: crew without hail-send in allow list cannot invoke it
     Given the following sessions exist:

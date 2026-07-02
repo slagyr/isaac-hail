@@ -37,7 +37,7 @@ Feature: Hail delivery
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path     | value                  |
       | id       | hail-1                 |
-      | payload  | {:dilithium-leak true} |
+      | params   | {:dilithium-leak true} |
       | prompt   | Seal the leak.         |
       | crew     | bartholomew            |
       | session  | engine-room            |
