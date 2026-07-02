@@ -6,6 +6,7 @@
     [isaac.config.loader :as loader]
     [isaac.config.root :as root]
     [isaac.fs :as fs]
+    [isaac.nexus :as nexus]
     [isaac.hail.prepare :as prepare]
     [isaac.hail.store :as store]
     [isaac.naming :as naming]
@@ -16,7 +17,8 @@
     (with-out-str (pprint/pprint value))))
 
 (defn- runtime-root []
-  (or (loader/root)
+  (or (nexus/get :root)
+      (loader/root)
       (root/current-root)
       (throw (ex-info "hail queue requires :root" {}))))
 

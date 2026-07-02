@@ -139,6 +139,15 @@
       (should= {:bean-repo "isaac" :bean-id "isaac-iz3a"} (:data record))
       (should= (:data record) (:data (sut/read-pending (:id record))))))
 
+
+  (it "prefers the installed nexus root over the global user root"
+    (let [fs* (fs/mem-fs)]
+      (nexus/-with-nested-nexus {:fs fs* :root "/test/isaac"}
+        (binding [root/*root* "/Users/zane/.isaac"]
+          (let [id (:id (sut/send! {:frequencies {:band "bean-pickup"} :from :cli}))]
+            (should (fs/exists? fs* (str "/test/isaac/hail/pending/" id ".edn")))
+            (should-not (fs/exists? fs* (str "/Users/zane/.isaac/hail/pending/" id ".edn"))))))))
+
   (it "uses the CLI root binding when nexus :root is unset"
     (let [fs* (fs/mem-fs)]
       (nexus/-with-nexus {:fs fs*}
