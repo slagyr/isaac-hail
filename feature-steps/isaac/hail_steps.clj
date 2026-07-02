@@ -145,6 +145,12 @@
       (throw (ex-info (str "expected at least " n " pending hails, found " (count records)) {})))
     (assert-pending-record-fields (nth records idx) table)))
 
+(defn pending-hail-edn-does-not-contain [n table]
+  (let [idx     (dec (if (string? n) (parse-long n) n))
+        record  (nth (pending-hails) idx)]
+    (doseq [row (table-row-map table)]
+      (g/should-not (contains? record (keyword (get row "path")))))))
+
 (defn pending-hail-ids-are-distinct []
   (let [ids (map :id (pending-hails))]
     (g/should= (count ids) (count (set ids)))))
@@ -300,6 +306,8 @@
 (defthen "the sole pending hail EDN contains:" isaac.hail-steps/sole-pending-hail-edn-contains)
 
 (defthen #"pending hail (\d+) EDN contains:" isaac.hail-steps/pending-hail-edn-contains)
+
+(defthen #"pending hail (\d+) EDN does not contain:" isaac.hail-steps/pending-hail-edn-does-not-contain)
 
 (defthen "pending hail ids are distinct" isaac.hail-steps/pending-hail-ids-are-distinct)
 

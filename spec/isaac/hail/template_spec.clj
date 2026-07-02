@@ -12,4 +12,8 @@
 
   (it "substitutes missing bindings with empty strings"
     (should= "Resonance climbing on , drift ."
-             (sut/render "Resonance climbing on {{coil}}, drift {{drift}}." {}))))
+             (sut/render "Resonance climbing on {{coil}}, drift {{drift}}." {})))
+
+  (it "renders hyphenated placeholder names"
+    (should= "isaac-42"
+             (sut/render "{{bean-id}}" {:bean-id "isaac-42"}))))

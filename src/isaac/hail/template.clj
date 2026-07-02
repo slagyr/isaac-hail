@@ -12,6 +12,6 @@
   "Render Mustache-lite {{var}} placeholders. Missing bindings become \"\"."
   [template bindings]
   (when template
-    (str/replace template #"\{\{(\w+)\}\}"
+    (str/replace template #"\{\{([\w-]+)\}\}"
                  (fn [[_ k]]
                    (str (or (binding-value bindings k) ""))))))
