@@ -45,6 +45,7 @@
                   :thread-id   id
                   :frequencies {:band "bean-pickup"}
                   :params      {:n 1}
+                  :data        {:n 1}
                   :from        :http
                   :sent-at     "2026-05-24T17:00:00Z"}
                  (queue/read-pending id)))))
@@ -63,6 +64,7 @@
                   :thread-id   id
                   :frequencies {:band "bean-pickup"}
                   :params      {:n 1}
+                  :data        {:n 1}
                   :from        :http
                   :sent-at     "2026-05-24T17:00:00Z"}
                  body))))

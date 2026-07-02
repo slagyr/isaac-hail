@@ -43,9 +43,12 @@
      :schema
      {:addressing
       {:type :ignore,
-       :description "Derived: bands must address sessions",
+       :description "Derived: bands must address sessions (or declare :base for inheritance)",
        :validations
-       [[:requires-any? :session :session-tags :crew]]},
+       [[:requires-any? :session :session-tags :crew :base]]},
+      :base
+      {:type :string,
+       :description "Optional base band template (file stem) to inherit from"},
       :crew
       {:type :string,
        :description "Sessions whose :crew matches this id are eligible",

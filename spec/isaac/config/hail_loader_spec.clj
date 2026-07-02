@@ -65,9 +65,18 @@
       (should (schema/error? result))
       (should (.contains (pr-str (schema/message-map result)) "crew"))))
 
-  (it "rejects hail bands without any addressing fields"
+  (it "conforms hail bands that inherit addressing via :base"
+    (let [result (schema/conform (hail-band-schema)
+                                 {:base "_isaac-template"
+                                  :data {:plan-hail "isaac-plan"}})]
+      (should-not (schema/error? result))
+      (should= {:base "_isaac-template"
+                :data {:plan-hail "isaac-plan"}}
+               result)))
+
+  (it "rejects hail bands without any addressing fields or :base"
     (let [result (schema/conform (hail-band-schema)
                                  {:reach :one})]
       (should (schema/error? result))
-      (should= {:addressing "must include at least one of :session, :session-tags, :crew"}
+      (should= {:addressing "must include at least one of :session, :session-tags, :crew, :base"}
                (schema/message-map result)))))

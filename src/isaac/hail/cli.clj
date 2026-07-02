@@ -6,6 +6,7 @@
     [clojure.string :as str]
     [clojure.tools.cli :as tools-cli]
     [isaac.cli.common :as cli-common]
+    [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.queue :as queue]))
 
 (def hail-option-spec
@@ -94,8 +95,12 @@
   (let [frequencies       (when-not whole-hail? (frequencies-from-options options))
         direct?           (direct-addressing? frequencies)
         band?             (contains? frequencies :band)
-        has-addressing?   (has-addressing? frequencies)]
+        has-addressing?   (has-addressing? frequencies)
+        template-band?    (and (:band options) (band-resolve/template-band? (:band options)))]
     (cond-> []
+      template-band?
+      (conj (str "Band " (:band options) " is a template and cannot be hailed"))
+
       (and (not whole-hail?) (not has-addressing?))
       (conj "At least one addressing option is required")
 
@@ -111,8 +116,12 @@
 (defn- validate-hail [record]
   (let [frequencies (or (:frequencies record) {})
         direct?     (direct-addressing? frequencies)
-        band?       (contains? frequencies :band)]
+        band?       (contains? frequencies :band)
+        band-name   (:band frequencies)]
     (cond-> []
+      (and band? (band-resolve/template-band? band-name))
+      (conj (str "Band " band-name " is a template and cannot be hailed"))
+
       (contains? record :crew)
       (conj "Top-level :crew is not supported; use :frequencies {:crew ...}")
 
