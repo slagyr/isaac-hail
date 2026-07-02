@@ -2,7 +2,7 @@
 
  :deps {com.cleancoders.c3kit/apron {:mvn/version "3.0.0"}
         io.github.slagyr/isaac-foundation-test-support {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                                        :git/sha "44e824c6eded90301ed1aba8ed3948c66725ee43"
+                                                        :git/sha "43765735566503504adc0f442370d95af336377d"
                                                         :deps/root "spec-support"}}
 
  :tasks

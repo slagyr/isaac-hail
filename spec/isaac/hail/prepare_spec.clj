@@ -61,4 +61,30 @@
   (it "omits :data when the band has no declared data even if params are present"
     (let [cfg {:hail {"bean-pickup" {:prompt "Go."}}}
           record {:frequencies {:band "bean-pickup"} :params {:n 1}}]
-      (should-not (contains? (sut/enrich-band-data record cfg) :data)))))
+      (should-not (contains? (sut/enrich-band-data record cfg) :data))))
+
+  (it "resolves inherited band data from an unresolved raw hail slice"
+    (let [cfg {:hail {"_engineering-template" {:data {:bean-repo "git@x:a/b.git"
+                                                      :notification-channel "shipwide"}}
+                      "engineering-work"        {:base "_engineering-template"
+                                                 :data {:notification-channel "engine"}}}}
+          record {:frequencies {:band "engineering-work"}}]
+      (should= {:notification-channel "engine" :bean-repo "git@x:a/b.git"}
+               (:data (sut/enrich-band-data record cfg)))))
+
+  (it "inherits a base prompt when the child band has no body"
+    (let [cfg {:hail {"_engineering-template" {:prompt "Attend to {{task}} in the engine room."}
+                      "engineering-work"        {:base "_engineering-template"}}}
+          record {:frequencies {:band "engineering-work"}
+                  :params    {:task "the coil"}}]
+      (should= "Attend to the coil in the engine room."
+               (:prompt (sut/render-band-prompt record cfg)))))
+
+  (it "resolves transitive inherited data from an unresolved raw hail slice"
+    (let [cfg {:hail {"_fleet-template"       {:data {:fleet "seventh" :deck "one"}}
+                      "_engineering-template" {:base "_fleet-template"
+                                             :data {:deck "engineering"}}
+                      "engineering-work"      {:base "_engineering-template"}}}
+          record {:frequencies {:band "engineering-work"}}]
+      (should= {:fleet "seventh" :deck "engineering"}
+               (:data (sut/enrich-band-data record cfg))))))

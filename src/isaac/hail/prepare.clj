@@ -1,6 +1,7 @@
 (ns isaac.hail.prepare
   (:require
     [clojure.string :as str]
+    [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.store :as store]
     [isaac.hail.template :as template]))
 
@@ -12,8 +13,9 @@
 
 (defn- band-entry [cfg band-name]
   (when (and cfg band-name)
-    (or (get-in cfg [:hail band-name])
-        (get-in cfg [:hail (keyword band-name)]))))
+    (let [bands (band-resolve/resolved-slice (:hail cfg))]
+      (or (get bands band-name)
+          (get bands (keyword band-name))))))
 
 (defn render-band-prompt
   "When a hail targets a band and has no explicit :prompt, render the band's

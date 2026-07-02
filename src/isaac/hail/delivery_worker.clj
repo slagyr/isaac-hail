@@ -9,6 +9,7 @@
     [isaac.config.root :as root]
     [isaac.drive.turn :as turn]
     [isaac.fs :as fs]
+    [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.prepare :as hail-prepare]
     [isaac.hail.router :as router]
     [isaac.logger :as log]
@@ -131,7 +132,7 @@
 ;; rides along; the worker treats the child like any other delivery).
 (defn- delivery-band [cfg delivery]
   (when-let [band-name (get-in delivery [:frequencies :band])]
-    (get-in cfg [:hail band-name])))
+    (get (band-resolve/resolved-slice (:hail cfg)) band-name)))
 
 (defn- bind-candidate [cfg delivery session]
   ;; Binding lands the delivery in an existing session — run it in THAT

@@ -82,4 +82,11 @@
 
   (it "treats underscore-prefixed band names as templates"
     (should (sut/template-band? "_isaac-template"))
-    (should-not (sut/template-band? "isaac-work"))))
+    (should-not (sut/template-band? "isaac-work")))
+
+  (it "resolved-slice exposes addressable merged bands from a raw slice"
+    (let [raw {"_engineering-template" {:data {:bean-repo "git@x:a/b.git"}}
+               "engineering-work"      {:base "_engineering-template"
+                                        :data {:notification-channel "engine"}}}]
+      (should= {:data {:bean-repo "git@x:a/b.git" :notification-channel "engine"}}
+               (get (sut/resolved-slice raw) "engineering-work")))))

@@ -1,5 +1,6 @@
 (ns isaac.hail.bands
   (:require
+    [isaac.hail.band-resolve :as band-resolve]
     [isaac.reconfigurable :as reconfigurable]))
 
 (defprotocol BandRegistry
@@ -10,6 +11,10 @@
   (cond-> band
     (and band (nil? (:reach band))) (assoc :reach :one)))
 
+(defn- load-slice [slice]
+  (into {} (map (fn [[band-name band]] [band-name (with-band-defaults band)]))
+        (band-resolve/resolved-slice (or slice {}))))
+
 (deftype HailBands [bands*]
   BandRegistry
   (lookup [_ band-name]
@@ -19,9 +24,9 @@
 
   reconfigurable/Reconfigurable
   (on-load [_ slice]
-    (reset! bands* (into {} (map (fn [[band-name band]] [band-name (with-band-defaults band)])) (or slice {}))))
+    (reset! bands* (load-slice slice)))
   (on-config-change! [_ _old-slice new-slice]
-    (reset! bands* (into {} (map (fn [[band-name band]] [band-name (with-band-defaults band)])) (or new-slice {}))))
+    (reset! bands* (load-slice new-slice)))
   (on-unload [_ _slice]
     (reset! bands* {})))
 

@@ -83,16 +83,39 @@
     {:bands {} :errors []}
     raw-slice))
 
+(defn- resolution-errors
+  [root-schema raw-hail]
+  (let [entity-schema (schema-compose/schema-for-kind root-schema :hail)
+        {:keys [bands errors]} (resolve-slice raw-hail)
+        validate-errors (mapcat #(validate-resolved-band entity-schema (key %) (val %))
+                                bands)]
+    {:bands bands :errors (vec (concat errors validate-errors))}))
+
+(defn resolved-slice
+  "Resolve hail band inheritance from a raw :hail config slice. Returns only
+   addressable bands (templates omitted). Safe to call on an already-resolved
+   slice — bands without :base pass through unchanged."
+  [raw-slice]
+  (if (empty? raw-slice)
+    {}
+    (:bands (resolve-slice raw-slice))))
+
+(defn check-config
+  "isaac.config/check contribution — surface inheritance errors at validate time."
+  [{:keys [config effective-schema]}]
+  (let [raw-hail (:hail config)]
+    (if (empty? raw-hail)
+      {:errors [] :warnings []}
+      {:errors (:errors (resolution-errors effective-schema raw-hail))
+       :warnings []})))
+
 (defn apply-to-load-result!
   "Post-process a config load result: resolve hail band inheritance."
   [root-schema {:keys [config] :as result}]
   (let [raw-hail (:hail config)]
     (if (empty? raw-hail)
       result
-      (let [entity-schema (schema-compose/schema-for-kind root-schema :hail)
-            {:keys [bands errors]} (resolve-slice raw-hail)
-            validate-errors (mapcat #(validate-resolved-band entity-schema (key %) (val %))
-                                    bands)]
+      (let [{:keys [bands errors]} (resolution-errors root-schema raw-hail)]
         (cond-> result
           true (assoc-in [:config :hail] bands)
-          true (update :errors into (concat errors validate-errors)))))))
+          true (update :errors into errors))))))

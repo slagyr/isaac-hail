@@ -6,6 +6,7 @@
     [isaac.config.loader :as loader]
     [isaac.config.root :as root]
     [isaac.fs :as fs]
+    [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.queue :as queue]
     [isaac.logger :as log]
     [isaac.nexus :as nexus]
@@ -351,7 +352,7 @@
         root           (or root (runtime-root))
         fs*            (filesystem)
         session-store* (require-session-store opts)
-        bands          (:hail cfg)
+        bands          (band-resolve/resolved-slice (:hail cfg))
         sessions       (session-store/list-sessions session-store*)]
     (doseq [hail (list-pending)]
       (let [{:keys [delivery broadcast undeliverable]}
