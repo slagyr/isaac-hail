@@ -107,7 +107,7 @@
                                             :session :engine-room}))
       (let [guidance (:guidance @captured)]
         (should-contain "Autonomous hail; the user may not see your reply." guidance)
-        (should-contain "Session: engine-room" guidance)
+        (should-not (.contains guidance "Session:"))
         (should-contain "Hail id: hail-1" guidance))))
 
   (it "includes band data in the metadata preamble"

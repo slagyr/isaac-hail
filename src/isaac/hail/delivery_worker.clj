@@ -264,16 +264,14 @@
 
 (defn- metadata-preamble
   "The delivery turn's system-preamble guidance: the autonomy line plus a
-   model-friendly metadata block — the delivery-bound session id, hail id,
-   thread, submitter/reply-to origin, and the hail's :params as data. Built at
-   delivery time (the bound session id is only known once a candidate is bound)
-   so exact-session handbacks and reach-one bindings surface the right target.
-   :params are ALWAYS echoed here — even when a band template already consumed
-   them — so they never silently drop on the explicit-prompt path."
+   model-friendly metadata block — hail id, thread, submitter/reply-to origin,
+   and the hail's :params as data. Session identity lives in the cached system
+   prompt; this block carries only per-delivery facts. :params are ALWAYS echoed
+   here — even when a band template already consumed them — so they never silently
+   drop on the explicit-prompt path."
   [delivery]
-  (let [{:keys [session id thread-id reply-to submitter-session params data]} delivery
-        lines (->> [(meta-line "Session" session)
-                    (meta-line "Hail id" id)
+  (let [{:keys [id thread-id reply-to submitter-session params data]} delivery
+        lines (->> [(meta-line "Hail id" id)
                     (meta-line "Thread" thread-id)
                     (meta-line "Submitter session" submitter-session)
                     (meta-line "Reply-to" reply-to)

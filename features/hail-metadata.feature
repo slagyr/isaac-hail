@@ -165,7 +165,6 @@ Feature: Hail delivery embeds metadata and params in the turn's system preamble
       | message.role | message.content       |
       | user         | #"(?s).*All stop\..*" |
 
-  @wip
   Scenario: the delivery preamble carries per-delivery facts only — identity is ambient (isaac-sx4g)
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
