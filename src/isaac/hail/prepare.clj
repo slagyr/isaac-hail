@@ -32,9 +32,8 @@
     :else           value))
 
 (defn- effective-data [cfg record]
-  (let [band-data (:data (band-entry cfg (band-name record)))
-        params    (or (:params record) {})]
-    (when (or (seq band-data) (seq params))
+  (when-let [band-data (not-empty (:data (band-entry cfg (band-name record))))]
+    (let [params (or (:params record) {})]
       (render-data-value (merge band-data params) params))))
 
 (defn enrich-band-data

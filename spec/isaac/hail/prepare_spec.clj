@@ -53,7 +53,12 @@
       (should= {:bean-repo "isaac" :sector "gamma"}
                (:data (sut/enrich-band-data record cfg)))))
 
-  (it "omits :data when the band has no data and params are absent"
+  (it "omits :data when the band has no declared data"
     (let [cfg {:hail {"bean-pickup" {:prompt "Go."}}}
           record {:frequencies {:band "bean-pickup"}}]
+      (should-not (contains? (sut/enrich-band-data record cfg) :data))))
+
+  (it "omits :data when the band has no declared data even if params are present"
+    (let [cfg {:hail {"bean-pickup" {:prompt "Go."}}}
+          record {:frequencies {:band "bean-pickup"} :params {:n 1}}]
       (should-not (contains? (sut/enrich-band-data record cfg) :data)))))
