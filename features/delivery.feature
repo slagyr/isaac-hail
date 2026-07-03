@@ -330,3 +330,64 @@ Feature: Hail delivery
       | path     | value  |
       | id       | hail-1 |
       | attempts | 1      |
+
+  @wip
+  Scenario: a hail's lifecycle is fully reconstructable from the log (isaac-jnkp)
+    Every state transition logs an INFO :hail/* event — grep :hail/ in the
+    server log reconstructs any hail's journey chronologically. File state
+    stays the durable ledger; the log is the chronological audit trail.
+    Given default Grover setup
+    And the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
+      | path         | value                 |
+      | session-tags | #{:project/warp-coil} |
+      | reach        | :one                  |
+    And the isaac file "config/hail/engineering-intercom.md" exists with:
+      """
+      Seal the leak.
+      """
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value                 |
+      | model | grover                |
+      | tags  | #{:project/warp-coil} |
+    And the following sessions exist:
+      | name        | crew        | tags                  |
+      | engine-room | bartholomew | #{:project/warp-coil} |
+    And the following model responses are queued:
+      | type | content | model  |
+      | text | On it.  | grover |
+    When the config is loaded
+    And isaac is run with "hail send --band engineering-intercom"
+    And the hail router ticks
+    And the hail delivery worker ticks
+    And the turn ends on session "engine-room"
+    Then the log has entries matching:
+      | level | event           | session     |
+      | info  | :hail/sent      |             |
+      | info  | :hail/routed    |             |
+      | info  | :hail/bound     | engine-room |
+      | info  | :hail/delivered | engine-room |
+
+  @wip
+  Scenario: a failed delivery turn logs the attempt and backoff (isaac-jnkp)
+    Given default Grover setup
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path     | value          |
+      | id       | hail-1         |
+      | session  | engine-room    |
+      | crew     | bartholomew    |
+      | prompt   | Seal the leak. |
+      | attempts | 0              |
+    And the following model responses are queued:
+      | type  | content   | model  |
+      | error | boom      | grover |
+    When the hail delivery worker ticks
+    And the turn ends on session "engine-room"
+    Then the log has entries matching:
+      | level | event                | attempts |
+      | info  | :hail/attempt-failed | 1        |
