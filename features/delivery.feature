@@ -301,7 +301,6 @@ Feature: Hail delivery
       | message | user         |               | Resonance climbing. |
       | message | assistant    | echo-alt      | On it.              |
 
-  @wip
   Scenario: a turn that dies on empty responses fails the delivery instead of completing it (isaac-k4mf)
     An empty-terminal-response turn failure is a DELIVERY failure: attempts
     increment and the hail backs off for redelivery (dead-lettering to
