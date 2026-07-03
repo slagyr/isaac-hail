@@ -1,5 +1,6 @@
 (ns isaac.tool.hail-spec
   (:require
+    [isaac.config.loader :as loader]
     [isaac.fs :as fs]
     [isaac.hail.queue :as queue]
     [isaac.nexus :as nexus]
@@ -13,7 +14,10 @@
   (around [example]
     (nexus/-with-nested-nexus {:root "/test/isaac" :fs (fs/mem-fs)}
       (helper/with-memory-store
-        (example))))
+        (try
+          (example)
+          (finally
+            (loader/set-snapshot! nil "spec"))))))
 
   (it "sends a hail from the calling crew and returns the hail id"
     (helper/create-session! "/test/isaac" "work-sess" {:crew "main"})
@@ -87,6 +91,60 @@
                                       "band"        "bean-pickup"})]
       (should (:isError result))
       (should= "session not found: missing" (:error result))))
+
+  (it "errors when an explicit session id names no existing session"
+    (helper/create-session! "/test/isaac" "work-sess" {:crew "main"})
+    (let [sent* (atom false)]
+      (with-redefs [queue/send! (fn [_] (reset! sent* true) {:id "hail-1"})]
+        (let [result (sut/hail-send-tool {"session_key" "work-sess"
+                                          "session"     "first-watch"
+                                          "params"      {"bean-id" "x"}})]
+          (should (:isError result))
+          (should (re-find #"no session \"first-watch\"" (:error result)))
+          (should-not @sent*)))))
+
+  (it "errors when an explicit session id equals a configured band name"
+    (helper/create-session! "/test/isaac" "work-sess" {:crew "main"})
+    (loader/set-snapshot! {:hail {"engineering-intercom" {:session-tags #{:project/warp-coil}
+                                                          :reach        :one}}}
+                          "spec")
+    (let [sent* (atom false)]
+      (with-redefs [queue/send! (fn [_] (reset! sent* true) {:id "hail-1"})]
+        (let [result (sut/hail-send-tool {"session_key" "work-sess"
+                                          "session"     "engineering-intercom"
+                                          "params"      {"bean-id" "x"}})]
+          (should (:isError result))
+          (should (re-find #"engineering-intercom.*band.*not a session" (:error result)))
+          (should-not @sent*)))))
+
+  (it "sends when an explicit session id exists"
+    (helper/create-session! "/test/isaac" "work-sess" {:crew "main"})
+    (helper/create-session! "/test/isaac" "engine-room" {:crew "bartholomew"})
+    (let [sent* (atom nil)]
+      (with-redefs [queue/send! (fn [record]
+                                  (reset! sent* record)
+                                  (assoc record :id "hail-1"))]
+        (let [result (sut/hail-send-tool {"session_key" "work-sess"
+                                          "session"     "engine-room"
+                                          "params"      {"bean-id" "x"}})]
+          (should= "hail-1" (:result result))
+          (should= {:frequencies {:session ["engine-room"]}
+                    :params      {"bean-id" "x"}
+                    :from        :crew/main}
+                   @sent*)))))
+
+  (it "does not reject a missing explicit session when create is if-missing"
+    (helper/create-session! "/test/isaac" "work-sess" {:crew "main"})
+    (let [sent* (atom nil)]
+      (with-redefs [queue/send! (fn [record]
+                                  (reset! sent* record)
+                                  (assoc record :id "hail-1"))]
+        (let [result (sut/hail-send-tool {"session_key" "work-sess"
+                                          "session"     "first-watch"
+                                          "create"      "if-missing"
+                                          "params"      {"bean-id" "x"}})]
+          (should= "hail-1" (:result result))
+          (should= "first-watch" (first (:session (:frequencies @sent*))))))))
 
   (it "exposes flat snake_case properties borrowed from the frequencies schema"
     (let [factory (:parameters (sut/hail-send-tool-factory nil))

@@ -19,6 +19,7 @@
     [isaac.module.loader :as module-loader]
     [isaac.nexus :as nexus]
     [isaac.server.server-steps :as server-steps]
+    [isaac.session.session-steps :as session-steps]
     [isaac.session.store.spi :as session-store]
     [isaac.tool.memory :as memory]))
 
@@ -118,6 +119,12 @@
         s))
     v))
 
+(defn- compile-pattern [cell]
+  (let [s (str/trim cell)]
+    (if (and (str/starts-with? s "#\"") (str/ends-with? s "\""))
+      (re-pattern (subs s 2 (dec (count s))))
+      (re-pattern (java.util.regex.Pattern/quote s)))))
+
 (defn- assert-pending-record-fields [record table]
   (doseq [row (table-row-map table)]
     (let [path  (get row "path")
@@ -137,6 +144,32 @@
   (let [records (pending-hails)]
     (g/should= 1 (count records))
     (assert-pending-record-fields (first records) table)))
+
+(defn- last-hail-send-tool-result []
+  (or (some->> @(g/get :channel-events)
+               (filter #(and (= "tool-result" (:event %))
+                             (= "hail-send" (get-in % [:tool :name]))))
+               last
+               :result)
+      (g/get :tool-result)))
+
+(defn- tool-result-error-text [result]
+  (cond
+    (:isError result) (:error result)
+    (and (string? result) (str/starts-with? result "Error:"))
+    (str/trim (subs result (count "Error:")))
+    :else nil))
+
+(defn last-hail-send-tool-result-is-error-matching [pattern-str]
+  (session-steps/await-turn!)
+  (let [result (last-hail-send-tool-result)
+        error  (tool-result-error-text result)]
+    (g/should (some? error))
+    (g/should (re-find (compile-pattern pattern-str) error))))
+
+(defn there-are-no-pending-hails []
+  (session-steps/await-turn!)
+  (g/should= [] (pending-hails)))
 
 (defn pending-hail-edn-contains [n table]
   (let [idx     (dec (if (string? n) (parse-long n) n))
@@ -254,12 +287,6 @@
 
 ;; region ----- Hail delivery system preamble -----
 
-(defn- compile-pattern [cell]
-  (let [s (str/trim cell)]
-    (if (and (str/starts-with? s "#\"") (str/ends-with? s "\""))
-      (re-pattern (subs s 2 (dec (count s))))
-      (re-pattern (java.util.regex.Pattern/quote s)))))
-
 (defn- message-text [msg]
   (let [c (:content msg)]
     (cond
@@ -304,6 +331,11 @@
 (defwhen "the Isaac system is started" isaac.hail-steps/isaac-system-started)
 
 (defthen "the sole pending hail EDN contains:" isaac.hail-steps/sole-pending-hail-edn-contains)
+
+(defthen #"the last hail-send tool result is an error matching (.+)"
+  isaac.hail-steps/last-hail-send-tool-result-is-error-matching)
+
+(defthen "there are no pending hails" isaac.hail-steps/there-are-no-pending-hails)
 
 (defthen #"pending hail (\d+) EDN contains:" isaac.hail-steps/pending-hail-edn-contains)
 

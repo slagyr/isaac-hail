@@ -2,6 +2,9 @@
   (:require
     [clojure.string :as str]
     [clojure.walk :as walk]
+    [isaac.config.loader :as loader]
+    [isaac.fs :as fs]
+    [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.queue :as queue]
     [isaac.session.frequencies :as frequencies]
     [isaac.session.store.spi :as store]
@@ -102,6 +105,43 @@
   (boolean (some #(contains? frequencies %)
                  [:band :session :session-tags :crew])))
 
+(defn- explicit-session-create? [frequencies]
+  (#{:if-missing :always} (:create frequencies)))
+
+(defn- band-name-string [k]
+  (if (keyword? k) (name k) (str k)))
+
+(defn- known-band-names [args]
+  (let [cfg   (loader/snapshot "hail-send tool: band name check")
+        names (set (map band-name-string (keys (band-resolve/resolved-slice (:hail cfg)))))]
+    (if-let [root (bounds/root args)]
+      (let [fs* (bounds/filesystem args)
+            dir (str root "/config/hail")]
+        (into names
+              (keep (fn [file]
+                      (when (str/ends-with? file ".edn")
+                        (subs file 0 (- (count file) 4))))
+                    (or (fs/children fs* dir) []))))
+      names)))
+
+(defn- missing-session-error [session-id band-names]
+  (if (contains? band-names session-id)
+    (str "no session \"" session-id "\" exists — \"" session-id "\" is a band name, not a session. "
+         "To route by band, pass band: \"" session-id "\". "
+         "For an exact session, use a real session id (e.g. from hail_get on the thread).")
+    (str "no session \"" session-id "\" exists. "
+         "If you meant to route by band, pass band: \"" session-id "\". "
+         "For an exact session use a real id (from hail_get on the thread).")))
+
+(defn- validate-explicit-sessions [args session-store frequencies]
+  (when (and (seq (:session frequencies))
+             (not (explicit-session-create? frequencies)))
+    (let [band-names (known-band-names args)]
+      (some (fn [session-id]
+              (when-not (store/get-session session-store session-id)
+                (missing-session-error session-id band-names)))
+            (:session frequencies)))))
+
 (defn- parse-params [value]
   (when (map? value) value))
 
@@ -120,11 +160,15 @@
       {:isError true :error (str "session not found: " session-key)}
       (let [nested (or (get args "frequencies") (get args "frequency"))
             flat (collect-frequencies args)
-            freqs (normalize-frequencies (if nested nested flat))]
+            freqs (normalize-frequencies (if nested nested flat))
+            session-error (validate-explicit-sessions args (bounds/session-store args) freqs)]
         (cond
           (not (has-addressing? freqs))
           {:isError true
            :error   "At least one addressing field is required (band, session, session_tags, or crew)"}
+
+          session-error
+          {:isError true :error session-error}
 
           :else
           (let [record (cond-> {:frequencies freqs
