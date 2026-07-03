@@ -64,7 +64,7 @@ Feature: Hail router
       | frequencies | {:band "engineering-intercom" :session-tags [:role/engineer] :reach :one} | merged selector |
       | params    | {:dilithium-leak true}         |                               |
       | crew      | bartholomew                    | only one engineer → bound now |
-      | bound-session | engine-room                |                               |
+      | bound-session | :engine-room                |                               |
 
   Scenario: a reach-one tag pool of many is left unbound with frozen candidates
     Given the isaac EDN file "config/crew/atticus.edn" exists with:
@@ -113,7 +113,7 @@ Feature: Hail router
       | path    | value        | #comment                         |
       | id      | hail-1       |                                  |
       | crew    | main         | processing crew = session :crew |
-      | bound-session | agile-voyage | only main-crew session matched |
+      | bound-session | :agile-voyage | only main-crew session matched |
 
   Scenario: a direct session frequency binds to that exact session only
     Given the isaac EDN file "config/crew/mavis.edn" exists with:
@@ -136,7 +136,7 @@ Feature: Hail router
       | path    | value          | #comment             |
       | id      | hail-1         |                      |
       | crew    | mavis          |                      |
-      | bound-session | charted-course | the targeted session |
+      | bound-session | :charted-course | the targeted session |
     And the isaac file "hail/broadcasts/hail-1.edn" does not exist
 
   Scenario: reach :all becomes a broadcast parent plus one child delivery per matching session
@@ -204,7 +204,7 @@ Feature: Hail router
       | path    | value          | #comment                                   |
       | id      | hail-1         |                                            |
       | crew    | bartholomew    |                                            |
-      | bound-session | coil-tinkering | warp-coil session matched, engine-room not |
+      | bound-session | :coil-tinkering | warp-coil session matched, engine-room not |
 
   Scenario: a band :crew selects sessions whose crew matches
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
@@ -233,7 +233,7 @@ Feature: Hail router
       | path    | value       | #comment                    |
       | id      | hail-1      |                             |
       | crew    | bartholomew | band :crew session selector |
-      | bound-session | engine-room | hieronymus not selected |
+      | bound-session | :engine-room | hieronymus not selected |
 
   Scenario: a frequency with no session selector moves the hail to undeliverable
     Given the following sessions exist:
@@ -268,7 +268,7 @@ Feature: Hail router
       | path    | value       | #comment                       |
       | id      | hail-1      |                                |
       | crew    | main        | session :crew, else cfg default  |
-      | bound-session | engine-room |                          |
+      | bound-session | :engine-room |                          |
 
   Scenario: an unknown band moves the hail to undeliverable
     Given the isaac EDN file hail/pending/hail-1.edn exists with:
@@ -389,4 +389,4 @@ Feature: Hail router
       | path    | value       | #comment                                 |
       | id      | hail-1      |                                          |
       | crew    | navigator   | :with-crew override beats session's main |
-      | bound-session | engine-room | selected by :session, unchanged    |
+      | bound-session | :engine-room | selected by :session, unchanged    |

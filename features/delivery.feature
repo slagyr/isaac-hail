@@ -40,7 +40,7 @@ Feature: Hail delivery
       | params   | {:dilithium-leak true} |
       | prompt   | Seal the leak.         |
       | crew     | bartholomew            |
-      | bound-session | engine-room         |
+      | bound-session | :engine-room         |
       | attempts | 0                      |
     When the hail delivery worker ticks
     And the turn ends on session "engine-room"
@@ -79,7 +79,7 @@ Feature: Hail delivery
     And the isaac file "hail/delivered/hail-1.edn" EDN contains:
       | path    | value   | #comment                           |
       | crew    | atticus | bound to the idle candidate        |
-      | bound-session | bridge | first-watch was in flight, skipped |
+      | bound-session | :bridge | first-watch was in flight, skipped |
 
   Scenario: a delivery to an in-flight session is left pending
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
@@ -95,7 +95,7 @@ Feature: Hail delivery
       | id       | hail-1         |
       | prompt   | Seal the leak. |
       | crew     | bartholomew    |
-      | bound-session | engine-room |
+      | bound-session | :engine-room |
       | attempts | 0              |
     When the hail delivery worker ticks
     Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
@@ -120,7 +120,7 @@ Feature: Hail delivery
       | id       | hail-1          |
       | prompt   | Check the core. |
       | crew     | bartholomew     |
-      | bound-session | engine-room  |
+      | bound-session | :engine-room  |
       | attempts | 0               |
     When the hail delivery worker ticks
     Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
@@ -147,14 +147,14 @@ Feature: Hail delivery
       | id       | hail-1         |
       | prompt   | Seal the leak. |
       | crew     | bartholomew    |
-      | bound-session | engine-room |
+      | bound-session | :engine-room |
       | attempts | 0              |
     And the isaac EDN file hail/deliveries/hail-2.edn exists with:
       | path     | value            |
       | id       | hail-2           |
       | prompt   | Vent the plasma. |
       | crew     | bartholomew      |
-      | bound-session | engine-room |
+      | bound-session | :engine-room |
       | attempts | 0                |
     When the hail delivery worker ticks
     Then session "engine-room" in-flight status is true
@@ -186,7 +186,7 @@ Feature: Hail delivery
       | id       | hail-1         |
       | prompt   | Seal the leak. |
       | crew     | bartholomew    |
-      | bound-session | engine-room |
+      | bound-session | :engine-room |
       | attempts | 0              |
     When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
     And the turn ends on session "engine-room"
@@ -213,7 +213,7 @@ Feature: Hail delivery
       | id       | hail-1         |                                                   |
       | prompt   | Seal the leak. |                                                   |
       | crew     | bartholomew    |                                                   |
-      | bound-session | engine-room |                                                   |
+      | bound-session | :engine-room |                                                   |
       | attempts | 4              | one short of the 5-attempt max; this tick is last |
     When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
     And the turn ends on session "engine-room"
@@ -248,7 +248,7 @@ Feature: Hail delivery
       | source-hail | hail-1     |
       | prompt      | Red alert! |
       | crew        | atticus    |
-      | bound-session | bridge   |
+      | bound-session | :bridge   |
       | attempts    | 0          |
     When the hail delivery worker ticks
     And the turn ends on session "bridge"
@@ -315,7 +315,7 @@ Feature: Hail delivery
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path     | value              |
       | id       | hail-1             |
-      | bound-session | engine-room     |
+      | bound-session | :engine-room     |
       | crew     | bartholomew        |
       | prompt   | Seal the leak.     |
       | attempts | 0                  |
@@ -379,7 +379,7 @@ Feature: Hail delivery
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path     | value          |
       | id       | hail-1         |
-      | bound-session | engine-room |
+      | bound-session | :engine-room |
       | crew     | bartholomew    |
       | prompt   | Seal the leak. |
       | attempts | 0              |
@@ -422,4 +422,4 @@ Feature: Hail delivery
     And the turn ends on session "bridge"
     Then the isaac file "hail/delivered/hail-1.edn" EDN contains:
       | path          | value  |
-      | bound-session | bridge |
+      | bound-session | :bridge |

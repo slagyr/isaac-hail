@@ -136,7 +136,7 @@ Feature: Hail-driven session create (get-or-create)
       | message | assistant    | On the coil.        |
     And the isaac file "hail/delivered/hail-1.edn" EDN contains:
       | path    | value     |
-      | bound-session | coil-work |
+      | bound-session | :coil-work |
 
   Scenario: a create delivery whose only matching session is in flight waits, no sibling
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:

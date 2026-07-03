@@ -30,7 +30,7 @@ Feature: Hail delivery embeds metadata and params in the turn's system preamble
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path      | value                                       |
       | id        | hail-1                                      |
-      | bound-session | engine-room                             |
+      | bound-session | :engine-room                             |
       | crew      | bartholomew                                 |
       | thread-id | dilithium-thread-7                          |
       | prompt    | Recalibrate the port warp coil.             |
@@ -148,7 +148,7 @@ Feature: Hail delivery embeds metadata and params in the turn's system preamble
     And the isaac EDN file hail/deliveries/hail-5.edn exists with:
       | path      | value              |
       | id        | hail-5             |
-      | bound-session | engine-room    |
+      | bound-session | :engine-room    |
       | crew      | bartholomew        |
       | thread-id | dilithium-thread-7 |
       | prompt    | All stop.          |
@@ -178,7 +178,7 @@ Feature: Hail delivery embeds metadata and params in the turn's system preamble
     And the isaac EDN file hail/deliveries/hail-9.edn exists with:
       | path      | value                           |
       | id        | hail-9                          |
-      | bound-session | engine-room                 |
+      | bound-session | :engine-room                 |
       | crew      | bartholomew                     |
       | thread-id | dilithium-thread-9              |
       | prompt    | Recalibrate the port warp coil. |

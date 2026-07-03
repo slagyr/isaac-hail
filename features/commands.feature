@@ -21,7 +21,7 @@ Feature: Hail-delivered slash-like commands
       | id       | hail-1                  |
       | prompt   | /prune dilithium-orchid |
       | crew     | hieronymus              |
-      | bound-session | greenhouse           |
+      | bound-session | :greenhouse           |
       | attempts | 0                       |
     When the hail delivery worker ticks
     And the turn ends on session "greenhouse"
