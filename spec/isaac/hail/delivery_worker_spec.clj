@@ -313,6 +313,41 @@
       (should= {:event :hail/dead-lettered :id "hail-1" :reason :exhausted}
                (select-keys (last @log/captured-logs) [:event :id :reason]))))
 
+  (it "logs :hail/bound then :hail/delivered for a successful delivery"
+    (let [session-store (nexus/get-in [:sessions :store])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (write-delivery! {:id        "hail-1"
+                        :prompt    "Seal the leak."
+                        :crew      :bartholomew
+                        :session   :engine-room
+                        :thread-id "thread-9"
+                        :attempts  0})
+      (with-redefs [isaac.drive.turn/run-turn! (fn [_] {})]
+        @(first (sut/tick! {:cfg test-config :session-store session-store})))
+      (let [by-event (fn [e] (some #(when (= e (:event %)) %) @log/captured-logs))]
+        (should= {:event :hail/bound :id "hail-1" :thread-id "thread-9" :session "engine-room"}
+                 (select-keys (by-event :hail/bound) [:event :id :thread-id :session]))
+        (should= {:event :hail/delivered :id "hail-1" :thread-id "thread-9" :session "engine-room"}
+                 (select-keys (by-event :hail/delivered) [:event :id :thread-id :session])))))
+
+  (it "logs :hail/attempt-failed with the error and attempt count on a retryable failure"
+    (let [session-store (nexus/get-in [:sessions :store])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (write-delivery! {:id        "hail-1"
+                        :prompt    "Seal the leak."
+                        :crew      :bartholomew
+                        :session   :engine-room
+                        :thread-id "thread-9"
+                        :attempts  0})
+      (with-redefs [isaac.drive.turn/run-turn! (fn [_] {:error :api-error})]
+        @(first (sut/tick! {:cfg           test-config
+                            :now           (Instant/parse "2026-04-21T10:00:00Z")
+                            :session-store session-store})))
+      (let [failed (some #(when (= :hail/attempt-failed (:event %)) %) @log/captured-logs)]
+        (should= {:event :hail/attempt-failed :id "hail-1" :thread-id "thread-9"
+                  :session "engine-room" :attempts 1 :error :api-error}
+                 (select-keys failed [:event :id :thread-id :session :attempts :error])))))
+
   (it "registers the shared scheduler task"
     (let [shared-scheduler (scheduler/create {})]
       (try

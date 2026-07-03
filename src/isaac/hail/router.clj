@@ -400,10 +400,44 @@
       (let [{:keys [delivery broadcast undeliverable]}
             (resolve-obligations cfg bands sessions hail)]
         (cond
-          delivery      (write-delivery! delivery)
-          broadcast     (write-broadcast! root fs* (:parent broadcast) (:children broadcast))
-          undeliverable (write-undeliverable! undeliverable)
-          :else         (write-undeliverable! (assoc hail :reason :no-recipients)))))))
+          delivery
+          (do (write-delivery! delivery)
+              (log/info :hail/routed
+                        :id (:id delivery)
+                        :thread-id (:thread-id delivery)
+                        :band (get-in delivery [:frequencies :band])
+                        :outcome :delivery
+                        :session (:session delivery)
+                        :candidates (count (:candidates delivery))))
+
+          broadcast
+          (let [parent (:parent broadcast) children (:children broadcast)]
+            (write-broadcast! root fs* parent children)
+            (log/info :hail/routed
+                      :id (:id parent)
+                      :thread-id (:thread-id parent)
+                      :band (get-in parent [:frequencies :band])
+                      :outcome :broadcast
+                      :children (count children)))
+
+          undeliverable
+          (do (write-undeliverable! undeliverable)
+              (log/warn :hail/routed
+                        :id (:id undeliverable)
+                        :thread-id (:thread-id undeliverable)
+                        :band (get-in undeliverable [:frequencies :band])
+                        :outcome :undeliverable
+                        :reason (:reason undeliverable)))
+
+          :else
+          (let [u (assoc hail :reason :no-recipients)]
+            (write-undeliverable! u)
+            (log/warn :hail/routed
+                      :id (:id u)
+                      :thread-id (:thread-id u)
+                      :band (get-in u [:frequencies :band])
+                      :outcome :undeliverable
+                      :reason (:reason u))))))))
 
 (defn start!
   [{:keys [tick-ms]

@@ -3,10 +3,12 @@
     [clojure.string :as str]
     [isaac.fs :as fs]
     [isaac.hail.router :as sut]
+    [isaac.logger :as log]
     [isaac.nexus :as nexus]
     [isaac.scheduler.runtime :as scheduler]
     [isaac.session.store.spi :as store]
     [isaac.session.store.memory :as memory]
+    [isaac.spec-helper :as helper]
     [speclj.core :refer :all]))
 
 (def ^:private short-uuid-re #"^[0-9a-f]{8}$")
@@ -18,6 +20,8 @@
   {:defaults {:crew "main"}})
 
 (describe "hail router"
+
+  (helper/with-captured-logs)
 
   #_{:clj-kondo/ignore [:unresolved-symbol]}
   (around [example]
@@ -138,6 +142,31 @@
                 :session     :engine-room
                 :attempts    0}
                (read-string (fs/slurp (nexus/get :fs) "/test/isaac/hail/deliveries/hail-1.edn")))))
+
+  (it "logs :hail/routed with the bound session outcome on tick"
+    (let [session-store (memory/create-store)]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/pending")
+      (fs/spit (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"
+               (pr-str {:id "hail-1" :thread-id "thread-9"
+                        :frequencies {:session [:engine-room]} :from :cli}))
+      (sut/tick! {:cfg           {:defaults {:crew "main"} :crew {:bartholomew {:model "grover"}}}
+                  :session-store session-store})
+      (let [routed (some #(when (= :hail/routed (:event %)) %) @log/captured-logs)]
+        (should= {:event :hail/routed :id "hail-1" :thread-id "thread-9"
+                  :outcome :delivery :session :engine-room}
+                 (select-keys routed [:event :id :thread-id :outcome :session])))))
+
+  (it "logs :hail/routed :undeliverable when no session matches"
+    (let [session-store (memory/create-store)]
+      (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/pending")
+      (fs/spit (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"
+               (pr-str {:id "hail-1" :thread-id "thread-9"
+                        :frequencies {:session [:ghost-session]} :from :cli}))
+      (sut/tick! {:cfg {:defaults {:crew "main"}} :session-store session-store})
+      (let [routed (some #(when (= :hail/routed (:event %)) %) @log/captured-logs)]
+        (should= {:event :hail/routed :id "hail-1" :outcome :undeliverable :reason :no-recipients}
+                 (select-keys routed [:event :id :outcome :reason])))))
 
   (it "writes a broadcast parent plus child delivery hails on tick for reach :all"
     (let [session-store (memory/create-store)]

@@ -230,22 +230,34 @@
 (defn- backoff-ms [attempts]
   (get delays-ms attempts))
 
-(defn- reschedule! [root now delivery]
+(defn- dead-letter! [root delivery attempts error]
+  (finish-failed! root (assoc delivery :attempts attempts))
+  (log/error :hail/dead-lettered
+             :id (:id delivery)
+             :thread-id (:thread-id delivery)
+             :session (normalize-id (:session delivery))
+             :attempts attempts
+             :reason :exhausted
+             :error error))
+
+(defn- reschedule! [root now delivery error]
   (let [attempts (inc (:attempts delivery 0))]
     (if-let [delay-ms (backoff-ms attempts)]
       (if (= attempts 5)
-        (do
-          (finish-failed! root (assoc delivery :attempts attempts))
-          (log/error :hail/dead-lettered :id (:id delivery) :reason :exhausted))
+        (dead-letter! root delivery attempts error)
         (do
           (write-record! (delivery-path root (:id delivery))
                          (assoc delivery
                                 :attempts attempts
                                 :next-attempt-at (str (.plusMillis now delay-ms))))
-          (delete-record! (inflight-path root (:id delivery)))))
-      (do
-        (finish-failed! root (assoc delivery :attempts attempts))
-        (log/error :hail/dead-lettered :id (:id delivery) :reason :exhausted)))))
+          (delete-record! (inflight-path root (:id delivery)))
+          (log/warn :hail/attempt-failed
+                    :id (:id delivery)
+                    :thread-id (:thread-id delivery)
+                    :session (normalize-id (:session delivery))
+                    :attempts attempts
+                    :error error)))
+      (dead-letter! root delivery attempts error))))
 
 (defn- hail-origin [hail]
   (let [hail-id (normalize-id (:id hail))]
@@ -309,16 +321,27 @@
                           (try
                             (let [result (run-delivery! cfg delivery)]
                               (if (:error result)
-                                (reschedule! root (:now opts) delivery)
-                                (finish-delivered! root delivery))
+                                (reschedule! root (:now opts) delivery (:error result))
+                                (do
+                                  (finish-delivered! root delivery)
+                                  (log/info :hail/delivered
+                                            :id (:id delivery)
+                                            :thread-id (:thread-id delivery)
+                                            :session session-id)))
                               result)
                             (catch Exception e
-                              (reschedule! root (:now opts) delivery)
+                              (reschedule! root (:now opts) delivery :exception)
                               {:error :exception :message (.getMessage e)})
                             (finally
                               (store/clear-in-flight! session-store session-id)))))]
     (when (store/mark-in-flight! session-store session-id)
       (claim-delivery! root delivery)
+      (log/info :hail/bound
+                :id (:id delivery)
+                :thread-id (:thread-id delivery)
+                :session session-id
+                :crew (normalize-id (:crew delivery))
+                :attempts (:attempts delivery 0))
       (future (run!)))))
 
 (defn tick!

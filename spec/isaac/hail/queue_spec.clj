@@ -5,7 +5,9 @@
     [isaac.config.root :as root]
     [isaac.fs :as fs]
     [isaac.hail.queue :as sut]
+    [isaac.logger :as log]
     [isaac.nexus :as nexus]
+    [isaac.spec-helper :as helper]
     [isaac.tool.memory :as memory]
     [speclj.core :refer :all]))
 
@@ -20,11 +22,20 @@
 
 (describe "hail.queue"
 
+  (helper/with-captured-logs)
+
   #_{:clj-kondo/ignore [:unresolved-symbol]}
   (around [example]
     (nexus/-with-nested-nexus {:root "/test/isaac" :fs (fs/mem-fs)}
       (config/dangerously-install-config! nil "spec reset")
       (example)))
+
+  (it "logs :hail/sent when a hail is persisted to pending"
+    (let [record (sut/send! {:frequencies {:band "bean-pickup"} :from :cli})
+          sent   (some #(when (= :hail/sent (:event %)) %) @log/captured-logs)]
+      (should= {:event :hail/sent :id (:id record) :thread-id (:id record)
+                :frequencies {:band "bean-pickup"} :from :cli}
+               (select-keys sent [:event :id :thread-id :frequencies :from]))))
 
   (it "writes a hail record under hail/pending"
     (binding [memory/*now* (java.time.Instant/parse "2026-05-23T12:00:00Z")]
