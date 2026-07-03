@@ -48,10 +48,6 @@ Feature: Hail delivery
       | type    | message.role | message.content | #comment                        |
       | message | user         | Seal the leak.  | resolved prompt                 |
       | message | assistant    | Sealing now.    | grover's reply — turn completed |
-    And the isaac file "hail/deliveries/hail-1.edn" does not exist
-    And the isaac file "hail/delivered/hail-1.edn" EDN contains:
-      | path | value  |
-      | id   | hail-1 |
 
   Scenario: an unbound delivery binds the idle candidate over the in-flight one
     Given the isaac EDN file "config/crew/atticus.edn" exists with:
@@ -304,3 +300,34 @@ Feature: Hail delivery
       | type    | message.role | message.model | message.content     |
       | message | user         |               | Resonance climbing. |
       | message | assistant    | echo-alt      | On it.              |
+
+  @wip
+  Scenario: a turn that dies on empty responses fails the delivery instead of completing it (isaac-k4mf)
+    An empty-terminal-response turn failure is a DELIVERY failure: attempts
+    increment and the hail backs off for redelivery (dead-lettering to
+    hail/failed/ after max attempts, per the existing convention) — the
+    session is never silently freed with the work unfinished.
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path     | value              |
+      | id       | hail-1             |
+      | session  | engine-room        |
+      | crew     | bartholomew        |
+      | prompt   | Seal the leak.     |
+      | attempts | 0                  |
+    And the following model responses are queued:
+      | type | content | model  |
+      | text |         | grover |
+      | text |         | grover |
+    When the hail delivery worker ticks
+    And the turn ends on session "engine-room"
+    Then the isaac file "hail/delivered/hail-1.edn" does not exist
+    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
+      | path     | value  |
+      | id       | hail-1 |
+      | attempts | 1      |
