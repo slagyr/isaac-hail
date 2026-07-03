@@ -391,3 +391,36 @@ Feature: Hail delivery
     Then the log has entries matching:
       | level | event                | attempts |
       | info  | :hail/attempt-failed | 1        |
+
+  @wip
+  Scenario: binding stamps bound-session on the delivery record (isaac-fq9c)
+    A delivery's resolved target is :bound-session — distinct from addressing,
+    which always lives under :frequencies. A record reader can never confuse
+    "who was asked" with "who was chosen". (Existing fixtures/assertions using
+    the old :session field are renamed in place with the implementation — see
+    the bean's migration map.)
+    Given the isaac EDN file "config/crew/atticus.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the isaac EDN file "config/crew/cordelia.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew     |
+      | bridge      | atticus  |
+      | first-watch | cordelia |
+    And session "first-watch" is in flight
+    And the following model responses are queued:
+      | type | content      | model  |
+      | text | Bridge here. | grover |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path       | value                                                                       |
+      | id         | hail-1                                                                      |
+      | prompt     | Status report?                                                              |
+      | candidates | [{:crew :atticus :session :bridge} {:crew :cordelia :session :first-watch}] |
+      | attempts   | 0                                                                           |
+    When the hail delivery worker ticks
+    And the turn ends on session "bridge"
+    Then the isaac file "hail/delivered/hail-1.edn" EDN contains:
+      | path          | value  |
+      | bound-session | bridge |
