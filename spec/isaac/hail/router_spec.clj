@@ -38,7 +38,7 @@
                                          :session-tags [:role/engineer]
                                          :reach        :one}
                            :crew        :bartholomew
-                           :session     :engine-room
+                           :bound-session :engine-room
                            :attempts    0}}
                result)))
 
@@ -55,7 +55,7 @@
                                          :reach        :one}
                            :reach       :one
                            :crew        nil
-                           :session     nil
+                           :bound-session nil
                            :candidates  [{:crew :atticus :session :bridge}
                                          {:crew :cordelia :session :first-watch}]
                            :attempts    0}}
@@ -76,7 +76,7 @@
                            :reach       :one
                            :prompt      "Work"
                            :crew        :main
-                           :session     :agile-voyage
+                           :bound-session :agile-voyage
                            :attempts    0}}
                result)))
 
@@ -99,7 +99,7 @@
                                                :reach        :one
                                                :create       :if-missing}
                                  :crew        :main
-                                 :session     nil
+                                 :bound-session nil
                                  :attempts    0)}
                result)))
 
@@ -139,7 +139,7 @@
                               :reach   :one}
                 :from        :cli
                 :crew        :bartholomew
-                :session     :engine-room
+                :bound-session :engine-room
                 :attempts    0}
                (read-string (fs/slurp (nexus/get :fs) "/test/isaac/hail/deliveries/hail-1.edn")))))
 
@@ -184,7 +184,7 @@
             children  (mapv #(read-string (fs/slurp (nexus/get :fs)
                                                       (str "/test/isaac/hail/deliveries/" % ".edn")))
                             child-ids)
-            bridge    (first (filter #(= :bridge (:session %)) children))]
+            bridge    (first (filter #(= :bridge (:bound-session %)) children))]
         (should= "hail-1" (:id parent))
         (should= 2 (count child-ids))
         (should= 2 (count (set child-ids)))
@@ -192,7 +192,7 @@
           (should (short-uuid? id)))
         (should= "hail-1" (:source-hail bridge))
         (should= :atticus (:crew bridge))
-        (should= :bridge (:session bridge)))))
+        (should= :bridge (:bound-session bridge)))))
 
   (it "moves no-recipient hails to undeliverable on tick, enriched in place"
     (let [session-store (memory/create-store)]
@@ -227,7 +227,7 @@
                                          :session [:glimmering-cardinal]
                                          :reach   :one}
                            :crew        :main
-                           :session     :glimmering-cardinal
+                           :bound-session :glimmering-cardinal
                            :attempts    0}}
                result)))
 
@@ -241,7 +241,7 @@
       (should= {:delivery {:id          "hail-1"
                            :frequencies {:band "alert" :session [:bridge] :reach :one}
                            :crew        :atticus
-                           :session     :bridge
+                           :bound-session :bridge
                            :attempts    0}}
                result)))
 

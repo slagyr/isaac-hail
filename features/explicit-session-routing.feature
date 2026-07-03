@@ -31,7 +31,7 @@ Feature: Explicit session id trumps band session selectors
     Then the isaac file "hail/pending/hail-1.edn" does not exist
     And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
       | path    | value               |
-      | session | glimmering-cardinal |
+      | bound-session | glimmering-cardinal |
       | crew    | main                |
 
   Scenario: An explicit session prevents band reach :all fan-out
@@ -61,7 +61,7 @@ Feature: Explicit session id trumps band session selectors
     Then the isaac file "hail/broadcasts/hail-1.edn" does not exist
     And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
       | path    | value  |
-      | session | bridge |
+      | bound-session | bridge |
 
   Scenario: Band with-crew still applies when the hail names an explicit session
     Given the isaac EDN file "config/hail/gauge-check.edn" exists with:

@@ -53,7 +53,7 @@ Feature: Hail-driven session create (get-or-create)
       | id                      | hail-1 | same id, enriched in place            |
       | frequencies.create | :if-missing   | create-eligible, unbound              |
       | crew                    | main   | resolved at router time (cfg default) |
-      | session                 |        | nil                                   |
+      | bound-session           |        | nil                                   |
 
   Scenario: without create, no matching session is undeliverable
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
@@ -105,7 +105,7 @@ Feature: Hail-driven session create (get-or-create)
     And the isaac file "hail/delivered/hail-1.edn" EDN contains:
       | path    | value       |
       | crew    | bartholomew |
-      | session | session-1   |
+      | bound-session | session-1 |
 
   Scenario: a create delivery binds an existing matching session instead of spawning
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
@@ -136,7 +136,7 @@ Feature: Hail-driven session create (get-or-create)
       | message | assistant    | On the coil.        |
     And the isaac file "hail/delivered/hail-1.edn" EDN contains:
       | path    | value     |
-      | session | coil-work |
+      | bound-session | coil-work |
 
   Scenario: a create delivery whose only matching session is in flight waits, no sibling
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:

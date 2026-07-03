@@ -69,13 +69,13 @@ Feature: Hail naming strategy
       | id          | hail-2   |
       | source-hail | hail-1   |
       | crew        | :atticus |
-      | session     | :bridge  |
+      | bound-session | :bridge |
     And child delivery for session first-watch EDN contains:
       | path        | value        |
       | id          | hail-3       |
       | source-hail | hail-1       |
       | crew        | :cordelia    |
-      | session     | :first-watch |
+      | bound-session | :first-watch |
     And delivery hail count is 2
 
   Scenario: absent hail naming config defaults to a bare short-uuid

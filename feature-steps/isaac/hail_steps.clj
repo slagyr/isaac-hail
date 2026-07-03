@@ -175,7 +175,7 @@
 
 (defn child-delivery-for-session-edn-contains [session table]
   (let [session-kw (keyword session)
-        matches    (filter #(= session-kw (:session %)) (delivery-records))]
+        matches    (filter #(= session-kw (:bound-session %)) (delivery-records))]
     (when-not (= 1 (count matches))
       (throw (ex-info (str "expected one delivery for session " session
                            ", found " (count matches)) {})))

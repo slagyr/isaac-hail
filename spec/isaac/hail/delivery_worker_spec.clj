@@ -69,7 +69,7 @@
       (write-delivery! {:id       "hail-1"
                         :prompt   "Seal the leak."
                         :crew     :bartholomew
-                        :session  :engine-room
+                        :bound-session :engine-room
                         :attempts 0})
       (with-redefs [isaac.charge/build         (fn [request]
                                                  (reset! captured request)
@@ -91,7 +91,7 @@
       (should= {:id       "hail-1"
                 :prompt   "Seal the leak."
                 :crew     :bartholomew
-                :session  :engine-room
+                :bound-session :engine-room
                 :attempts 0}
                (read-edn "/test/isaac/hail/delivered/hail-1.edn"))))
 
@@ -104,7 +104,7 @@
                                          {:charge/type :charge})]
         (#'sut/delivery-charge test-config {:id      "hail-1"
                                             :prompt  "Seal the leak."
-                                            :session :engine-room}))
+                                            :bound-session :engine-room}))
       (let [guidance (:guidance @captured)]
         (should-contain "Autonomous hail; the user may not see your reply." guidance)
         (should-not (.contains guidance "Session:"))
@@ -117,7 +117,7 @@
                                          {:charge/type :charge})]
         (#'sut/delivery-charge test-config {:id      "hail-1"
                                             :prompt  "Pick up the bean."
-                                            :session :engine-room
+                                            :bound-session :engine-room
                                             :data    {:bean-repo "isaac" :bean-id "isaac-iz3a"}}))
       (let [guidance (:guidance @captured)]
         (should-contain "--- Hail metadata ---" guidance)
@@ -128,7 +128,7 @@
       (store/open-session! session-store "bridge" {:crew "atticus"})
       (store/open-session! session-store "first-watch" {:crew "cordelia"})
       (store/mark-in-flight! session-store "first-watch")
-      (should= {:crew :atticus :session :bridge}
+      (should= {:crew :atticus :bound-session :bridge}
                (select-keys (#'sut/runnable-delivery test-config
                                                      session-store
                                                      {:id         "hail-1"
@@ -136,7 +136,7 @@
                                                       :candidates [{:crew :atticus :session :bridge}
                                                                    {:crew :cordelia :session :first-watch}]
                                                       :attempts   0})
-                            [:crew :session]))))
+                            [:crew :bound-session]))))
 
   (it "spawns a sequential hail-origin session when a spawn delivery has no existing match"
     (let [session-store (nexus/get-in [:sessions :store])
@@ -156,15 +156,15 @@
                 :origin {:kind :hail :hail-id "hail-1"}}
                (select-keys (store/get-session session-store "session-1") [:crew :tags :origin]))
       (should= {:crew :bartholomew
-                :session "session-1"}
-               (select-keys (read-edn "/test/isaac/hail/delivered/hail-1.edn") [:crew :session]))))
+                :bound-session "session-1"}
+               (select-keys (read-edn "/test/isaac/hail/delivered/hail-1.edn") [:crew :bound-session]))))
 
   (it "binds a spawn delivery to an existing matching session instead of creating one"
     (let [session-store (nexus/get-in [:sessions :store])
           cfg           (loader/normalize-config test-config)]
       (config/dangerously-install-config! cfg "spec")
       (store/open-session! session-store "coil-work" {:crew "bartholomew" :tags #{:project/warp-coil}})
-      (should= {:crew :bartholomew :session :coil-work}
+      (should= {:crew :bartholomew :bound-session :coil-work}
                (select-keys (#'sut/runnable-delivery
                              cfg
                              session-store
@@ -175,7 +175,7 @@
                                           :reach :one
                                           :create :if-missing}
                               :attempts 0})
-                            [:crew :session]))
+                            [:crew :bound-session]))
       (should-be-nil (store/get-session session-store "session-1"))))
 
   (it "spawns under the delivery's resolved crew when no session matches"
@@ -242,14 +242,14 @@
       (write-delivery! {:id       "hail-1"
                         :prompt   "Seal the leak."
                         :crew     :bartholomew
-                        :session  :engine-room
+                        :bound-session :engine-room
                         :attempts 0})
       (should= []
                (sut/tick! {:cfg test-config :session-store session-store}))
       (should= {:id       "hail-1"
                 :prompt   "Seal the leak."
                 :crew     :bartholomew
-                :session  :engine-room
+                :bound-session :engine-room
                 :attempts 0}
                (read-edn "/test/isaac/hail/deliveries/hail-1.edn"))
       (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/inflight/hail-1.edn"))))
@@ -265,14 +265,14 @@
       (write-delivery! {:id       "hail-1"
                         :prompt   "Check the core."
                         :crew     :bartholomew
-                        :session  :engine-room
+                        :bound-session :engine-room
                         :attempts 0})
       (should= []
                (sut/tick! {:cfg cfg :session-store session-store}))
       (should= {:id       "hail-1"
                 :prompt   "Check the core."
                 :crew     :bartholomew
-                :session  :engine-room
+                :bound-session :engine-room
                 :attempts 0}
                (read-edn "/test/isaac/hail/deliveries/hail-1.edn"))))
 
@@ -282,7 +282,7 @@
       (write-delivery! {:id       "hail-1"
                         :prompt   "Seal the leak."
                         :crew     :bartholomew
-                        :session  :engine-room
+                        :bound-session :engine-room
                         :attempts 0})
       (with-redefs [isaac.drive.turn/run-turn! (fn [_] {:error :api-error})]
         @(first (sut/tick! {:cfg           test-config
@@ -301,7 +301,7 @@
       (write-delivery! {:id       "hail-1"
                         :prompt   "Seal the leak."
                         :crew     :bartholomew
-                        :session  :engine-room
+                        :bound-session :engine-room
                         :attempts 4})
       (with-redefs [isaac.drive.turn/run-turn! (fn [_] {:error :api-error})]
         @(first (sut/tick! {:cfg           test-config
@@ -319,7 +319,7 @@
       (write-delivery! {:id        "hail-1"
                         :prompt    "Seal the leak."
                         :crew      :bartholomew
-                        :session   :engine-room
+                        :bound-session :engine-room
                         :thread-id "thread-9"
                         :attempts  0})
       (with-redefs [isaac.drive.turn/run-turn! (fn [_] {})]
@@ -336,7 +336,7 @@
       (write-delivery! {:id        "hail-1"
                         :prompt    "Seal the leak."
                         :crew      :bartholomew
-                        :session   :engine-room
+                        :bound-session :engine-room
                         :thread-id "thread-9"
                         :attempts  0})
       (with-redefs [isaac.drive.turn/run-turn! (fn [_] {:error :api-error})]

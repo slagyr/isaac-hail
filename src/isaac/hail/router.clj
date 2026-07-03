@@ -305,14 +305,14 @@
   (assoc hail
          :frequencies (delivery-frequencies band hail)
          :crew        (effective-crew cfg band hail session)
-         :session     (state-id-value (:id session))
+         :bound-session (state-id-value (:id session))
          :attempts    0))
 
 (defn- create-delivery [cfg band hail]
   (assoc hail
          :frequencies (delivery-frequencies band hail)
          :crew        (spawn-crew cfg band hail)
-         :session     nil
+         :bound-session nil
          :attempts    0))
 
 (defn- candidate-entry [cfg band hail session]
@@ -328,7 +328,7 @@
   (assoc hail
          :frequencies (delivery-frequencies band hail)
          :crew        nil
-         :session     nil
+         :bound-session nil
          :candidates  (mapv #(candidate-entry cfg band hail %)
                               (order-candidates matches prefer))
          :attempts    0))
@@ -379,7 +379,7 @@
                                  :id          (queue/next-id root fs*)
                                  :source-hail parent-id
                                  :crew        (:crew addr)
-                                 :session     (:session addr)
+                                 :bound-session (:session addr)
                                  :attempts    0))
                         child-addrs)]
     (doseq [child children]
@@ -407,7 +407,7 @@
                         :thread-id (:thread-id delivery)
                         :band (get-in delivery [:frequencies :band])
                         :outcome :delivery
-                        :session (:session delivery)
+                        :session (:bound-session delivery)
                         :candidates (count (:candidates delivery))))
 
           broadcast

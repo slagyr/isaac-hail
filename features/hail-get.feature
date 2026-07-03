@@ -81,7 +81,7 @@ Feature: Hail get and search
       | path        | value   |
       | id          | hail-43 |
       | source-hail | hail-42 |
-      | session     | bridge  |
+      | bound-session | bridge |
     When an agent calls the hail_get tool with id "hail-43"
     Then it returns the hail record containing:
       | path        | value   |

@@ -142,7 +142,7 @@
   (let [band (delivery-band cfg delivery)]
     (-> delivery
         (assoc :crew (router/effective-crew cfg band (dissoc delivery :crew) session)
-               :session (router/state-id-value (:id session)))
+               :bound-session (router/state-id-value (:id session)))
         (dissoc :candidates))))
 
 (defn- create-delivery? [cfg delivery]
@@ -194,7 +194,7 @@
     (spawn-runnable-delivery cfg session-store delivery)
 
     :else
-    (if-let [session-id (normalize-id (:session delivery))]
+    (if-let [session-id (normalize-id (:bound-session delivery))]
       (when (session-available? cfg session-store session-id)
         delivery)
       (some (fn [{:keys [session]}]
@@ -235,7 +235,7 @@
   (log/error :hail/dead-lettered
              :id (:id delivery)
              :thread-id (:thread-id delivery)
-             :session (normalize-id (:session delivery))
+             :session (normalize-id (:bound-session delivery))
              :attempts attempts
              :reason :exhausted
              :error error))
@@ -254,7 +254,7 @@
           (log/warn :hail/attempt-failed
                     :id (:id delivery)
                     :thread-id (:thread-id delivery)
-                    :session (normalize-id (:session delivery))
+                    :session (normalize-id (:bound-session delivery))
                     :attempts attempts
                     :error error)))
       (dead-letter! root delivery attempts error))))
@@ -298,7 +298,7 @@
     (charge/build {:config         cfg
                    :comm           null-comm/channel
                    :guidance       (metadata-preamble delivery)
-                   :session-key    (normalize-id (:session delivery))
+                   :session-key    (normalize-id (:bound-session delivery))
                    :input          (:prompt delivery)
                    :origin         (hail-origin delivery)
                    :crew           (or (:crew override) (normalize-id (:crew delivery)))
@@ -315,7 +315,7 @@
         session-store (:session-store opts)
         root          (runtime-root opts)
         delivery      (delivery-with-prompt cfg delivery)
-        session-id    (normalize-id (:session delivery))
+        session-id    (normalize-id (:bound-session delivery))
         run!          (nexus/bound-runtime-fn
                         (bound-fn []
                           (try
