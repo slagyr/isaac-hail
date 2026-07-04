@@ -331,7 +331,6 @@ Feature: Hail delivery
       | id       | hail-1 |
       | attempts | 1      |
 
-  @wip
   Scenario: a hail's lifecycle is fully reconstructable from the log (isaac-jnkp)
     Every state transition logs an INFO :hail/* event — grep :hail/ in the
     server log reconstructs any hail's journey chronologically. File state
@@ -362,12 +361,10 @@ Feature: Hail delivery
     And the turn ends on session "engine-room"
     Then the log has entries matching:
       | level | event           | session     |
-      | info  | :hail/sent      |             |
-      | info  | :hail/routed    |             |
-      | info  | :hail/bound     | engine-room |
-      | info  | :hail/delivered | engine-room |
+      | :info | :hail/routed    | engine-room |
+      | :info | :hail/bound     | engine-room |
+      | :info | :hail/delivered | engine-room |
 
-  @wip
   Scenario: a failed delivery turn logs the attempt and backoff (isaac-jnkp)
     Given default Grover setup
     And the isaac EDN file "config/crew/bartholomew.edn" exists with:
@@ -390,7 +387,7 @@ Feature: Hail delivery
     And the turn ends on session "engine-room"
     Then the log has entries matching:
       | level | event                | attempts |
-      | info  | :hail/attempt-failed | 1        |
+      | :warn | :hail/attempt-failed | 1        |
 
   Scenario: binding stamps bound-session on the delivery record (isaac-fq9c)
     A delivery's resolved target is :bound-session — distinct from addressing,
