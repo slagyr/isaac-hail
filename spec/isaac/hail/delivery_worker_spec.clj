@@ -49,6 +49,11 @@
     (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/deliveries")
     (fs/spit (nexus/get :fs) path (pr-str record))))
 
+(defn- write-inflight! [record]
+  (let [path (str "/test/isaac/hail/inflight/" (:id record) ".edn")]
+    (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/inflight")
+    (fs/spit (nexus/get :fs) path (pr-str record))))
+
 (describe "hail delivery worker"
 
   (helper/with-captured-logs)
@@ -347,6 +352,80 @@
         (should= {:event :hail/attempt-failed :id "hail-1" :thread-id "thread-9"
                   :session "engine-room" :attempts 1 :error :api-error}
                  (select-keys failed [:event :id :thread-id :session :attempts :error])))))
+
+  (it "recovers an orphaned inflight delivery back to deliveries and clears session in-flight"
+    (let [session-store (nexus/get-in [:sessions :store])
+          now           (Instant/parse "2026-04-21T10:00:00Z")]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (store/mark-in-flight! session-store "engine-room")
+      (write-inflight! {:id            "hail-1"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :attempts      0
+                        :claimed-at    "2026-04-21T09:00:00Z"})
+      (sut/tick! {:cfg           test-config
+                  :now           now
+                  :session-store session-store})
+      (should-not (store/in-flight? session-store "engine-room"))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/inflight/hail-1.edn"))
+      (should= {:attempts        1
+                :next-attempt-at "2026-04-21T10:00:01Z"}
+               (select-keys (read-edn "/test/isaac/hail/deliveries/hail-1.edn")
+                            [:attempts :next-attempt-at]))))
+
+  (it "delivers a hail recovered from orphaned inflight on a later tick"
+    (let [session-store (nexus/get-in [:sessions :store])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (write-inflight! {:id            "hail-1"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :attempts      0
+                        :claimed-at    "2026-04-21T09:00:00Z"})
+      (sut/tick! {:cfg           test-config
+                  :now           (Instant/parse "2026-04-21T10:00:00Z")
+                  :session-store session-store})
+      (with-redefs [isaac.drive.turn/run-turn! (fn [_] {})]
+        @(first (sut/tick! {:cfg           test-config
+                            :now           (Instant/parse "2026-04-21T10:00:02Z")
+                            :session-store session-store})))
+      (should= "hail-1" (:id (read-edn "/test/isaac/hail/delivered/hail-1.edn")))))
+
+  (it "dead-letters an orphaned inflight delivery that has exhausted attempts"
+    (let [session-store (nexus/get-in [:sessions :store])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (write-inflight! {:id            "hail-1"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :attempts      4
+                        :claimed-at    "2026-04-21T09:00:00Z"})
+      (sut/tick! {:cfg           test-config
+                  :now           (Instant/parse "2026-04-21T10:00:00Z")
+                  :session-store session-store})
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/inflight/hail-1.edn"))
+      (should= {:attempts 5}
+               (select-keys (read-edn "/test/isaac/hail/failed/hail-1.edn") [:attempts]))))
+
+  (it "does not recover a fresh inflight delivery still inside the recovery window"
+    (let [session-store (nexus/get-in [:sessions :store])
+          now           (Instant/parse "2026-04-21T10:00:00Z")]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (store/mark-in-flight! session-store "engine-room")
+      (write-inflight! {:id            "hail-1"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :attempts      0
+                        :claimed-at    "2026-04-21T09:59:00Z"})
+      (sut/tick! {:cfg           test-config
+                  :now           now
+                  :session-store session-store
+                  :inflight-recovery-ms 120000})
+      (should (store/in-flight? session-store "engine-room"))
+      (should (fs/exists? (nexus/get :fs) "/test/isaac/hail/inflight/hail-1.edn"))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/deliveries/hail-1.edn"))))
 
   (it "registers the shared scheduler task"
     (let [shared-scheduler (scheduler/create {})]

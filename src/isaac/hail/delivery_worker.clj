@@ -25,6 +25,10 @@
 
 (def default-tick-ms 1000)
 
+(def default-inflight-recovery-ms
+  "Treat inflight deliveries older than this as orphaned (mid-drive crash)."
+  300000)
+
 (def ^:private hail-guidance
   "Autonomous hail; the user may not see your reply.")
 
@@ -93,16 +97,21 @@
 (defn- delete-record! [path]
   (fs/delete (filesystem) path))
 
-(defn- list-deliveries [root]
-  (let [fs* (filesystem)
-        dir (deliveries-dir root)]
-    (if-let [children (fs/children fs* dir)]
+(defn- list-records-in-dir [root dir-path]
+  (let [fs* (filesystem)]
+    (if-let [children (fs/children fs* dir-path)]
       (->> children
-           (map #(read-record (str dir "/" %)))
+           (map #(read-record (str dir-path "/" %)))
            (remove nil?)
            (sort-by :id)
            vec)
       [])))
+
+(defn- list-deliveries [root]
+  (list-records-in-dir root (deliveries-dir root)))
+
+(defn- list-inflight [root]
+  (list-records-in-dir root (inflight-dir root)))
 
 (defn- due? [record now]
   (if-let [next-attempt-at (:next-attempt-at record)]
@@ -214,8 +223,9 @@
 (defn- failed-path [root id]
   (record-path (failed-dir root) id))
 
-(defn- claim-delivery! [root delivery]
-  (write-record! (inflight-path root (:id delivery)) delivery)
+(defn- claim-delivery! [root delivery now]
+  (write-record! (inflight-path root (:id delivery))
+                 (assoc delivery :claimed-at (str now)))
   (delete-record! (delivery-path root (:id delivery)))
   delivery)
 
@@ -240,6 +250,18 @@
              :reason :exhausted
              :error error))
 
+(defn- inflight-recovery-ms [cfg opts]
+  (or (:inflight-recovery-ms opts)
+      (get-in cfg [:hail-settings :inflight-recovery-ms])
+      default-inflight-recovery-ms))
+
+(defn- inflight-orphaned? [delivery now threshold-ms]
+  (if-let [claimed-at (:claimed-at delivery)]
+    (let [claimed (Instant/parse claimed-at)
+          age-ms  (- (.toEpochMilli now) (.toEpochMilli claimed))]
+      (>= age-ms threshold-ms))
+    true))
+
 (defn- reschedule! [root now delivery error]
   (let [attempts (inc (:attempts delivery 0))]
     (if-let [delay-ms (backoff-ms attempts)]
@@ -258,6 +280,29 @@
                     :attempts attempts
                     :error error)))
       (dead-letter! root delivery attempts error))))
+
+(defn- recover-orphaned-inflight!
+  "Re-queue stale inflight/ deliveries after a mid-drive worker crash."
+  [opts]
+  (let [cfg           (or (:cfg opts)
+                          (loader/snapshot "hail delivery inflight recovery — config may have changed")
+                          {})
+        root          (runtime-root opts)
+        session-store (or (:session-store opts)
+                          (store/registered-store)
+                          (throw (ex-info "hail delivery worker requires :session-store or registered [:sessions :store]" {})))
+        now           (or (:now opts) (memory/now))
+        threshold-ms  (inflight-recovery-ms cfg opts)]
+    (doseq [delivery (list-inflight root)
+            :when (inflight-orphaned? delivery now threshold-ms)]
+      (when-let [session-id (normalize-id (:bound-session delivery))]
+        (store/clear-in-flight! session-store session-id))
+      (reschedule! root now delivery :worker-crash)
+      (log/warn :hail/inflight-recovered
+                :id (:id delivery)
+                :thread-id (:thread-id delivery)
+                :session (normalize-id (:bound-session delivery))
+                :attempts (:attempts delivery 0)))))
 
 (defn- hail-origin [hail]
   (let [hail-id (normalize-id (:id hail))]
@@ -335,7 +380,7 @@
                             (finally
                               (store/clear-in-flight! session-store session-id)))))]
     (when (store/mark-in-flight! session-store session-id)
-      (claim-delivery! root delivery)
+      (claim-delivery! root delivery (:now opts))
       (log/info :hail/bound
                 :id (:id delivery)
                 :thread-id (:thread-id delivery)
@@ -355,7 +400,9 @@
         session-store (or session-store
                           (store/registered-store)
                           (throw (ex-info "hail delivery worker requires :session-store or registered [:sessions :store]" {})))
-        now           (or now (memory/now))]
+        now           (or now (memory/now))
+        opts*         (assoc opts :cfg cfg :root root :session-store session-store :now now)]
+    (recover-orphaned-inflight! opts*)
     (->> (list-deliveries root)
          (filter #(due? % now))
          (map #(runnable-delivery cfg session-store %))
@@ -371,9 +418,11 @@
 
 (defn start!
   [{:keys [tick-ms]
-    :or   {tick-ms default-tick-ms}}]
+    :or   {tick-ms default-tick-ms}
+    :as   opts}]
   (let [shared-scheduler (or (nexus/get :scheduler)
                              (throw (ex-info "hail delivery worker requires :scheduler in isaac.nexus" {})))]
+    (recover-orphaned-inflight! (assoc opts :now (memory/now)))
     (scheduler/schedule! shared-scheduler
                          {:id      :hail/deliver
                           :trigger {:kind :interval :ms tick-ms}
