@@ -27,6 +27,8 @@
 
 (def default-tick-ms 1000)
 
+(def default-max-continuations 3)
+
 (def ^:private hail-guidance
   "Autonomous hail; the user may not see your reply.")
 
@@ -244,6 +246,42 @@
                      :reason    :exhausted}
                     (failure-log-context error))))
 
+(defn- max-continuations [cfg opts]
+  (or (:max-continuations opts)
+      (get-in cfg [:hail-settings :max-continuations])
+      default-max-continuations))
+
+(defn- continuation-notice [n max-n]
+  (str "continuation " n " of " max-n
+       "; send the 🔁 at-a-glance, then continue — do not restart"))
+
+(defn- continuations-exhausted! [root delivery]
+  (finish-failed! root (assoc delivery :reason :continuations-exhausted))
+  (log/error :hail/dead-lettered
+             {:id        (:id delivery)
+              :thread-id (:thread-id delivery)
+              :session   (normalize-id (:bound-session delivery))
+              :continuations (:continuations delivery 0)
+              :reason    :continuations-exhausted}))
+
+(defn- queue-continuation! [root cfg opts delivery]
+  (let [max-c   (max-continuations cfg opts)
+        current (:continuations delivery 0)]
+    (if (>= current max-c)
+      (continuations-exhausted! root delivery)
+      (let [next    (inc current)
+            updated (assoc delivery
+                           :continuations next
+                           :prompt (str (continuation-notice next max-c)
+                                        "\n\n"
+                                        (:prompt delivery)))]
+        (write-record! (delivery-path root (:id delivery)) updated)
+        (log/warn :hail/continuation-queued
+                  :id (:id delivery)
+                  :thread-id (:thread-id delivery)
+                  :session (normalize-id (:bound-session delivery))
+                  :continuations next)))))
+
 (defn- defer-delivery! [root now delivery retry-after-ms]
   (write-record! (delivery-path root (:id delivery))
                  (assoc delivery
@@ -343,6 +381,9 @@
 
                                 (:unavailable? result)
                                 (defer-delivery! root (:now opts) delivery (:retry-after-ms result))
+
+                                (= :tool-loop-limit (:ended-by result))
+                                (queue-continuation! root cfg opts delivery)
 
                                 (:error result)
                                 (reschedule! root (:now opts) delivery (:error result))

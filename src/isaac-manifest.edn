@@ -24,7 +24,11 @@
     {:naming-strategy
      {:type :keyword,
       :description "Hail id naming strategy: :short-uuid (default), :uuid, or :sequential",
-      :validations [[:one-of? :short-uuid :uuid :sequential]]}}}}
+      :validations [[:one-of? :short-uuid :uuid :sequential]]},
+     :max-continuations
+     {:type :int,
+      :description "Max loop-limit continuations per delivery before dead-letter (default 3)",
+      :validations [:positive?]}}}}
   :hail
   {:entity-dir "hail",
    :frontmatter? true,

@@ -540,7 +540,6 @@ Feature: Hail delivery
       | level | event                    | session     |
       | :info | :hail/delivery-suspended | engine-room |
 
-  @wip
   Scenario: a turn that hits the tool-loop limit re-queues the delivery as a continuation (isaac-5ru9)
     A loop-limit ending is a third kind of turn outcome: not success, not
     failure — unfinished. "Ask me to continue" on an unattended turn is a
@@ -579,7 +578,6 @@ Feature: Hail delivery
       | level | event                     | session     | continuations |
       | :warn | :hail/continuation-queued | engine-room | 1             |
 
-  @wip
   Scenario: continuations exhausted — the bean surfaces to a human instead of looping (isaac-5ru9)
     Three continuations without convergence means the work is not going to
     finish by itself — same budget philosophy as attempts, tracked separately.

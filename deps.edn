@@ -4,7 +4,7 @@
         io.github.slagyr/isaac-foundation {:git/url "https://github.com/slagyr/isaac-foundation.git"
                                           :git/sha "0c4f106e8206a789900089360d565b17d8ab71c2"}
         io.github.slagyr/isaac-agent {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                          :git/sha "249a745339a4459d5e6b95fedc2c794ffeb84423"}
+                                          :git/sha "6336cb407deed66a435d93fa8c04505c6995e70a"}
         cheshire/cheshire                   {:mvn/version "5.13.0"}
         }
 
@@ -69,6 +69,7 @@
                            "-s" "isaac.config.config-steps"
                            "-s" "isaac.scheduler-steps"
                            "-s" "isaac.session.session-steps"
+                           "-s" "isaac.tool.tools-steps"
                            "-s" "isaac.server.server-steps"
                            "-s" "isaac.hail-steps"
                            "-s" "isaac.hail-hlt1-steps"
