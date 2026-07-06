@@ -101,6 +101,7 @@
     (g/assoc! :turn-future future*)))
 
 (defn delivery-turn-throws-with-message [message]
+  (grover/install-test-fixture!)
   (reset! turn-throw-message* message)
   (alter-var-root #'isaac.drive.turn/run-turn! (constantly stub-run-turn!)))
 
