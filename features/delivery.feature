@@ -543,3 +543,40 @@ Feature: Hail delivery
     And the isaac file "hail/deliveries/hail-stale.edn" EDN contains:
       | path     | value | #comment                        |
       | attempts | 1     | 2h01m old — recovered as before |
+
+  @wip
+  Scenario: a suspended hail turn leaves its marker for resume — no reschedule, no attempts (isaac-2xj5)
+    Suspend is not a failure: the delivery lives on only inside the stamped
+    turn marker (embedded attempts intact) for isaac-vdfc to re-queue at next
+    startup. It is neither re-queued, concluded, nor punished here.
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the following model responses are queued:
+      | type | content      | model  | wait |
+      | text | Sealing now. | grover | true |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+      | attempts      | 2              |
+    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
+    And in-flight turns are suspended
+    Then a turn marker exists for session "engine-room" with:
+      | key         | value  | #comment                             |
+      | source      | :hail  |                                      |
+      | delivery-id | hail-1 |                                      |
+      | attempts    | 2      | unchanged — suspend is not a failure |
+      | suspended   | true   |                                      |
+      | boundary    | :clean |                                      |
+    And the isaac file "hail/deliveries/hail-1.edn" does not exist
+    And the isaac file "hail/delivered/hail-1.edn" does not exist
+    And the isaac file "hail/failed/hail-1.edn" does not exist
+    And the log has entries matching:
+      | level | event                    | session     |
+      | :info | :hail/delivery-suspended | engine-room |
