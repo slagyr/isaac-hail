@@ -389,6 +389,54 @@ Feature: Hail delivery
       | level | event                | attempts |
       | :warn | :hail/attempt-failed | 1        |
 
+  Scenario: a thrown delivery turn logs ex-class and ex-message on attempt-failed (isaac-cehc)
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | bound-session | :engine-room   |
+      | crew          | bartholomew    |
+      | prompt        | Seal the leak. |
+      | attempts      | 0              |
+    And a delivery whose turn throws with message "boom-xyz"
+    When the hail delivery worker ticks
+    And the turn ends on session "engine-room"
+    Then the log has entries matching:
+      | level | event                | error      | ex-message | attempts |
+      | :warn | :hail/attempt-failed | :exception | boom-xyz   | 1        |
+
+  Scenario: a thrown delivery dead-letters with ex-class and ex-message (isaac-cehc)
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the following model responses are queued:
+      | type | content | model  |
+      | text | unused  | grover |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | bound-session | :engine-room   |
+      | crew          | bartholomew    |
+      | prompt        | Seal the leak. |
+      | attempts      | 4              |
+    And a delivery whose turn throws with message "boom-xyz"
+    When the hail delivery worker ticks
+    And the turn ends on session "engine-room"
+    Then the isaac file "hail/failed/hail-1.edn" EDN contains:
+      | path     | value |
+      | attempts | 5     |
+    And the log has entries matching:
+      | level | event               | error      | ex-message | reason     |
+      | error | :hail/dead-lettered | :exception | boom-xyz   | :exhausted |
+
   Scenario: an orphaned inflight delivery is recovered and delivered (isaac-0tf3)
     A mid-drive worker crash leaves a hail in inflight/ with no completion path.
     After the recovery window, the worker re-queues it to deliveries/ and

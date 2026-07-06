@@ -5,8 +5,9 @@
     [cheshire.core :as json]
     [clojure.edn :as edn]
     [clojure.string :as str]
-    [gherclj.core :as g :refer [defwhen defthen helper!]]
+    [gherclj.core :as g :refer [defgiven defwhen defthen helper!]]
     [isaac.agent.config.runtime :as agent-runtime]
+    [isaac.drive.turn]
     [isaac.config.api :as config]
     [isaac.config.loader :as loader]
     [isaac.foundation.cli-steps :as fcli]
@@ -21,9 +22,25 @@
     [isaac.server.server-steps :as server-steps]
     [isaac.session.session-steps :as session-steps]
     [isaac.session.store.spi :as session-store]
-    [isaac.tool.memory :as memory]))
+    [isaac.tool.memory :as memory])
+  (:import
+    (java.time Instant)))
 
 (helper! isaac.hail-steps)
+
+(defonce ^:private real-run-turn! (var-get #'isaac.drive.turn/run-turn!))
+(defonce ^:private turn-throw-message* (atom nil))
+
+(defn- stub-run-turn! [charge]
+  (if-let [msg @turn-throw-message*]
+    (throw (ex-info msg {}))
+    (real-run-turn! charge)))
+
+(g/after-scenario
+  (fn []
+    (reset! turn-throw-message* nil)
+    (alter-var-root #'isaac.drive.turn/run-turn! (constantly real-run-turn!))
+    (grover/reset-queue!)))
 
 (def ^:private short-uuid-re #"^[0-9a-f]{8}$")
 (def ^:private short-uuid-sentinel "<short-uuid>")
@@ -82,6 +99,10 @@
 (defn- record-turn-future! [futures]
   (when-let [future* (first futures)]
     (g/assoc! :turn-future future*)))
+
+(defn delivery-turn-throws-with-message [message]
+  (reset! turn-throw-message* message)
+  (alter-var-root #'isaac.drive.turn/run-turn! (constantly stub-run-turn!)))
 
 (defn- feature-session-store [root cfg]
   (or (session-store/registered-store)
@@ -277,7 +298,7 @@
                             :sessions {:store session-store}}
           (config/dangerously-install-config! cfg "spec")
           (record-turn-future! (hail-delivery-worker/tick! {:cfg           cfg
-                                                            :now           (java.time.Instant/parse iso)
+                                                            :now           (Instant/parse iso)
                                                             :session-store session-store})))))))
 
 (defn isaac-system-started []
@@ -321,6 +342,9 @@
 ;; endregion ^^^^^ Hail delivery system preamble ^^^^^
 
 (defwhen "the hail router ticks" isaac.hail-steps/hail-router-ticks)
+
+(defgiven "a delivery whose turn throws with message {message:string}"
+  isaac.hail-steps/delivery-turn-throws-with-message)
 
 (defwhen "the hail delivery worker ticks" isaac.hail-steps/hail-delivery-worker-ticks)
 

@@ -1,5 +1,6 @@
 (ns isaac.hail.delivery-worker-spec
   (:require
+    [clojure.string :as str]
     [isaac.charge]
     [isaac.comm.null :as null-comm]
     [isaac.config.api :as config]
@@ -352,6 +353,41 @@
         (should= {:event :hail/attempt-failed :id "hail-1" :thread-id "thread-9"
                   :session "engine-room" :attempts 1 :error :api-error}
                  (select-keys failed [:event :id :thread-id :session :attempts :error])))))
+
+  (it "logs :hail/attempt-failed with ex-class and ex-message when the turn throws"
+    (let [session-store (nexus/get-in [:sessions :store])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (write-delivery! {:id            "hail-1"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :attempts      0})
+      (with-redefs [isaac.drive.turn/run-turn! (fn [_] (throw (ex-info "boom-xyz" {})))]
+        @(first (sut/tick! {:cfg           test-config
+                            :now           (Instant/parse "2026-04-21T10:00:00Z")
+                            :session-store session-store})))
+      (let [failed (some #(when (= :hail/attempt-failed (:event %)) %) @log/captured-logs)]
+        (should= "boom-xyz" (:ex-message failed))
+        (should (str/includes? (:ex-class failed) "ExceptionInfo"))
+        (should= :exception (:error failed)))))
+
+  (it "logs :hail/dead-lettered with ex-class and ex-message when retries are exhausted by throws"
+    (let [session-store (nexus/get-in [:sessions :store])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (write-delivery! {:id            "hail-1"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :attempts      4})
+      (with-redefs [isaac.drive.turn/run-turn! (fn [_] (throw (ex-info "boom-xyz" {})))]
+        @(first (sut/tick! {:cfg           test-config
+                            :now           (Instant/parse "2026-04-21T10:00:00Z")
+                            :session-store session-store})))
+      (let [dead (some #(when (= :hail/dead-lettered (:event %)) %) @log/captured-logs)]
+        (should= "boom-xyz" (:ex-message dead))
+        (should (str/includes? (:ex-class dead) "ExceptionInfo"))
+        (should= :exception (:error dead))
+        (should= :exhausted (:reason dead)))))
 
   (it "recovers an orphaned inflight delivery back to deliveries and clears session in-flight"
     (let [session-store (nexus/get-in [:sessions :store])

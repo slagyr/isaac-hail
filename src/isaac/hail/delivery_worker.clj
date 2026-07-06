@@ -240,15 +240,26 @@
 (defn- backoff-ms [attempts]
   (get delays-ms attempts))
 
+(defn- exception-error-info [e]
+  {:error      :exception
+   :ex-class   (.getName (class e))
+   :ex-message (.getMessage e)})
+
+(defn- failure-log-context [error]
+  (cond
+    (map? error)   (select-keys error [:error :ex-class :ex-message])
+    (keyword? error) {:error error}
+    :else          {:error error}))
+
 (defn- dead-letter! [root delivery attempts error]
   (finish-failed! root (assoc delivery :attempts attempts))
   (log/error :hail/dead-lettered
-             :id (:id delivery)
-             :thread-id (:thread-id delivery)
-             :session (normalize-id (:bound-session delivery))
-             :attempts attempts
-             :reason :exhausted
-             :error error))
+             (merge {:id        (:id delivery)
+                     :thread-id (:thread-id delivery)
+                     :session   (normalize-id (:bound-session delivery))
+                     :attempts  attempts
+                     :reason    :exhausted}
+                    (failure-log-context error))))
 
 (defn- inflight-recovery-ms [cfg opts]
   (or (:inflight-recovery-ms opts)
@@ -274,11 +285,11 @@
                                 :next-attempt-at (str (.plusMillis now delay-ms))))
           (delete-record! (inflight-path root (:id delivery)))
           (log/warn :hail/attempt-failed
-                    :id (:id delivery)
-                    :thread-id (:thread-id delivery)
-                    :session (normalize-id (:bound-session delivery))
-                    :attempts attempts
-                    :error error)))
+                    (merge {:id        (:id delivery)
+                            :thread-id (:thread-id delivery)
+                            :session   (normalize-id (:bound-session delivery))
+                            :attempts  attempts}
+                           (failure-log-context error)))))
       (dead-letter! root delivery attempts error))))
 
 (defn- recover-orphaned-inflight!
@@ -375,8 +386,9 @@
                                             :session session-id)))
                               result)
                             (catch Exception e
-                              (reschedule! root (:now opts) delivery :exception)
-                              {:error :exception :message (.getMessage e)})
+                              (let [err (exception-error-info e)]
+                                (reschedule! root (:now opts) delivery err)
+                                err))
                             (finally
                               (store/clear-in-flight! session-store session-id)))))]
     (when (store/mark-in-flight! session-store session-id)
