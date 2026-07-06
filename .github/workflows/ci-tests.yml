@@ -19,15 +19,6 @@ jobs:
       - name: Check out isaac-hail
         uses: actions/checkout@v4
 
-      - name: Check out isaac-foundation
-        run: git clone --depth 1 https://github.com/slagyr/isaac-foundation.git ../isaac-foundation
-
-      - name: Check out isaac-agent
-        run: git clone --depth 1 https://github.com/slagyr/isaac-agent.git ../isaac-agent
-
-      - name: Check out isaac-server
-        run: git clone --depth 1 https://github.com/slagyr/isaac-server.git ../isaac-server
-
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -39,6 +30,31 @@ jobs:
         with:
           bb: latest
           cli: latest
+
+      - name: Resolve sibling dependency SHAs from deps.edn
+        run: |
+          FOUNDATION_SHA=$(bb -e '(-> "deps.edn" slurp clojure.edn/read-string :deps (get (symbol "io.github.slagyr/isaac-foundation")) :git/sha)')
+          AGENT_SHA=$(bb -e '(-> "deps.edn" slurp clojure.edn/read-string :deps (get (symbol "io.github.slagyr/isaac-agent")) :git/sha)')
+          SERVER_SHA=$(bb -e '(-> "deps.edn" slurp clojure.edn/read-string :aliases :spec :extra-deps (get (symbol "io.github.slagyr/isaac-server")) :git/sha)')
+          echo "FOUNDATION_SHA=$FOUNDATION_SHA" >> "$GITHUB_ENV"
+          echo "AGENT_SHA=$AGENT_SHA" >> "$GITHUB_ENV"
+          echo "SERVER_SHA=$SERVER_SHA" >> "$GITHUB_ENV"
+
+      - name: Check out sibling repos at pinned SHAs
+        run: |
+          clone_at () {
+            local repo="$1"
+            local sha="$2"
+            local dir="../$repo"
+            git init "$dir"
+            git -C "$dir" remote add origin "https://github.com/slagyr/$repo.git"
+            git -C "$dir" fetch --depth 1 origin "$sha"
+            git -C "$dir" checkout --detach FETCH_HEAD
+          }
+
+          clone_at isaac-foundation "$FOUNDATION_SHA"
+          clone_at isaac-agent "$AGENT_SHA"
+          clone_at isaac-server "$SERVER_SHA"
 
       - name: Cache Clojure dependencies
         uses: actions/cache@v4
