@@ -2,7 +2,7 @@
 
  :deps {
         io.github.slagyr/isaac-foundation {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                          :git/sha "43765735566503504adc0f442370d95af336377d"}
+                                          :git/sha "0c4f106e8206a789900089360d565b17d8ab71c2"}
         io.github.slagyr/isaac-agent {:git/url "https://github.com/slagyr/isaac-agent.git"
                                           :git/sha "9e44e47fdb8d95afc8a196e23814d167955d8045"}
         cheshire/cheshire                   {:mvn/version "5.13.0"}
@@ -21,7 +21,7 @@
 
   :spec {:extra-paths ["spec"]
          :extra-deps  {io.github.slagyr/isaac-foundation-test-support {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                                                       :git/sha "43765735566503504adc0f442370d95af336377d"
+                                                                       :git/sha "0c4f106e8206a789900089360d565b17d8ab71c2"
                                                                        :deps/root "spec-support"}
                        io.github.slagyr/isaac-agent-spec              {:git/url "https://github.com/slagyr/isaac-agent.git"
                                                                        :git/sha "9e44e47fdb8d95afc8a196e23814d167955d8045"
