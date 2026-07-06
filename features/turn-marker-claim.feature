@@ -68,3 +68,32 @@ Feature: Delivery claim via durable turn markers
     And the log has entries matching:
       | level | event                        | session     |
       | warn  | :hail/stale-delivery-removed | engine-room |
+
+  Scenario: a failure-rescheduled delivery survives tick while its turn is still in flight
+    A transient turn error writes the retry back to deliveries/ before finally
+    clears the marker. The stale-delivery guard must not fire while the session
+    is still in flight — otherwise every failure-path retry is annihilated on
+    the next tick (isaac-3tyl).
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And session "engine-room" is in flight
+    And a turn marker exists for session "engine-room" referencing delivery "hail-1"
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+      | attempts      | 1              |
+    When the hail delivery worker ticks
+    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
+      | path     | value |
+      | id       | hail-1 |
+      | attempts | 1     |
+    And the log has no entries matching:
+      | level | event                        |
+      | warn  | :hail/stale-delivery-removed |

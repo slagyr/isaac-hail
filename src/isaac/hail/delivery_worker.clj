@@ -357,8 +357,11 @@
 
 ;; Claim = the bridge records a durable turn marker (isaac-7li9), THEN we delete
 ;; the delivery file. A crash between them leaves marker + stray delivery — the
-;; stale-delivery guard in tick! removes the stray, never re-dispatches it. The
-;; marker is cleared (and the in-flight gate released) in the finally.
+;; stale-delivery guard in tick! removes the stray when the marker is orphaned
+;; (no live in-flight entry), never re-dispatches it. A live failure-reschedule
+;; transiently recreates the same pair; the in-flight gate keeps the guard off
+;; until finally clears the marker. The marker is cleared (and the in-flight
+;; gate released) in the finally.
 (defn- launch-delivery! [opts delivery]
   (let [cfg           (:cfg opts)
         session-store (:session-store opts)
@@ -439,14 +442,18 @@
          (filter #(due? % now))
          (keep (fn [delivery]
                  (if-let [marker (get referenced (str (:id delivery)))]
-                   ;; a turn marker already claims this delivery — it is a stray
-                   ;; left by a claim-time crash; drop it, never re-dispatch (isaac-7li9)
-                   (do
-                     (delete-record! (delivery-path root (:id delivery)))
-                     (log/warn :hail/stale-delivery-removed
-                               :session (:session-id marker)
-                               :id (:id delivery))
-                     nil)
+                   (if (store/in-flight? session-store (:session-id marker))
+                     ;; live turn: failure-reschedule rewrote deliveries/ before
+                     ;; finally cleared the marker — not a claim-crash stray (isaac-3tyl)
+                     nil
+                     ;; orphaned marker: claim-time crash stray — drop, never
+                     ;; re-dispatch (isaac-7li9)
+                     (do
+                       (delete-record! (delivery-path root (:id delivery)))
+                       (log/warn :hail/stale-delivery-removed
+                                 :session (:session-id marker)
+                                 :id (:id delivery))
+                       nil))
                    (when-let [runnable (runnable-delivery cfg session-store delivery)]
                      (launch-delivery! opts* runnable)))))
          vec)))

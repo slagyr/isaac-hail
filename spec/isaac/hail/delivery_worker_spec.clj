@@ -384,6 +384,37 @@
         (should= :exception (:error dead))
         (should= :exhausted (:reason dead)))))
 
+  (it "does not remove a rescheduled delivery while its turn marker is still live"
+    (let [session-store (nexus/get-in [:sessions :store])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (store/mark-in-flight! session-store "engine-room")
+      (store/record-turn-marker! session-store "engine-room"
+                                 {:source :hail :delivery-id "hail-1" :session-id "engine-room"})
+      (write-delivery! {:id            "hail-1"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :attempts      1})
+      (should= [] (sut/tick! {:cfg test-config :session-store session-store}))
+      (should= {:id "hail-1" :attempts 1}
+               (select-keys (read-edn "/test/isaac/hail/deliveries/hail-1.edn") [:id :attempts]))
+      (should-not (some #(= :hail/stale-delivery-removed (:event %)) @log/captured-logs))))
+
+  (it "removes a stray delivery when its turn marker is orphaned"
+    (let [session-store (nexus/get-in [:sessions :store])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (store/record-turn-marker! session-store "engine-room"
+                                 {:source :hail :delivery-id "hail-1" :session-id "engine-room"})
+      (write-delivery! {:id            "hail-1"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :attempts      2})
+      (should= [] (sut/tick! {:cfg test-config :session-store session-store}))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/deliveries/hail-1.edn"))
+      (should= {:event :hail/stale-delivery-removed :session "engine-room" :id "hail-1"}
+               (select-keys (last @log/captured-logs) [:event :session :id]))))
+
   (it "registers the shared scheduler task"
     (let [shared-scheduler (scheduler/create {})]
       (try
