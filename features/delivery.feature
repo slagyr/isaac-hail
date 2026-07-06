@@ -3,14 +3,14 @@ Feature: Hail delivery
   delivery hails from hail/deliveries/ (each named by its own hail id),
   binds unbound (reach-one) deliveries to an idle candidate, and gates on
   session in-flight + crew capacity. For each ready delivery it claims the
-  session (marks it in-flight), moves the delivery hail to hail/inflight/
-  (keeping its id), and schedules the turn as a background task WITHOUT
-  waiting — so it never dispatches two turns on the same session at once.
-  The turn opens with an origin+autonomy system preamble (this turn came
-  from a hail; it runs unattended, the user may not see the reply or be
+  session — the bridge records a durable turn marker (isaac-7li9) and the
+  worker deletes the delivery file — then schedules the turn as a background
+  task WITHOUT waiting, so it never dispatches two turns on the same session
+  at once. The turn opens with an origin+autonomy system preamble (this turn
+  came from a hail; it runs unattended, the user may not see the reply or be
   available for questions) followed by the resolved prompt. On turn
   completion the delivery hail moves to hail/delivered/; a failed turn
-  increments attempts and backs off (inflight/ -> deliveries/),
+  increments attempts and backs off (re-queued to deliveries/),
   dead-lettering to hail/failed/ after the 5-attempt max. A reach-all
   child delivery is just a delivery hail (carrying :source-hail); the
   worker treats it like any other and never touches the broadcast parent.
@@ -102,7 +102,6 @@ Feature: Hail delivery
       | path     | value  | #comment                              |
       | id       | hail-1 | still pending — session was in flight |
       | attempts | 0      | gating is not a failed attempt        |
-    And the isaac file "hail/inflight/hail-1.edn" does not exist
     And the isaac file "hail/delivered/hail-1.edn" does not exist
 
   Scenario: a delivery for an at-capacity crew is left pending
@@ -127,7 +126,6 @@ Feature: Hail delivery
       | path     | value  | #comment                                |
       | id       | hail-1 | still pending — bartholomew at capacity |
       | attempts | 0      |                                         |
-    And the isaac file "hail/inflight/hail-1.edn" does not exist
     And the isaac file "hail/delivered/hail-1.edn" does not exist
 
   Scenario: the worker dispatches at most one turn per session, serializing across ticks
@@ -194,7 +192,6 @@ Feature: Hail delivery
       | path            | value                | #comment                              |
       | attempts        | 1                    | incremented after the failed dispatch |
       | next-attempt-at | 2026-04-21T10:00:01Z | tick time + 1s (first backoff step)   |
-    And the isaac file "hail/inflight/hail-1.edn" does not exist
     And the isaac file "hail/delivered/hail-1.edn" does not exist
     And the isaac file "hail/failed/hail-1.edn" does not exist
 
@@ -218,7 +215,6 @@ Feature: Hail delivery
     When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
     And the turn ends on session "engine-room"
     Then the isaac file "hail/deliveries/hail-1.edn" does not exist
-    And the isaac file "hail/inflight/hail-1.edn" does not exist
     And the isaac file "hail/failed/hail-1.edn" EDN contains:
       | path     | value  | #comment                                |
       | id       | hail-1 |                                         |
@@ -444,60 +440,6 @@ Feature: Hail delivery
     And the log has entries matching:
       | level | event               | error      | ex-class                  | ex-message | reason     |
       | error | :hail/dead-lettered | :exception | clojure.lang.ExceptionInfo | boom-xyz   | :exhausted |
-
-  Scenario: an orphaned inflight delivery is recovered and delivered (isaac-0tf3)
-    A mid-drive worker crash leaves a hail in inflight/ with no completion path.
-    After the recovery window, the worker re-queues it to deliveries/ and
-    delivery proceeds normally.
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value  |
-      | model | grover |
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
-    And the following model responses are queued:
-      | type | content      | model  |
-      | text | Sealing now. | grover |
-    And the isaac EDN file hail/inflight/hail-1.edn exists with:
-      | path          | value                |
-      | id            | hail-1               |
-      | prompt        | Seal the leak.       |
-      | crew          | bartholomew          |
-      | bound-session | :engine-room         |
-      | attempts      | 0                    |
-      | claimed-at    | 2026-04-21T07:00:00Z |
-    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    Then the isaac file "hail/inflight/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path     | value |
-      | attempts | 1     |
-    When the hail delivery worker ticks at "2026-04-21T10:00:02Z"
-    And the turn ends on session "engine-room"
-    Then the isaac file "hail/delivered/hail-1.edn" EDN contains:
-      | path | value  |
-      | id   | hail-1 |
-
-  Scenario: an orphaned inflight delivery dead-letters after max attempts (isaac-0tf3)
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value  |
-      | model | grover |
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
-    And the isaac EDN file hail/inflight/hail-1.edn exists with:
-      | path          | value                |
-      | id            | hail-1               |
-      | prompt        | Seal the leak.       |
-      | crew          | bartholomew          |
-      | bound-session | :engine-room         |
-      | attempts      | 4                    |
-      | claimed-at    | 2026-04-21T07:00:00Z |
-    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    Then the isaac file "hail/inflight/hail-1.edn" does not exist
-    And the isaac file "hail/failed/hail-1.edn" EDN contains:
-      | path     | value |
-      | attempts | 5     |
-    And the isaac file "hail/deliveries/hail-1.edn" does not exist
 
   Scenario: binding stamps bound-session on the delivery record (isaac-fq9c)
     A delivery's resolved target is :bound-session — distinct from addressing,

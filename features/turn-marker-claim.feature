@@ -14,7 +14,6 @@ Feature: Delivery claim via durable turn markers
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
-  @wip
   Scenario: claiming a delivery records the turn marker and removes the delivery file
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
@@ -45,7 +44,6 @@ Feature: Delivery claim via durable turn markers
       | path | value  |
       | id   | hail-1 |
 
-  @wip
   Scenario: a stray delivery already claimed by a turn marker is removed, not re-dispatched
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |

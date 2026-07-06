@@ -3,6 +3,7 @@
     [clojure.edn :as edn]
     [clojure.pprint :as pprint]
     [clojure.string :as str]
+    [isaac.bridge.core :as bridge]
     [isaac.charge :as charge]
     [isaac.comm.null :as null-comm]
     [isaac.config.loader :as loader]
@@ -24,10 +25,6 @@
     (java.time Instant)))
 
 (def default-tick-ms 1000)
-
-(def default-inflight-recovery-ms
-  "Treat inflight deliveries older than this as orphaned (mid-drive crash)."
-  300000)
 
 (def ^:private hail-guidance
   "Autonomous hail; the user may not see your reply.")
@@ -56,9 +53,6 @@
 
 (defn- deliveries-dir [root]
   (str root "/hail/deliveries"))
-
-(defn- inflight-dir [root]
-  (str root "/hail/inflight"))
 
 (defn- delivered-dir [root]
   (str root "/hail/delivered"))
@@ -109,9 +103,6 @@
 
 (defn- list-deliveries [root]
   (list-records-in-dir root (deliveries-dir root)))
-
-(defn- list-inflight [root]
-  (list-records-in-dir root (inflight-dir root)))
 
 (defn- due? [record now]
   (if-let [next-attempt-at (:next-attempt-at record)]
@@ -211,9 +202,6 @@
                 (bind-candidate cfg delivery session-entry)))
             (:candidates delivery)))))
 
-(defn- inflight-path [root id]
-  (record-path (inflight-dir root) id))
-
 (defn- delivery-path [root id]
   (record-path (deliveries-dir root) id))
 
@@ -223,19 +211,11 @@
 (defn- failed-path [root id]
   (record-path (failed-dir root) id))
 
-(defn- claim-delivery! [root delivery now]
-  (write-record! (inflight-path root (:id delivery))
-                 (assoc delivery :claimed-at (str now)))
-  (delete-record! (delivery-path root (:id delivery)))
-  delivery)
-
 (defn- finish-delivered! [root delivery]
-  (write-record! (delivered-path root (:id delivery)) delivery)
-  (delete-record! (inflight-path root (:id delivery))))
+  (write-record! (delivered-path root (:id delivery)) delivery))
 
 (defn- finish-failed! [root delivery]
-  (write-record! (failed-path root (:id delivery)) delivery)
-  (delete-record! (inflight-path root (:id delivery))))
+  (write-record! (failed-path root (:id delivery)) delivery))
 
 (defn- backoff-ms [attempts]
   (get delays-ms attempts))
@@ -261,18 +241,6 @@
                      :reason    :exhausted}
                     (failure-log-context error))))
 
-(defn- inflight-recovery-ms [cfg opts]
-  (or (:inflight-recovery-ms opts)
-      (get-in cfg [:hail-settings :inflight-recovery-ms])
-      default-inflight-recovery-ms))
-
-(defn- inflight-orphaned? [delivery now threshold-ms]
-  (if-let [claimed-at (:claimed-at delivery)]
-    (let [claimed (Instant/parse claimed-at)
-          age-ms  (- (.toEpochMilli now) (.toEpochMilli claimed))]
-      (>= age-ms threshold-ms))
-    true))
-
 (defn- reschedule! [root now delivery error]
   (let [attempts (inc (:attempts delivery 0))]
     (if-let [delay-ms (backoff-ms attempts)]
@@ -283,7 +251,6 @@
                          (assoc delivery
                                 :attempts attempts
                                 :next-attempt-at (str (.plusMillis now delay-ms))))
-          (delete-record! (inflight-path root (:id delivery)))
           (log/warn :hail/attempt-failed
                     (merge {:id        (:id delivery)
                             :thread-id (:thread-id delivery)
@@ -291,29 +258,6 @@
                             :attempts  attempts}
                            (failure-log-context error)))))
       (dead-letter! root delivery attempts error))))
-
-(defn- recover-orphaned-inflight!
-  "Re-queue stale inflight/ deliveries after a mid-drive worker crash."
-  [opts]
-  (let [cfg           (or (:cfg opts)
-                          (loader/snapshot "hail delivery inflight recovery — config may have changed")
-                          {})
-        root          (runtime-root opts)
-        session-store (or (:session-store opts)
-                          (store/registered-store)
-                          (throw (ex-info "hail delivery worker requires :session-store or registered [:sessions :store]" {})))
-        now           (or (:now opts) (memory/now))
-        threshold-ms  (inflight-recovery-ms cfg opts)]
-    (doseq [delivery (list-inflight root)
-            :when (inflight-orphaned? delivery now threshold-ms)]
-      (when-let [session-id (normalize-id (:bound-session delivery))]
-        (store/clear-in-flight! session-store session-id))
-      (reschedule! root now delivery :worker-crash)
-      (log/warn :hail/inflight-recovered
-                :id (:id delivery)
-                :thread-id (:thread-id delivery)
-                :session (normalize-id (:bound-session delivery))
-                :attempts (:attempts delivery 0)))))
 
 (defn- hail-origin [hail]
   (let [hail-id (normalize-id (:id hail))]
@@ -360,22 +304,23 @@
                    :crew           (or (:crew override) (normalize-id (:crew delivery)))
                    :model-override (:model override)})))
 
-(defn- run-delivery! [cfg delivery]
-  (let [charge (delivery-charge cfg delivery)]
-    (if (charge/unresolved? charge)
-      {:error (:charge/reason charge)}
-      (turn/run-turn! charge))))
-
+;; Claim = the bridge records a durable turn marker (isaac-7li9), THEN we delete
+;; the delivery file. A crash between them leaves marker + stray delivery — the
+;; stale-delivery guard in tick! removes the stray, never re-dispatches it. The
+;; marker is cleared (and the in-flight gate released) in the finally.
 (defn- launch-delivery! [opts delivery]
   (let [cfg           (:cfg opts)
         session-store (:session-store opts)
         root          (runtime-root opts)
         delivery      (delivery-with-prompt cfg delivery)
         session-id    (normalize-id (:bound-session delivery))
+        charge        (assoc (delivery-charge cfg delivery) :hail-delivery delivery)
         run!          (nexus/bound-runtime-fn
                         (bound-fn []
                           (try
-                            (let [result (run-delivery! cfg delivery)]
+                            (let [result (if (charge/unresolved? charge)
+                                           {:error (:charge/reason charge)}
+                                           (turn/run-turn! charge))]
                               (if (:error result)
                                 (reschedule! root (:now opts) delivery (:error result))
                                 (do
@@ -390,9 +335,11 @@
                                 (reschedule! root (:now opts) delivery err)
                                 err))
                             (finally
+                              (bridge/clear-turn-marker! session-store session-id)
                               (store/clear-in-flight! session-store session-id)))))]
     (when (store/mark-in-flight! session-store session-id)
-      (claim-delivery! root delivery (:now opts))
+      (bridge/record-turn-marker! session-store session-id charge)
+      (delete-record! (delivery-path root (:id delivery)))
       (log/info :hail/bound
                 :id (:id delivery)
                 :thread-id (:thread-id delivery)
@@ -400,6 +347,13 @@
                 :crew (normalize-id (:crew delivery))
                 :attempts (:attempts delivery 0))
       (future (run!)))))
+
+(defn- referenced-delivery-ids
+  "Map of delivery-id -> turn marker for every marker that already claims a
+   delivery — used to drop stray deliveries instead of re-dispatching them."
+  [session-store]
+  (into {} (keep (fn [m] (when-let [did (:delivery-id m)] [did m]))
+                 (store/turn-markers session-store))))
 
 (defn tick!
   ;; A tick is a wake boundary: config may have changed while we slept, so we
@@ -413,19 +367,22 @@
                           (store/registered-store)
                           (throw (ex-info "hail delivery worker requires :session-store or registered [:sessions :store]" {})))
         now           (or now (memory/now))
-        opts*         (assoc opts :cfg cfg :root root :session-store session-store :now now)]
-    (recover-orphaned-inflight! opts*)
+        opts*         (assoc opts :cfg cfg :root root :session-store session-store :now now)
+        referenced    (referenced-delivery-ids session-store)]
     (->> (list-deliveries root)
          (filter #(due? % now))
-         (map #(runnable-delivery cfg session-store %))
-         (remove nil?)
-         (map #(launch-delivery! (assoc opts
-                                   :cfg cfg
-                                   :now now
-                                   :session-store session-store
-                                   :root root)
-                                 %))
-         (remove nil?)
+         (keep (fn [delivery]
+                 (if-let [marker (get referenced (str (:id delivery)))]
+                   ;; a turn marker already claims this delivery — it is a stray
+                   ;; left by a claim-time crash; drop it, never re-dispatch (isaac-7li9)
+                   (do
+                     (delete-record! (delivery-path root (:id delivery)))
+                     (log/warn :hail/stale-delivery-removed
+                               :session (:session-id marker)
+                               :id (:id delivery))
+                     nil)
+                   (when-let [runnable (runnable-delivery cfg session-store delivery)]
+                     (launch-delivery! opts* runnable)))))
          vec)))
 
 (defn start!
@@ -434,7 +391,6 @@
     :as   opts}]
   (let [shared-scheduler (or (nexus/get :scheduler)
                              (throw (ex-info "hail delivery worker requires :scheduler in isaac.nexus" {})))]
-    (recover-orphaned-inflight! (assoc opts :now (memory/now)))
     (scheduler/schedule! shared-scheduler
                          {:id      :hail/deliver
                           :trigger {:kind :interval :ms tick-ms}
