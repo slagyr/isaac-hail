@@ -18,7 +18,6 @@ Feature: Startup resume of interrupted turns
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
-  @wip
   Scenario: a suspended hail marker is re-queued at startup — attempts intact, then delivered
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
@@ -52,7 +51,6 @@ Feature: Startup resume of interrupted turns
       | path | value  |
       | id   | hail-1 |
 
-  @wip
   Scenario: a hard-crash orphan is re-queued with attempts incremented — crash is evidence
     No :suspended stamp means suspend never ran: the process died hard. If a
     poison turn is what crashed the server, the dead-letter budget is the
@@ -82,7 +80,6 @@ Feature: Startup resume of interrupted turns
       | level | event                | session     |
       | :warn | :resume/crash-orphan | engine-room |
 
-  @wip
   Scenario: a dangling toolCall is repaired with a synthesized result before resume
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
@@ -109,10 +106,10 @@ Feature: Startup resume of interrupted turns
       | text | Sealed now. | grover |
     When interrupted turns are resumed at "2026-04-21T10:00:00Z"
     Then session "engine-room" has transcript matching:
-      | type       | message.content                                   | #comment                    |
-      | message    | Seal the leak.                                    |                             |
-      | toolCall   | #*                                                | the dangling call, retained |
-      | toolResult | #"Interrupted.*result unknown.*verify.*repeating" | synthesized — durable       |
+      | type     | message.role | message.content                                   | #comment                    |
+      | message  | user         | Seal the leak.                                    |                             |
+      | toolCall | assistant    | #*                                                | the dangling call, retained |
+      | message  | toolResult   | #"Interrupted.*result unknown.*verify.*repeating.*" | synthesized — durable       |
     And the log has entries matching:
       | level | event                     | session     | repair              |
       | :warn | :resume/transcript-repair | engine-room | :dangling-tool-call |
