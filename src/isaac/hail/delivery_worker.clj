@@ -4,6 +4,7 @@
     [clojure.pprint :as pprint]
     [clojure.string :as str]
     [isaac.bridge.core :as bridge]
+    [isaac.bridge.suspend :as suspend]
     [isaac.charge :as charge]
     [isaac.comm.null :as null-comm]
     [isaac.config.loader :as loader]
@@ -321,8 +322,17 @@
                             (let [result (if (charge/unresolved? charge)
                                            {:error (:charge/reason charge)}
                                            (turn/run-turn! charge))]
-                              (if (:error result)
+                              (cond
+                                (suspend/suspended-response? result)
+                                (log/info :hail/delivery-suspended
+                                          :id (:id delivery)
+                                          :thread-id (:thread-id delivery)
+                                          :session session-id)
+
+                                (:error result)
                                 (reschedule! root (:now opts) delivery (:error result))
+
+                                :else
                                 (do
                                   (finish-delivered! root delivery)
                                   (log/info :hail/delivered

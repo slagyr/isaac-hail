@@ -544,7 +544,6 @@ Feature: Hail delivery
       | path     | value | #comment                        |
       | attempts | 1     | 2h01m old — recovered as before |
 
-  @wip
   Scenario: a suspended hail turn leaves its marker for resume — no reschedule, no attempts (isaac-2xj5)
     Suspend is not a failure: the delivery lives on only inside the stamped
     turn marker (embedded attempts intact) for isaac-vdfc to re-queue at next
