@@ -33,9 +33,9 @@ jobs:
 
       - name: Resolve sibling dependency SHAs from deps.edn
         run: |
-          FOUNDATION_SHA=$(bb -e '(-> "deps.edn" slurp clojure.edn/read-string :deps (get (symbol "io.github.slagyr/isaac-foundation")) :git/sha)')
-          AGENT_SHA=$(bb -e '(-> "deps.edn" slurp clojure.edn/read-string :deps (get (symbol "io.github.slagyr/isaac-agent")) :git/sha)')
-          SERVER_SHA=$(bb -e '(-> "deps.edn" slurp clojure.edn/read-string :aliases :spec :extra-deps (get (symbol "io.github.slagyr/isaac-server")) :git/sha)')
+          FOUNDATION_SHA=$(bb -e '(print (-> "deps.edn" slurp clojure.edn/read-string :deps (get (symbol "io.github.slagyr/isaac-foundation")) :git/sha))')
+          AGENT_SHA=$(bb -e '(print (-> "deps.edn" slurp clojure.edn/read-string :deps (get (symbol "io.github.slagyr/isaac-agent")) :git/sha))')
+          SERVER_SHA=$(bb -e '(print (-> "deps.edn" slurp clojure.edn/read-string :aliases :spec :extra-deps (get (symbol "io.github.slagyr/isaac-server")) :git/sha))')
           echo "FOUNDATION_SHA=$FOUNDATION_SHA" >> "$GITHUB_ENV"
           echo "AGENT_SHA=$AGENT_SHA" >> "$GITHUB_ENV"
           echo "SERVER_SHA=$SERVER_SHA" >> "$GITHUB_ENV"
