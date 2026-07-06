@@ -233,7 +233,9 @@
     :else          {:error error}))
 
 (defn- dead-letter! [root delivery attempts error]
-  (finish-failed! root (assoc delivery :attempts attempts))
+  (finish-failed! root (merge delivery
+                              {:attempts attempts}
+                              (failure-log-context error)))
   (log/error :hail/dead-lettered
              (merge {:id        (:id delivery)
                      :thread-id (:thread-id delivery)
@@ -241,6 +243,16 @@
                      :attempts  attempts
                      :reason    :exhausted}
                     (failure-log-context error))))
+
+(defn- defer-delivery! [root now delivery retry-after-ms]
+  (write-record! (delivery-path root (:id delivery))
+                 (assoc delivery
+                        :next-attempt-at (str (.plusMillis now retry-after-ms))))
+  (log/warn :hail/delivery-deferred
+            :id (:id delivery)
+            :thread-id (:thread-id delivery)
+            :session (normalize-id (:bound-session delivery))
+            :retry-after-ms retry-after-ms))
 
 (defn- reschedule! [root now delivery error]
   (let [attempts (inc (:attempts delivery 0))]
@@ -328,6 +340,9 @@
                                           :id (:id delivery)
                                           :thread-id (:thread-id delivery)
                                           :session session-id)
+
+                                (:unavailable? result)
+                                (defer-delivery! root (:now opts) delivery (:retry-after-ms result))
 
                                 (:error result)
                                 (reschedule! root (:now opts) delivery (:error result))

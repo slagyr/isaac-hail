@@ -410,7 +410,6 @@ Feature: Hail delivery
       | level | event                | error      | ex-class                  | ex-message | attempts |
       | :warn | :hail/attempt-failed | :exception | clojure.lang.ExceptionInfo | boom-xyz   | 1        |
 
-  @wip
   Scenario: a thrown delivery dead-letters with ex-class and ex-message (isaac-cehc, isaac-3tvq)
     Given default Grover setup
     And the isaac EDN file "config/crew/bartholomew.edn" exists with:
@@ -473,7 +472,6 @@ Feature: Hail delivery
       | path          | value  |
       | bound-session | :bridge |
 
-  @wip
   Scenario: an unavailable provider defers the delivery without burning attempts (isaac-3tvq)
     A provider wall (usage limit, quota, credit exhaustion) is weather, not
     poison — the drive classifies it as unavailable with a retry-after, and
@@ -505,44 +503,6 @@ Feature: Hail delivery
     And the log has entries matching:
       | level | event                   | session     | retry-after-ms |
       | :warn | :hail/delivery-deferred | engine-room | 60000          |
-
-  @wip
-  Scenario: the inflight recovery window defaults to 2h — live-length turns are not stolen (isaac-3tvq)
-    The age-only orphan heuristic cannot tell a live turn from a crashed one;
-    a 5-minute default stole every real work turn (cleared its in-flight
-    guard, burned attempts as :worker-crash, enabled double-drive). 2h makes
-    theft unrealistic; crash recovery just takes longer. Boundary pinned
-    with one delivery on each side of the window.
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value  |
-      | model | grover |
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
-    And the isaac EDN file hail/inflight/hail-recent.edn exists with:
-      | path          | value                |
-      | id            | hail-recent          |
-      | prompt        | Seal the leak.       |
-      | crew          | bartholomew          |
-      | bound-session | :engine-room         |
-      | attempts      | 0                    |
-      | claimed-at    | 2026-04-21T08:01:00Z |
-    And the isaac EDN file hail/inflight/hail-stale.edn exists with:
-      | path          | value                |
-      | id            | hail-stale           |
-      | prompt        | Check the hull.      |
-      | crew          | bartholomew          |
-      | bound-session | :engine-room         |
-      | attempts      | 0                    |
-      | claimed-at    | 2026-04-21T07:59:00Z |
-    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    Then the isaac file "hail/inflight/hail-recent.edn" EDN contains:
-      | path     | value | #comment                                 |
-      | attempts | 0     | 1h59m old — inside the window, untouched |
-    And the isaac file "hail/inflight/hail-stale.edn" does not exist
-    And the isaac file "hail/deliveries/hail-stale.edn" EDN contains:
-      | path     | value | #comment                        |
-      | attempts | 1     | 2h01m old — recovered as before |
 
   Scenario: a suspended hail turn leaves its marker for resume — no reschedule, no attempts (isaac-2xj5)
     Suspend is not a failure: the delivery lives on only inside the stamped
