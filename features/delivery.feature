@@ -539,3 +539,80 @@ Feature: Hail delivery
     And the log has entries matching:
       | level | event                    | session     |
       | :info | :hail/delivery-suspended | engine-room |
+
+  @wip
+  Scenario: a turn that hits the tool-loop limit re-queues the delivery as a continuation (isaac-5ru9)
+    A loop-limit ending is a third kind of turn outcome: not success, not
+    failure — unfinished. "Ask me to continue" on an unattended turn is a
+    question to an empty room; the worker re-queues the delivery so the next
+    turn continues warm. Unfinished is not failure: attempts untouched,
+    tracked on its own counter.
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path          | value  |
+      | model         | grover |
+      | tool-loop-max | 1      |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the built-in tools are registered
+    And the following model responses are queued:
+      | tool_call | arguments           |
+      | exec      | {"command": "true"} |
+      | exec      | {"command": "true"} |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+      | attempts      | 0              |
+    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
+    And the turn ends on session "engine-room"
+    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
+      | path          | value  | #comment                       |
+      | id            | hail-1 |                                |
+      | attempts      | 0      | unfinished is not failure      |
+      | continuations | 1      | the third kind of turn outcome |
+    And the isaac file "hail/delivered/hail-1.edn" does not exist
+    And the isaac file "hail/failed/hail-1.edn" does not exist
+    And the log has entries matching:
+      | level | event                     | session     | continuations |
+      | :warn | :hail/continuation-queued | engine-room | 1             |
+
+  @wip
+  Scenario: continuations exhausted — the bean surfaces to a human instead of looping (isaac-5ru9)
+    Three continuations without convergence means the work is not going to
+    finish by itself — same budget philosophy as attempts, tracked separately.
+    The distinct reason keeps failed/ triage honest: poison (:exhausted) vs
+    won't-converge (:continuations-exhausted) imply different human responses.
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path          | value  |
+      | model         | grover |
+      | tool-loop-max | 1      |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the built-in tools are registered
+    And the following model responses are queued:
+      | tool_call | arguments           |
+      | exec      | {"command": "true"} |
+      | exec      | {"command": "true"} |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+      | attempts      | 0              |
+      | continuations | 3              |
+    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
+    And the turn ends on session "engine-room"
+    Then the isaac file "hail/failed/hail-1.edn" EDN contains:
+      | path          | value                    |
+      | id            | hail-1                   |
+      | continuations | 3                        |
+      | reason        | :continuations-exhausted |
+    And the isaac file "hail/deliveries/hail-1.edn" does not exist
+    And the log has entries matching:
+      | level  | event               | session     | reason                   |
+      | :error | :hail/dead-lettered | engine-room | :continuations-exhausted |
