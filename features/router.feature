@@ -333,6 +333,35 @@ Feature: Hail router
       | id     | hail-1         |                             |
       | reason | :no-recipients | snapshot matched no session |
 
+  Scenario: an undeliverable hail logs a WARN hail/undeliverable event (isaac-axzg)
+    Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
+      | path         | value             |
+      | session-tags | #{:role/engineer} |
+      | reach        | :one              |
+    And the isaac EDN file "config/crew/hieronymus.edn" exists with:
+      | path  | value             | #comment                   |
+      | model | grover            |                            |
+      | tags  | #{:role/botanist} | no engineer-tagged session |
+    And the following sessions exist:
+      | name       | crew       |
+      | greenhouse | hieronymus |
+    And the isaac EDN file hail/pending/hail-1.edn exists with:
+      | path        | value                          |
+      | id          | hail-1                         |
+      | thread-id   | thread-9                       |
+      | frequencies | {:band "engineering-intercom"} |
+      | params      | {:n 1}                         |
+      | from        | :cli                           |
+    When the hail router ticks
+    Then the isaac file "hail/pending/hail-1.edn" does not exist
+    And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
+      | path   | value          | #comment                         |
+      | id     | hail-1         |                                  |
+      | reason | :no-recipients | band exists, no engineer matched |
+    And the log has entries matching:
+      | level | event                 | id     | thread-id | band                  | reason         |
+      | :warn | :hail/undeliverable   | hail-1 | thread-9  | engineering-intercom  | :no-recipients |
+
   Scenario: the hail router tick is registered with the shared scheduler
     When the Isaac system is started
     Then the scheduled tasks include:
