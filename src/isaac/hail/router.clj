@@ -422,21 +422,19 @@
 
           undeliverable
           (do (write-undeliverable! undeliverable)
-              (log/warn :hail/routed
+              (log/warn :hail/undeliverable
                         :id (:id undeliverable)
                         :thread-id (:thread-id undeliverable)
                         :band (get-in undeliverable [:frequencies :band])
-                        :outcome :undeliverable
                         :reason (:reason undeliverable)))
 
           :else
           (let [u (assoc hail :reason :no-recipients)]
             (write-undeliverable! u)
-            (log/warn :hail/routed
+            (log/warn :hail/undeliverable
                       :id (:id u)
                       :thread-id (:thread-id u)
                       :band (get-in u [:frequencies :band])
-                      :outcome :undeliverable
                       :reason (:reason u))))))))
 
 (defn start!

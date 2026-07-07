@@ -157,16 +157,16 @@
                   :outcome :delivery :session :engine-room}
                  (select-keys routed [:event :id :thread-id :outcome :session])))))
 
-  (it "logs :hail/routed :undeliverable when no session matches"
+  (it "logs :hail/undeliverable when no session matches"
     (let [session-store (memory/create-store)]
       (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/pending")
       (fs/spit (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"
                (pr-str {:id "hail-1" :thread-id "thread-9"
                         :frequencies {:session [:ghost-session]} :from :cli}))
       (sut/tick! {:cfg {:defaults {:crew "main"}} :session-store session-store})
-      (let [routed (some #(when (= :hail/routed (:event %)) %) @log/captured-logs)]
-        (should= {:event :hail/routed :id "hail-1" :outcome :undeliverable :reason :no-recipients}
-                 (select-keys routed [:event :id :outcome :reason])))))
+      (let [undeliverable (some #(when (= :hail/undeliverable (:event %)) %) @log/captured-logs)]
+        (should= {:level :warn :event :hail/undeliverable :id "hail-1" :thread-id "thread-9" :reason :no-recipients}
+                 (select-keys undeliverable [:level :event :id :thread-id :reason])))))
 
   (it "writes a broadcast parent plus child delivery hails on tick for reach :all"
     (let [session-store (memory/create-store)]
