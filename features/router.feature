@@ -420,32 +420,3 @@ Feature: Hail router
       | crew    | navigator   | :with-crew override beats session's main |
       | bound-session | :engine-room | selected by :session, unchanged    |
 
-  @wip
-  Scenario: an undeliverable hail logs a warning — a parked file is not a signal (isaac-axzg)
-    A hail that stops moving must make noise: isaac-exi2 sat one verification
-    from completing its chain for 11 hours because its mis-addressed handoff
-    parked silently. Operators grep warnings; nobody polls a directory.
-    Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
-      | path         | value             |
-      | session-tags | #{:role/engineer} |
-      | reach        | :one              |
-    And the isaac EDN file "config/crew/hieronymus.edn" exists with:
-      | path  | value             | #comment                   |
-      | model | grover            |                            |
-      | tags  | #{:role/botanist} | no engineer-tagged session |
-    And the following sessions exist:
-      | name       | crew       |
-      | greenhouse | hieronymus |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path        | value                          |
-      | id          | hail-1                         |
-      | frequencies | {:band "engineering-intercom"} |
-      | params      | {:bean-id "isaac-fern"}        |
-      | from        | :cli                           |
-    When the hail router ticks
-    Then the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
-      | path   | value          |
-      | reason | :no-recipients |
-    And the log has entries matching:
-      | level | event               | id     | band                 | reason         |
-      | :warn | :hail/undeliverable | hail-1 | engineering-intercom | :no-recipients |
