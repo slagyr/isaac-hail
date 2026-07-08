@@ -501,8 +501,105 @@ Feature: Hail delivery
       | next-attempt-at | 2026-04-21T10:01:00Z | tick time + retry-after-ms, not backoff      |
     And the isaac file "hail/failed/hail-1.edn" does not exist
     And the log has entries matching:
-      | level | event                   | session     | retry-after-ms |
-      | :warn | :hail/delivery-deferred | engine-room | 60000          |
+      | level | event                   | session     | retry-after-ms | reason |
+      | :warn | :hail/delivery-deferred | engine-room | 60000          | :wall  |
+
+  Scenario: auth unavailability defers then self-delivers when the provider recovers (isaac-5a4n)
+    A provider auth outage is weather, not poison — the delivery parks with a
+    short retry-after and delivers itself once auth is healthy again.
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the following model responses are queued:
+      | type        | retry-after-ms | model  | reason |
+      | unavailable | 300000         | grover | auth   |
+      | text        | Sealed.        | grover |        |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+      | attempts      | 0              |
+    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
+    And the turn ends on session "engine-room"
+    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
+      | path            | value                |
+      | attempts        | 0                    |
+      | next-attempt-at | 2026-04-21T10:05:00Z |
+    And the log has entries matching:
+      | level | event                   | session     | reason | retry-after-ms |
+      | :warn | :hail/delivery-deferred | engine-room | :auth  | 300000         |
+    When the hail delivery worker ticks at "2026-04-21T10:05:30Z"
+    And the turn ends on session "engine-room"
+    Then the isaac file "hail/delivered/hail-1.edn" exists
+    And the isaac file "hail/deliveries/hail-1.edn" does not exist
+    And the isaac file "hail/failed/hail-1.edn" does not exist
+
+  Scenario: auth deferrals post throttled attention to the comm outbox (isaac-5a4n)
+    Given the isaac EDN file "config/isaac.edn" exists with:
+      | path                      | value         |
+      | attention.notify.comm     | discord       |
+      | attention.notify.target   | boiler-room   |
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the following model responses are queued:
+      | type        | retry-after-ms | model  | reason |
+      | unavailable | 300000         | grover | auth   |
+      | unavailable | 300000         | grover | auth   |
+      | unavailable | 300000         | grover | auth   |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+      | attempts      | 0              |
+    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
+    And the turn ends on session "engine-room"
+    When the hail delivery worker ticks at "2026-04-21T10:05:30Z"
+    And the turn ends on session "engine-room"
+    Then the directory "comm/delivery/pending" has exactly 1 file
+    And the only file in "comm/delivery/pending" EDN contains:
+      | path    | value                        |
+      | comm    | discord                      |
+      | target  | boiler-room                  |
+      | content | contains "auth" and "grover" |
+    When the hail delivery worker ticks at "2026-04-21T11:06:00Z"
+    And the turn ends on session "engine-room"
+    Then the directory "comm/delivery/pending" has exactly 2 files
+
+  Scenario: wall deferrals stay silent when attention is configured (isaac-5a4n)
+    Given the isaac EDN file "config/isaac.edn" exists with:
+      | path                      | value         |
+      | attention.notify.comm     | discord       |
+      | attention.notify.target   | boiler-room   |
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the following model responses are queued:
+      | type        | retry-after-ms | model  |
+      | unavailable | 60000          | grover |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+      | attempts      | 0              |
+    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
+    And the turn ends on session "engine-room"
+    Then the directory "comm/delivery/pending" has exactly 0 files
 
   Scenario: a suspended hail turn leaves its marker for resume — no reschedule, no attempts (isaac-2xj5)
     Suspend is not a failure: the delivery lives on only inside the stamped

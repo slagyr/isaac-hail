@@ -12,6 +12,7 @@
     [isaac.config.loader :as loader]
     [isaac.foundation.cli-steps :as fcli]
     [isaac.fs :as fs]
+    [isaac.hail.attention :as attention]
     [isaac.hail.delivery-worker :as hail-delivery-worker]
     [isaac.hail.router :as hail-router]
     [isaac.llm.api.grover :as grover]
@@ -40,7 +41,8 @@
   (fn []
     (reset! turn-throw-message* nil)
     (alter-var-root #'isaac.drive.turn/run-turn! (constantly real-run-turn!))
-    (grover/reset-queue!)))
+    (grover/reset-queue!)
+    (attention/clear-throttle!)))
 
 (def ^:private short-uuid-re #"^[0-9a-f]{8}$")
 (def ^:private short-uuid-sentinel "<short-uuid>")

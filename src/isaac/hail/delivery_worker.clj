@@ -11,6 +11,7 @@
     [isaac.config.root :as root]
     [isaac.drive.turn :as turn]
     [isaac.fs :as fs]
+    [isaac.hail.attention :as attention]
     [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.prepare :as hail-prepare]
     [isaac.hail.router :as router]
@@ -282,15 +283,19 @@
                   :session (normalize-id (:bound-session delivery))
                   :continuations next)))))
 
-(defn- defer-delivery! [root now delivery retry-after-ms]
-  (write-record! (delivery-path root (:id delivery))
-                 (assoc delivery
-                        :next-attempt-at (str (.plusMillis now retry-after-ms))))
-  (log/warn :hail/delivery-deferred
-            :id (:id delivery)
-            :thread-id (:thread-id delivery)
-            :session (normalize-id (:bound-session delivery))
-            :retry-after-ms retry-after-ms))
+(defn- defer-delivery! [root now delivery retry-after-ms & {:keys [reason provider cfg]}]
+  (let [reason (or reason :wall)]
+    (write-record! (delivery-path root (:id delivery))
+                   (assoc delivery
+                          :next-attempt-at (str (.plusMillis now retry-after-ms))))
+    (log/warn :hail/delivery-deferred
+              :id (:id delivery)
+              :thread-id (:thread-id delivery)
+              :session (normalize-id (:bound-session delivery))
+              :reason reason
+              :retry-after-ms retry-after-ms)
+    (when (= :auth reason)
+      (attention/maybe-notify-auth! cfg provider (.toEpochMilli now)))))
 
 (defn- reschedule! [root now delivery error]
   (let [attempts (inc (:attempts delivery 0))]
@@ -383,7 +388,10 @@
                                           :session session-id)
 
                                 (:unavailable? result)
-                                (defer-delivery! root (:now opts) delivery (:retry-after-ms result))
+                                (defer-delivery! root (:now opts) delivery (:retry-after-ms result)
+                                                 {:reason   (or (:reason result) :wall)
+                                                  :provider (:provider result)
+                                                  :cfg      cfg})
 
                                 (= :tool-loop-limit (:ended-by result))
                                 (queue-continuation! root cfg opts delivery)
