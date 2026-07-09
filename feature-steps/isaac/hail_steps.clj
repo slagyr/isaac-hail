@@ -407,7 +407,8 @@
       (re-find (compile-pattern s) (str actual))
 
       :else
-      (= (parse-value s) actual))))
+      (= (str (parse-value s))
+         (if (keyword? actual) (name actual) (str actual))))))
 
 (defn only-file-in-dir-edn-contains [dir table]
   (with-server-fs

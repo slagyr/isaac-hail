@@ -7,7 +7,9 @@
     [isaac.config.loader :as loader]
     [isaac.drive.turn]
     [isaac.fs :as fs]
-    [isaac.hail.delivery-worker :as sut]
+    [isaac.comm.delivery.queue :as comm-queue]
+   [isaac.hail.attention :as attention]
+   [isaac.hail.delivery-worker :as sut]
     [isaac.llm.api.grover :as grover]
     [isaac.logger :as log]
     [isaac.nexus :as nexus]
@@ -414,6 +416,27 @@
       (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/deliveries/hail-1.edn"))
       (should= {:event :hail/stale-delivery-removed :session "engine-room" :id "hail-1"}
                (select-keys (last @log/captured-logs) [:event :session :id]))))
+
+  (it "defers context-exhausted turns without incrementing attempts and enqueues attention"
+    (attention/clear-throttle!)
+    (let [session-store (nexus/get-in [:sessions :store])
+          cfg           (assoc-in test-config [:attention :notify] {:comm :discord :target "boiler-room"})]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew" :compaction-disabled true})
+      (write-delivery! {:id            "hail-1"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :attempts      0})
+      (with-redefs [isaac.drive.turn/run-turn!
+                    (fn [_]
+                      {:unavailable? true :reason :context-exhausted :retry-after-ms 300000})]
+        @(first (sut/tick! {:cfg           cfg
+                            :now           (Instant/parse "2026-04-21T10:00:00Z")
+                            :session-store session-store})))
+      (should= 0 (:attempts (read-edn "/test/isaac/hail/deliveries/hail-1.edn")))
+      (should= 1 (count (comm-queue/list-pending)))
+      (should (str/includes? (:content (first (comm-queue/list-pending)))
+                             "Context exhausted"))))
 
   (it "registers the shared scheduler task"
     (let [shared-scheduler (scheduler/create {})]

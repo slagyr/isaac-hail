@@ -62,6 +62,27 @@
       (log/warn :hail/dead-letter-attention-unconfigured
                 :id (:id delivery)))))
 
+
+(defn- session-throttle-key [session-key]
+  (keyword "session" (str session-key)))
+
+(defn- context-exhausted-message [session-key]
+  (str "Context exhausted for session " session-key ": compaction disabled and context over guard line."))
+
+(defn maybe-notify-context-exhausted!
+  "Post throttled context-exhausted attention to :attention :notify, or warn when unset."
+  [cfg session-key now-ms]
+  (if-let [{:keys [comm target]} (get-in cfg [:attention :notify])]
+    (let [key  (session-throttle-key session-key)
+          last (get @last-notified* key 0)]
+      (when (>= (- now-ms last) throttle-ms)
+        (swap! last-notified* assoc key now-ms)
+        (queue/enqueue! {:comm    (if (string? comm) (keyword comm) comm)
+                         :target  target
+                         :content (context-exhausted-message session-key)})))
+    (log/warn :hail/context-exhausted-attention-unconfigured
+              :session session-key)))
+
 (defn maybe-notify-auth!
   "Post throttled auth attention to the configured comm outbox, or warn when unset."
   [cfg provider now-ms]
@@ -70,7 +91,7 @@
           last (get @last-notified* key 0)]
       (when (>= (- now-ms last) throttle-ms)
         (swap! last-notified* assoc key now-ms)
-        (queue/enqueue! {:comm    comm
+        (queue/enqueue! {:comm    (if (string? comm) (keyword comm) comm)
                          :target  target
                          :content (attention-message provider)})))
     (log/warn :hail/auth-attention-unconfigured
