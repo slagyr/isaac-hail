@@ -381,3 +381,50 @@
   isaac.hail-steps/child-delivery-for-session-edn-contains)
 
 (defthen #"delivery hail count is (\d+)" isaac.hail-steps/delivery-hail-count-is)
+(defn- isaac-relative-path [p]
+  (str (runtime-root-dir) "/" p))
+
+(defn- comm-pending-dir []
+  (isaac-relative-path "comm/delivery/pending"))
+
+(defn directory-has-exactly-n-files [dir n-str]
+  (with-server-fs
+    (fn []
+      (let [fs*   (server-fs)
+            path  (isaac-relative-path dir)
+            files (when (fs/exists? fs* path) (fs/children fs* path))]
+        (g/should= (parse-long n-str) (count (or files [])))))))
+
+(defn- match-comm-pending-cell [actual expected]
+  (let [s (str/trim expected)]
+    (cond
+      (and (str/starts-with? s "contains ")
+           (str/includes? s " and "))
+      (let [[_ a b] (re-matches #"contains \"([^\"]+)\" and \"([^\"]+)\"" s)]
+        (and (string? actual) (str/includes? actual a) (str/includes? actual b)))
+
+      (str/starts-with? s "#\"")
+      (re-find (compile-pattern s) (str actual))
+
+      :else
+      (= (parse-value s) actual))))
+
+(defn only-file-in-dir-edn-contains [dir table]
+  (with-server-fs
+    (fn []
+      (let [fs*   (server-fs)
+            path  (isaac-relative-path dir)
+            files (when (fs/exists? fs* path) (vec (fs/children fs* path)))]
+        (g/should= 1 (count files))
+        (let [record (edn/read-string (fs/slurp fs* (str path "/" (first files))))]
+          (doseq [row (table-row-map table)]
+            (let [p (get row "path")
+                  v (get row "value")
+                  a (get record (keyword p))]
+              (g/should (match-comm-pending-cell a v)))))))))
+
+(defthen #"the directory \"([^\"]+)\" has exactly (\d+) files?"
+  isaac.hail-steps/directory-has-exactly-n-files)
+
+(defthen #"the only file in \"([^\"]+)\" EDN contains:"
+  isaac.hail-steps/only-file-in-dir-edn-contains)

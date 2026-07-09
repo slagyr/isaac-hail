@@ -6,6 +6,8 @@
     [clojure.string :as str]
     [clojure.tools.cli :as tools-cli]
     [isaac.cli.common :as cli-common]
+     [isaac.config.loader :as loader]
+     [isaac.hail.delivery-worker :as delivery-worker]
     [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.queue :as queue]))
 
@@ -205,6 +207,18 @@
 
       (= "send" (first arguments))
       (run-send (rest arguments))
+
+      (= "requeue" (first arguments))
+      (let [id (second arguments)]
+        (if (str/blank? id)
+          (do (binding [*out* *err*] (println "Usage: isaac hail requeue <id>")) 1)
+          (try
+            (delivery-worker/requeue! (loader/root) id)
+            0
+            (catch Exception e
+              (binding [*out* *err*]
+                (println (or (.getMessage e) id)))
+              1))))
 
       :else
       (do

@@ -235,17 +235,17 @@
     (keyword? error) {:error error}
     :else          {:error error}))
 
-(defn- dead-letter! [root delivery attempts error]
-  (finish-failed! root (merge delivery
-                              {:attempts attempts}
-                              (failure-log-context error)))
-  (log/error :hail/dead-lettered
-             (merge {:id        (:id delivery)
-                     :thread-id (:thread-id delivery)
-                     :session   (normalize-id (:bound-session delivery))
-                     :attempts  attempts
-                     :reason    :exhausted}
-                    (failure-log-context error))))
+(defn- dead-letter! [cfg root delivery attempts error]
+  (let [failed (merge delivery {:attempts attempts} (failure-log-context error))]
+    (finish-failed! root failed)
+    (attention/maybe-notify-dead-letter! cfg failed error)
+    (log/error :hail/dead-lettered
+               (merge {:id        (:id delivery)
+                       :thread-id (:thread-id delivery)
+                       :session   (normalize-id (:bound-session delivery))
+                       :attempts  attempts
+                       :reason    :exhausted}
+                      (failure-log-context error)))))
 
 (defn- max-continuations [cfg opts]
   (or (:max-continuations opts)
@@ -256,20 +256,22 @@
   (str "continuation " n " of " max-n
        "; send the 🔁 at-a-glance, then continue — do not restart"))
 
-(defn- continuations-exhausted! [root delivery]
-  (finish-failed! root (assoc delivery :reason :continuations-exhausted))
-  (log/error :hail/dead-lettered
-             {:id        (:id delivery)
-              :thread-id (:thread-id delivery)
-              :session   (normalize-id (:bound-session delivery))
-              :continuations (:continuations delivery 0)
-              :reason    :continuations-exhausted}))
+(defn- continuations-exhausted! [cfg root delivery]
+  (let [failed (assoc delivery :reason :continuations-exhausted)]
+    (finish-failed! root failed)
+    (attention/maybe-notify-dead-letter! cfg failed :continuations-exhausted)
+    (log/error :hail/dead-lettered
+               {:id            (:id delivery)
+                :thread-id     (:thread-id delivery)
+                :session       (normalize-id (:bound-session delivery))
+                :continuations (:continuations delivery 0)
+                :reason        :continuations-exhausted})))
 
 (defn- queue-continuation! [root cfg opts delivery]
   (let [max-c   (max-continuations cfg opts)
         current (:continuations delivery 0)]
     (if (>= current max-c)
-      (continuations-exhausted! root delivery)
+      (continuations-exhausted! cfg root delivery)
       (let [next    (inc current)
             updated (assoc delivery
                            :continuations next
@@ -297,11 +299,11 @@
     (when (= :auth reason)
       (attention/maybe-notify-auth! cfg provider (.toEpochMilli now)))))
 
-(defn- reschedule! [root now delivery error]
+(defn- reschedule! [cfg root now delivery error]
   (let [attempts (inc (:attempts delivery 0))]
     (if-let [delay-ms (backoff-ms attempts)]
       (if (= attempts 5)
-        (dead-letter! root delivery attempts error)
+        (dead-letter! cfg root delivery attempts error)
         (do
           (write-record! (delivery-path root (:id delivery))
                          (assoc delivery
@@ -313,7 +315,7 @@
                             :session   (normalize-id (:bound-session delivery))
                             :attempts  attempts}
                            (failure-log-context error)))))
-      (dead-letter! root delivery attempts error))))
+      (dead-letter! cfg root delivery attempts error))))
 
 (defn- hail-origin [hail]
   (let [hail-id (normalize-id (:id hail))]
@@ -397,7 +399,7 @@
                                 (queue-continuation! root cfg opts delivery)
 
                                 (:error result)
-                                (reschedule! root (:now opts) delivery (:error result))
+                                (reschedule! cfg root (:now opts) delivery (:error result))
 
                                 :else
                                 (do
@@ -409,7 +411,7 @@
                               result)
                             (catch Exception e
                               (let [err (exception-error-info e)]
-                                (reschedule! root (:now opts) delivery err)
+                                (reschedule! cfg root (:now opts) delivery err)
                                 err))
                             (finally
                               (bridge/clear-turn-marker! session-store session-id)
@@ -478,6 +480,28 @@
                           :handler (fn [_] (tick! {}))})
     {:scheduler shared-scheduler
      :task-id   :hail/deliver}))
+
+
+(defn requeue!
+  "Move hail/failed/<id> back to hail/deliveries/ with attempts reset and provenance."
+  [root id & {:keys [now-ms]}]
+  (let [path   (failed-path root id)
+        failed (read-record path)]
+    (when-not failed
+      (throw (ex-info (str "hail requeue: " id " not found in failed/") {:id id})))
+    (let [error-kw (or (:error failed)
+                       (when (= :continuations-exhausted (:reason failed))
+                         :continuations-exhausted))
+          resurrected (-> failed
+                          (dissoc :error :reason :ex-class :ex-message :next-attempt-at)
+                          (assoc :attempts 0
+                                 :requeued-from id
+                                 :requeued-error error-kw
+                                 :requeued-at (str (or (some-> now-ms Instant/ofEpochMilli)
+                                                       (Instant/now)))))]
+      (delete-record! path)
+      (write-record! (delivery-path root id) resurrected)
+      resurrected)))
 
 (defn stop! [{:keys [scheduler task-id]}]
   (when scheduler

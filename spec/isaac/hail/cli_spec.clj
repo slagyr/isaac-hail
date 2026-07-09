@@ -123,4 +123,18 @@
       (binding [*err* err*]
         (should= 1 (sut/run-fn {:_raw-args ["send" "--band" "bean-pickup" "--reach" "all"]})))
       (let [err (str err*)]
-        (should (.contains err "--reach"))))))
+        (should (.contains err "--reach")))))
+
+  (it "requeue moves failed delivery back to deliveries"
+    (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/failed")
+    (fs/spit (nexus/get :fs) "/test/isaac/hail/failed/hail-9.edn"
+             "{:id \"hail-9\" :prompt \"Seal.\" :attempts 5 :error :api-error}")
+    (should= 0 (sut/run-fn {:_raw-args ["requeue" "hail-9"]}))
+    (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/failed/hail-9.edn"))
+    (should= 0 (get-in (read-string (fs/slurp (nexus/get :fs) "/test/isaac/hail/deliveries/hail-9.edn")) [:attempts])))
+
+  (it "requeue unknown id exits 1 and mentions id"
+    (let [err* (java.io.StringWriter.)]
+      (binding [*err* err*]
+        (should= 1 (sut/run-fn {:_raw-args ["requeue" "nope99"]})))
+      (should (.contains (str err*) "nope99")))))
