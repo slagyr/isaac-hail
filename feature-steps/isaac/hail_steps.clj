@@ -31,6 +31,7 @@
 
 (defonce ^:private real-run-turn! (var-get #'isaac.drive.turn/run-turn!))
 (defonce ^:private turn-throw-message* (atom nil))
+(defonce ^:private beans-test-dirs* (atom {}))
 
 (defn- stub-run-turn! [charge]
   (if-let [msg @turn-throw-message*]
@@ -42,7 +43,8 @@
     (reset! turn-throw-message* nil)
     (alter-var-root #'isaac.drive.turn/run-turn! (constantly real-run-turn!))
     (grover/reset-queue!)
-    (attention/clear-throttle!)))
+    (attention/clear-throttle!)
+    (reset! beans-test-dirs* {})))
 
 (def ^:private short-uuid-re #"^[0-9a-f]{8}$")
 (def ^:private short-uuid-sentinel "<short-uuid>")
@@ -307,6 +309,16 @@
 (defn isaac-system-started []
   (server-steps/server-running))
 
+(defn hail-test-beans-repo-registered [repo bean-id status]
+  (let [dir (str (System/getProperty "java.io.tmpdir")
+                 "/isaac-hail-beans-" (System/nanoTime))]
+    (.mkdirs (java.io.File. (str dir "/.beans")))
+    (spit (str dir "/.beans/" bean-id "--test.md")
+          (str "---\n# " bean-id "\nstatus: " status "\n---\n"))
+    (swap! beans-test-dirs* assoc repo dir)
+    (g/update! :server-config
+                 #(assoc-in (or % {}) [:hail-settings :beans-repos (keyword repo)] dir))))
+
 ;; region ----- Hail delivery system preamble -----
 
 (defn- message-text [msg]
@@ -355,6 +367,12 @@
 
 (defwhen "the Isaac system is started" isaac.hail-steps/isaac-system-started)
 
+(defgiven #"hail test beans repo \"([^\"]+)\" is registered for bean \"([^\"]+)\" with status \"([^\"]+)\""
+  isaac.hail-steps/hail-test-beans-repo-registered)
+
+(defthen #"the delivery \"([^\"]+)\" prompt contains \"([^\"]+)\""
+  isaac.hail-steps/delivery-prompt-contains)
+
 (defthen "the sole pending hail EDN contains:" isaac.hail-steps/sole-pending-hail-edn-contains)
 
 (defthen #"the last hail-send tool result is an error matching (.+)"
@@ -383,6 +401,15 @@
 (defthen #"delivery hail count is (\d+)" isaac.hail-steps/delivery-hail-count-is)
 (defn- isaac-relative-path [p]
   (str (runtime-root-dir) "/" p))
+
+(defn delivery-prompt-contains [delivery-id fragment]
+  (session-steps/await-turn!)
+  (with-server-fs
+    (fn []
+      (let [fs*    (server-fs)
+            path   (isaac-relative-path (str "hail/deliveries/" delivery-id ".edn"))
+            record (edn/read-string (fs/slurp fs* path))]
+        (g/should (str/includes? (:prompt record) fragment))))))
 
 (defn- comm-pending-dir []
   (isaac-relative-path "comm/delivery/pending"))

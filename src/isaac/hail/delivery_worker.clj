@@ -12,6 +12,7 @@
     [isaac.drive.turn :as turn]
     [isaac.fs :as fs]
     [isaac.hail.attention :as attention]
+    [isaac.hail.beans-status :as beans-status]
     [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.prepare :as hail-prepare]
     [isaac.hail.router :as router]
@@ -256,6 +257,9 @@
   (str "continuation " n " of " max-n
        "; send the 🔁 at-a-glance, then continue — do not restart"))
 
+(def ^:private limbo-notice
+  "Your previous turn ended without a terminal action (no handoff hail, bean not completed) — complete the handoff or escalation your skill prescribes.")
+
 (defn- continuations-exhausted! [cfg root delivery]
   (let [failed (assoc delivery :reason :continuations-exhausted)]
     (finish-failed! root failed)
@@ -280,6 +284,26 @@
                                         (:prompt delivery)))]
         (write-record! (delivery-path root (:id delivery)) updated)
         (log/warn :hail/continuation-queued
+                  :id (:id delivery)
+                  :thread-id (:thread-id delivery)
+                  :session (normalize-id (:bound-session delivery))
+                  :continuations next)))))
+
+(defn- queue-limbo-continuation! [root cfg opts delivery]
+  (let [max-c   (max-continuations cfg opts)
+        current (:continuations delivery 0)]
+    (if (>= current max-c)
+      (continuations-exhausted! cfg root delivery)
+      (let [next    (inc current)
+            base    (:prompt delivery)
+            notice  (str (continuation-notice next max-c)
+                         "\n\n"
+                         limbo-notice)
+            updated (assoc delivery
+                           :continuations next
+                           :prompt (str notice "\n\n" base))]
+        (write-record! (delivery-path root (:id delivery)) updated)
+        (log/warn :hail/limbo-continuation-queued
                   :id (:id delivery)
                   :thread-id (:thread-id delivery)
                   :session (normalize-id (:bound-session delivery))
@@ -403,6 +427,9 @@
 
                                 (:error result)
                                 (reschedule! cfg root (:now opts) delivery (:error result))
+
+                                (beans-status/turn-in-limbo? cfg delivery result)
+                                (queue-limbo-continuation! root cfg opts delivery)
 
                                 :else
                                 (do
