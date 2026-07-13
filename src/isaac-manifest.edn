@@ -28,7 +28,12 @@
      :max-continuations
      {:type :int,
       :description "Max loop-limit continuations per delivery before dead-letter (default 3)",
-      :validations [:positive?]}}}}
+      :validations [:positive?]},
+     :beans-repos
+     {:type :map,
+      :description "Beans tracker checkout paths keyed by short name, keyword, or git remote URL",
+      :key-spec {:type :string},
+      :value-spec {:type :string, :description "Absolute path to beans repo root"}}}}}
   :hail
   {:entity-dir "hail",
    :frontmatter? true,

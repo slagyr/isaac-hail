@@ -21,14 +21,21 @@
     (let [s (str/trim (str raw))]
       (when (not (str/blank? s)) s))))
 
+(defn- repo-config-key [repo]
+  (cond
+    (= repo "isaac") :isaac
+    (str/ends-with? repo "slagyr/isaac.git") :isaac
+    :else (keyword repo)))
+
 (defn- resolve-beans-dir [cfg delivery]
   (when-let [repo (beans-repo-key delivery)]
-    (or (get-in cfg [:hail-settings :beans-repos (keyword repo)])
-        (get-in cfg [:hail-settings :beans-repos repo])
-        (when (= repo "isaac")
-          (str (System/getProperty "user.home") "/agents/isaac/work-1/isaac"))
-        (when-let [root (or (:beans-root cfg) (get-in cfg [:hail-settings :beans-root]))]
-          (if (str/ends-with? root "/") (str root repo) (str root "/" repo))))))
+    (let [k (repo-config-key repo)]
+      (or (get-in cfg [:hail-settings :beans-repos k])
+          (get-in cfg [:hail-settings :beans-repos repo])
+          (when (= k :isaac)
+            (str (System/getProperty "user.home") "/agents/isaac/work-1/isaac"))
+          (when-let [root (or (:beans-root cfg) (get-in cfg [:hail-settings :beans-root]))]
+            (if (str/ends-with? root "/") (str root repo) (str root "/" repo)))))))
 
 (defn- bean-markdown-path [beans-dir bean-id*]
   (let [dir (str beans-dir "/.beans")]
@@ -67,10 +74,38 @@
       (log/debug :hail/beans-show-failed :bean-id bean-id* :error (.getMessage e))
       nil)))
 
+(defn- fetch-origin! [beans-dir]
+  (try
+    (shell/sh "git" "-C" beans-dir "fetch" "origin")
+    (catch Exception e
+      (log/debug :hail/beans-fetch-failed :dir beans-dir :error (.getMessage e)))))
+
+(defn- bean-md-relative-path [beans-dir bean-id*]
+  (some (fn [line]
+          (let [t (str/trim line)]
+            (when (and (str/starts-with? t (str ".beans/" bean-id* "--"))
+                       (str/ends-with? t ".md"))
+              t)))
+        (str/split-lines
+          (or (:out (shell/sh "git" "-C" beans-dir "ls-tree" "-r" "--name-only" "origin/main" "--" ".beans/"))
+              ""))))
+
+(defn- status-from-origin-main [beans-dir bean-id*]
+  (when (and beans-dir (.exists (java.io.File. (str beans-dir "/.git"))))
+    (try
+      (fetch-origin! beans-dir)
+      (when-let [rel (bean-md-relative-path beans-dir bean-id*)]
+        (let [{:keys [out exit]} (shell/sh "git" "-C" beans-dir "show" (str "origin/main:" rel))]
+          (when (zero? (long exit)) (status-from-front-matter out))))
+      (catch Exception e
+        (log/debug :hail/beans-origin-status-failed :bean-id bean-id* :error (.getMessage e))
+        nil))))
+
 (defn refresh-beans-repo!
   [beans-dir]
   (when (and beans-dir (.exists (java.io.File. (str beans-dir "/.git"))))
     (try
+      (fetch-origin! beans-dir)
       (let [{:keys [exit]} (shell/sh "git" "-C" beans-dir "pull" "--rebase")]
         (when (pos? (long exit)) (log/debug :hail/beans-pull-nonzero :dir beans-dir)))
       (catch Exception e
@@ -79,7 +114,9 @@
 (defn bean-status [cfg delivery bean-id*]
   (when-let [dir (resolve-beans-dir cfg delivery)]
     (refresh-beans-repo! dir)
-    (or (beans-show-status dir bean-id*) (read-status-from-file dir bean-id*))))
+    (or (status-from-origin-main dir bean-id*)
+        (beans-show-status dir bean-id*)
+        (read-status-from-file dir bean-id*))))
 
 (defn bean-completed? [cfg delivery bean-id*]
   (= "completed" (bean-status cfg delivery bean-id*)))
