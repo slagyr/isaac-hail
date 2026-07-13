@@ -237,6 +237,24 @@
 (defn new-hail-record-has [table]
   (created-hail-record-has table))
 
+(defn seed-in-flight-delivery-claimed [session-name delivery-id table]
+  (let [delivery (assoc (row->record (table-rows table)) :id delivery-id)
+        store    (or (session-store/registered-store)
+                     (let [s (memory/create-store (root-dir))]
+                       (session-store/register-store! s)
+                       s))]
+    (session-store/record-turn-marker! store session-name
+                                       {:source        :hail
+                                        :delivery-id   delivery-id
+                                        :delivery      delivery
+                                        :prompt        (:prompt delivery)
+                                        :crew          (:crew delivery)
+                                        :bound-session (:bound-session delivery)})
+    (let [fs*  (mem-fs)
+          path (isaac-path (str "hail/deliveries/" delivery-id ".edn"))]
+      (when (fs/exists? fs* path)
+        (fs/delete fs* path)))))
+
 (defn agent-calls-hail-get [id]
   (let [result (hail-get-tool/hail-get-tool {"id" id})]
     (put-state! :tool-result result)
@@ -356,6 +374,9 @@
 (defwhen "a crew sends a hail with:" isaac.hail-hlt1-steps/crew-sends-hail)
 
 (defwhen "the hail is delivered" isaac.hail-hlt1-steps/hail-is-delivered)
+
+(defgiven #"an in-flight turn on session \"([^\"]+)\" claims delivery \"([^\"]+)\" with:"
+  isaac.hail-hlt1-steps/seed-in-flight-delivery-claimed)
 
 (defwhen #"an agent calls the hail_get tool with id \"([^\"]+)\"" isaac.hail-hlt1-steps/agent-calls-hail-get)
 
