@@ -799,6 +799,32 @@ Feature: Hail delivery
     And the turn ends on session "engine-room"
     Then the isaac file "hail/delivered/hail-1.edn" exists
 
+  Scenario: completed bean with production git bean-repo URL is terminal (isaac-u91b)
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the built-in tools are registered
+    And the following model responses are queued:
+      | content |
+      | Done.   |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value                                      |
+      | id            | hail-1                                     |
+      | prompt        | Close out.                                 |
+      | crew          | bartholomew                                |
+      | bound-session | :engine-room                               |
+      | attempts      | 0                                          |
+      | params        | {:bean-id "isaac-limbo"}                   |
+      | data          | {:bean-repo "git@github.com:slagyr/isaac.git"} |
+    And hail test beans git repo "git@github.com:slagyr/isaac.git" is registered for bean "isaac-limbo" with status "completed"
+    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
+    And the turn ends on session "engine-room"
+    Then the isaac file "hail/delivered/hail-1.edn" exists
+    And the isaac file "hail/deliveries/hail-1.edn" does not exist
+
   Scenario: delivery without bean-id may end silently (isaac-je45)
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |

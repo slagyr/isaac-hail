@@ -317,7 +317,14 @@
           (str "---\n# " bean-id "\nstatus: " status "\n---\n"))
     (swap! beans-test-dirs* assoc repo dir)
     (g/update! :server-config
-                 #(assoc-in (or % {}) [:hail-settings :beans-repos (keyword repo)] dir))))
+                 (fn [cfg]
+                   (let [base (or cfg {})]
+                     (-> base
+                         (assoc-in [:hail-settings :beans-repos (keyword repo)] dir)
+                         (assoc-in [:hail-settings :beans-repos repo] dir)))))))
+
+(defn hail-test-beans-git-repo-registered [git-url bean-id status]
+  (hail-test-beans-repo-registered git-url bean-id status))
 
 ;; region ----- Hail delivery system preamble -----
 
@@ -369,6 +376,9 @@
 
 (defgiven #"hail test beans repo \"([^\"]+)\" is registered for bean \"([^\"]+)\" with status \"([^\"]+)\""
   isaac.hail-steps/hail-test-beans-repo-registered)
+
+(defgiven #"hail test beans git repo \"([^\"]+)\" is registered for bean \"([^\"]+)\" with status \"([^\"]+)\""
+  isaac.hail-steps/hail-test-beans-git-repo-registered)
 
 (defthen #"the delivery \"([^\"]+)\" prompt contains \"([^\"]+)\""
   isaac.hail-steps/delivery-prompt-contains)
