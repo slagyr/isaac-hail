@@ -22,6 +22,15 @@
     (write-hail! "delivered" "hail-7" {:id "hail-7" :prompt "done"})
     (should= {:id "hail-7" :prompt "done"} (sut/find-by-id "hail-7")))
 
+  (it "find-by-id-with-lifecycle tags delivered/"
+    (write-hail! "delivered" "hail-7" {:id "hail-7" :prompt "done"})
+    (should= {:record {:id "hail-7" :prompt "done"} :lifecycle :delivered}
+             (sut/find-by-id-with-lifecycle "hail-7")))
+
+  (it "find-by-id-with-lifecycle tags deliveries/ as :in-flight"
+    (write-hail! "deliveries" "hail-5" {:id "hail-5" :prompt "wait"})
+    (should= :in-flight (:lifecycle (sut/find-by-id-with-lifecycle "hail-5"))))
+
   (it "returns nil when no matching id exists"
     (should-be-nil (sut/find-by-id "missing")))
 

@@ -14,8 +14,8 @@
       {:isError true :error "id is required"}
 
       :else
-      (if-let [record (store/find-by-id id)]
-        {:result record}
+      (if-let [{:keys [record lifecycle]} (store/find-by-id-with-lifecycle id)]
+        {:result (assoc record :lifecycle lifecycle)}
         {:isError true :error (str "hail not found: " id)}))))
 
 (defn hail-get-tool-factory [_]

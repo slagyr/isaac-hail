@@ -87,3 +87,29 @@ Feature: Hail get and search
       | path        | value   |
       | id          | hail-43 |
       | source-hail | hail-42 |
+
+  Scenario: hail_get on an in-flight delivery id returns the record with lifecycle in-flight
+    Given the isaac EDN file hail/deliveries/hail-99.edn exists with:
+      | path          | value        |
+      | id            | hail-99      |
+      | prompt        | Active turn. |
+      | crew          | bartholomew  |
+      | bound-session | engine-room  |
+    And a turn marker exists for session "engine-room" referencing delivery "hail-99"
+    And the isaac file "hail/deliveries/hail-99.edn" does not exist
+    When an agent calls the hail_get tool with id "hail-99"
+    Then it returns the hail record containing:
+      | path      | value      |
+      | id        | hail-99    |
+      | lifecycle | :in-flight |
+
+  Scenario: hail_get on a failed delivery includes lifecycle failed
+    Given the EDN isaac file "hail/failed/hail-55.edn" exists with:
+      | path   | value   |
+      | id     | hail-55 |
+      | prompt | dead    |
+    When an agent calls the hail_get tool with id "hail-55"
+    Then it returns the hail record containing:
+      | path      | value   |
+      | id        | hail-55 |
+      | lifecycle | :failed |
