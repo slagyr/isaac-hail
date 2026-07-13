@@ -569,7 +569,7 @@ Feature: Hail delivery
     Then the directory "comm/delivery/pending" has exactly 1 file
     And the only file in "comm/delivery/pending" EDN contains:
       | path    | value                        |
-      | comm    | discord                      |
+      | comm    | :discord                     |
       | target  | boiler-room                  |
       | content | contains "auth" and "grover" |
     When the hail delivery worker ticks at "2026-04-21T11:06:00Z"
@@ -637,12 +637,10 @@ Feature: Hail delivery
       | level | event                    | session     |
       | :info | :hail/delivery-suspended | engine-room |
 
-  Scenario: a turn that hits the tool-loop limit re-queues the delivery as a continuation (isaac-5ru9)
-    A loop-limit ending is a third kind of turn outcome: not success, not
-    failure — unfinished. "Ask me to continue" on an unattended turn is a
-    question to an empty room; the worker re-queues the delivery so the next
-    turn continues warm. Unfinished is not failure: attempts untouched,
-    tracked on its own counter.
+  Scenario: tool-loop-limit ends as delivered without re-queue (isaac-fgo0)
+    Tool-loop budget exhaustion is a turn outcome, not a hail transport retry.
+    With continuations removed, the delivery finishes as delivered and the
+    worker emits a neutral turn-ended fact.
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path          | value  |
       | model         | grover |
@@ -664,55 +662,16 @@ Feature: Hail delivery
       | attempts      | 0              |
     When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
     And the turn ends on session "engine-room"
-    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path          | value  | #comment                       |
-      | id            | hail-1 |                                |
-      | attempts      | 0      | unfinished is not failure      |
-      | continuations | 1      | the third kind of turn outcome |
-    And the isaac file "hail/delivered/hail-1.edn" does not exist
+    Then the isaac file "hail/delivered/hail-1.edn" exists
+    And the isaac file "hail/deliveries/hail-1.edn" does not exist
     And the isaac file "hail/failed/hail-1.edn" does not exist
     And the log has entries matching:
-      | level | event                     | session     | continuations |
-      | :warn | :hail/continuation-queued | engine-room | 1             |
+      | level | event            | session     | outcome    |
+      | :info | :hail/turn-ended | engine-room | :delivered |
 
-  Scenario: continuations exhausted — the bean surfaces to a human instead of looping (isaac-5ru9)
-    Three continuations without convergence means the work is not going to
-    finish by itself — same budget philosophy as attempts, tracked separately.
-    The distinct reason keeps failed/ triage honest: poison (:exhausted) vs
-    won't-converge (:continuations-exhausted) imply different human responses.
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path          | value  |
-      | model         | grover |
-      | tool-loop-max | 1      |
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
-    And the built-in tools are registered
-    And the following model responses are queued:
-      | tool_call | arguments           |
-      | exec      | {"command": "true"} |
-      | exec      | {"command": "true"} |
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path          | value          |
-      | id            | hail-1         |
-      | prompt        | Seal the leak. |
-      | crew          | bartholomew    |
-      | bound-session | :engine-room   |
-      | attempts      | 0              |
-      | continuations | 3              |
-    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    And the turn ends on session "engine-room"
-    Then the isaac file "hail/failed/hail-1.edn" EDN contains:
-      | path          | value                    |
-      | id            | hail-1                   |
-      | continuations | 3                        |
-      | reason        | :continuations-exhausted |
-    And the isaac file "hail/deliveries/hail-1.edn" does not exist
-    And the log has entries matching:
-      | level  | event               | session     | reason                   |
-      | :error | :hail/dead-lettered | engine-room | :continuations-exhausted |
-
-  Scenario: bean-band turn ends with no hail-send and bean not completed re-queues limbo continuation (isaac-je45)
+  Scenario: a successful turn without outbound hail-send still delivers (isaac-fgo0)
+    Hail is pure transport: bean-workflow convergence is prompt-driven. A quiet
+    successful turn concludes as delivered rather than being re-queued.
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
       | model | grover |
@@ -731,150 +690,12 @@ Feature: Hail delivery
       | bound-session | :engine-room             |
       | attempts      | 0                        |
       | params        | {:bean-id "isaac-limbo"} |
-      | data          | {:bean-repo "isaac"}    |
-    And hail test beans repo "isaac" is registered for bean "isaac-limbo" with status "in-progress"
-    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    And the turn ends on session "engine-room"
-    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path          | value |
-      | continuations | 1     |
-    And the delivery "hail-1" prompt contains "terminal action"
-    And the isaac file "hail/delivered/hail-1.edn" does not exist
-    And the log has entries matching:
-      | level | event                         | session     | continuations |
-      | :warn | :hail/limbo-continuation-queued | engine-room | 1             |
-
-  Scenario: verify handoff hail ends delivery without limbo continuation (isaac-je45)
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value  |
-      | model | grover |
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
-    And the built-in tools are registered
-    And the following model responses are queued:
-      | tool_call | arguments                                                      |
-      | hail-send | {"band": "isaac-verify", "params": {"bean-id": "isaac-limbo"}} |
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path          | value                    |
-      | id            | hail-1                   |
-      | prompt        | Hand off.                |
-      | crew          | bartholomew              |
-      | bound-session | :engine-room             |
-      | attempts      | 0                        |
-      | params        | {:bean-id "isaac-limbo"} |
-      | data          | {:bean-repo "isaac"}    |
-    And hail test beans repo "isaac" is registered for bean "isaac-limbo" with status "in-progress"
-    And the isaac EDN file "config/hail/isaac-verify.edn" exists with:
-      | path         | value                 |
-      | session-tags | #{:project/isaac-hail} |
-      | reach        | :one                  |
+      | data          | {:bean-repo "isaac"}     |
     When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
     And the turn ends on session "engine-room"
     Then the isaac file "hail/delivered/hail-1.edn" exists
     And the isaac file "hail/deliveries/hail-1.edn" does not exist
-
-  Scenario: completed bean without outbound hail is terminal (isaac-je45)
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value  |
-      | model | grover |
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
-    And the built-in tools are registered
-    And the following model responses are queued:
-      | content |
-      | Done.   |
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path          | value                    |
-      | id            | hail-1                   |
-      | prompt        | Close out.               |
-      | crew          | bartholomew              |
-      | bound-session | :engine-room             |
-      | attempts      | 0                        |
-      | params        | {:bean-id "isaac-limbo"} |
-      | data          | {:bean-repo "isaac"}    |
-    And hail test beans repo "isaac" is registered for bean "isaac-limbo" with status "completed"
-    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    And the turn ends on session "engine-room"
-    Then the isaac file "hail/delivered/hail-1.edn" exists
-
-  Scenario: completed bean with production git bean-repo URL is terminal (isaac-u91b)
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value  |
-      | model | grover |
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
-    And the built-in tools are registered
-    And the following model responses are queued:
-      | content |
-      | Done.   |
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path          | value                                      |
-      | id            | hail-1                                     |
-      | prompt        | Close out.                                 |
-      | crew          | bartholomew                                |
-      | bound-session | :engine-room                               |
-      | attempts      | 0                                          |
-      | params        | {:bean-id "isaac-limbo"}                   |
-      | data          | {:bean-repo "git@github.com:slagyr/isaac.git"} |
-    And hail test beans git repo "git@github.com:slagyr/isaac.git" is registered for bean "isaac-limbo" with status "completed"
-    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    And the turn ends on session "engine-room"
-    Then the isaac file "hail/delivered/hail-1.edn" exists
-    And the isaac file "hail/deliveries/hail-1.edn" does not exist
-
-  Scenario: delivery without bean-id may end silently (isaac-je45)
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value  |
-      | model | grover |
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
-    And the built-in tools are registered
-    And the following model responses are queued:
-      | content |
-      | Ok.     |
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path          | value          |
-      | id            | hail-1         |
-      | prompt        | Status report. |
-      | crew          | bartholomew    |
-      | bound-session | :engine-room   |
-      | attempts      | 0              |
-    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    And the turn ends on session "engine-room"
-    Then the isaac file "hail/delivered/hail-1.edn" exists
-
-  Scenario: repeated limbo exhausts continuation budget (isaac-je45)
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value  |
-      | model | grover |
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
-    And the built-in tools are registered
-    And the following model responses are queued:
-      | content |
-      | Done.   |
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path          | value                    |
-      | id            | hail-1                   |
-      | prompt        | Hand off.                |
-      | crew          | bartholomew              |
-      | bound-session | :engine-room             |
-      | attempts      | 0                        |
-      | continuations | 3                        |
-      | params        | {:bean-id "isaac-limbo"} |
-      | data          | {:bean-repo "isaac"}    |
-    And hail test beans repo "isaac" is registered for bean "isaac-limbo" with status "in-progress"
-    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    And the turn ends on session "engine-room"
-    Then the isaac file "hail/failed/hail-1.edn" EDN contains:
-      | path          | value                    |
-      | reason        | :continuations-exhausted |
-      | continuations | 3                        |
     And the log has entries matching:
-      | level  | event               | session     | reason                   |
-      | :error | :hail/dead-lettered | engine-room | :continuations-exhausted |
+      | level | event            | session     | outcome    |
+      | :info | :hail/turn-ended | engine-room | :delivered |
+      | :info | :hail/delivered  | engine-room |            |

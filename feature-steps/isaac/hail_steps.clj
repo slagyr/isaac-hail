@@ -31,8 +31,6 @@
 
 (defonce ^:private real-run-turn! (var-get #'isaac.drive.turn/run-turn!))
 (defonce ^:private turn-throw-message* (atom nil))
-(defonce ^:private beans-test-dirs* (atom {}))
-
 (defn- stub-run-turn! [charge]
   (if-let [msg @turn-throw-message*]
     (throw (ex-info msg {}))
@@ -44,7 +42,7 @@
     (alter-var-root #'isaac.drive.turn/run-turn! (constantly real-run-turn!))
     (grover/reset-queue!)
     (attention/clear-throttle!)
-    (reset! beans-test-dirs* {})))
+    ))
 
 (def ^:private short-uuid-re #"^[0-9a-f]{8}$")
 (def ^:private short-uuid-sentinel "<short-uuid>")
@@ -309,22 +307,6 @@
 (defn isaac-system-started []
   (server-steps/server-running))
 
-(defn hail-test-beans-repo-registered [repo bean-id status]
-  (let [dir (str (System/getProperty "java.io.tmpdir")
-                 "/isaac-hail-beans-" (System/nanoTime))]
-    (.mkdirs (java.io.File. (str dir "/.beans")))
-    (spit (str dir "/.beans/" bean-id "--test.md")
-          (str "---\n# " bean-id "\nstatus: " status "\n---\n"))
-    (swap! beans-test-dirs* assoc repo dir)
-    (g/update! :server-config
-                 (fn [cfg]
-                   (let [base (or cfg {})]
-                     (-> base
-                         (assoc-in [:hail-settings :beans-repos (keyword repo)] dir)
-                         (assoc-in [:hail-settings :beans-repos repo] dir)))))))
-
-(defn hail-test-beans-git-repo-registered [git-url bean-id status]
-  (hail-test-beans-repo-registered git-url bean-id status))
 
 ;; region ----- Hail delivery system preamble -----
 
@@ -374,11 +356,6 @@
 
 (defwhen "the Isaac system is started" isaac.hail-steps/isaac-system-started)
 
-(defgiven #"hail test beans repo \"([^\"]+)\" is registered for bean \"([^\"]+)\" with status \"([^\"]+)\""
-  isaac.hail-steps/hail-test-beans-repo-registered)
-
-(defgiven #"hail test beans git repo \"([^\"]+)\" is registered for bean \"([^\"]+)\" with status \"([^\"]+)\""
-  isaac.hail-steps/hail-test-beans-git-repo-registered)
 
 (defthen #"the delivery \"([^\"]+)\" prompt contains \"([^\"]+)\""
   isaac.hail-steps/delivery-prompt-contains)
@@ -421,48 +398,4 @@
             record (edn/read-string (fs/slurp fs* path))]
         (g/should (str/includes? (:prompt record) fragment))))))
 
-(defn- comm-pending-dir []
-  (isaac-relative-path "comm/delivery/pending"))
 
-(defn directory-has-exactly-n-files [dir n-str]
-  (with-server-fs
-    (fn []
-      (let [fs*   (server-fs)
-            path  (isaac-relative-path dir)
-            files (when (fs/exists? fs* path) (fs/children fs* path))]
-        (g/should= (parse-long n-str) (count (or files [])))))))
-
-(defn- match-comm-pending-cell [actual expected]
-  (let [s (str/trim expected)]
-    (cond
-      (and (str/starts-with? s "contains ")
-           (str/includes? s " and "))
-      (let [[_ a b] (re-matches #"contains \"([^\"]+)\" and \"([^\"]+)\"" s)]
-        (and (string? actual) (str/includes? actual a) (str/includes? actual b)))
-
-      (str/starts-with? s "#\"")
-      (re-find (compile-pattern s) (str actual))
-
-      :else
-      (= (str (parse-value s))
-         (if (keyword? actual) (name actual) (str actual))))))
-
-(defn only-file-in-dir-edn-contains [dir table]
-  (with-server-fs
-    (fn []
-      (let [fs*   (server-fs)
-            path  (isaac-relative-path dir)
-            files (when (fs/exists? fs* path) (vec (fs/children fs* path)))]
-        (g/should= 1 (count files))
-        (let [record (edn/read-string (fs/slurp fs* (str path "/" (first files))))]
-          (doseq [row (table-row-map table)]
-            (let [p (get row "path")
-                  v (get row "value")
-                  a (get record (keyword p))]
-              (g/should (match-comm-pending-cell a v)))))))))
-
-(defthen #"the directory \"([^\"]+)\" has exactly (\d+) files?"
-  isaac.hail-steps/directory-has-exactly-n-files)
-
-(defthen #"the only file in \"([^\"]+)\" EDN contains:"
-  isaac.hail-steps/only-file-in-dir-edn-contains)

@@ -12,7 +12,6 @@
     [isaac.drive.turn :as turn]
     [isaac.fs :as fs]
     [isaac.hail.attention :as attention]
-    [isaac.hail.beans-status :as beans-status]
     [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.prepare :as hail-prepare]
     [isaac.hail.router :as router]
@@ -28,8 +27,6 @@
     (java.time Instant)))
 
 (def default-tick-ms 1000)
-
-(def default-max-continuations 3)
 
 (def ^:private hail-guidance
   "Autonomous hail; the user may not see your reply.")
@@ -248,67 +245,6 @@
                        :reason    :exhausted}
                       (failure-log-context error)))))
 
-(defn- max-continuations [cfg opts]
-  (or (:max-continuations opts)
-      (get-in cfg [:hail-settings :max-continuations])
-      default-max-continuations))
-
-(defn- continuation-notice [n max-n]
-  (str "continuation " n " of " max-n
-       "; send the 🔁 at-a-glance, then continue — do not restart"))
-
-(def ^:private limbo-notice
-  "Your previous turn ended without a terminal action (no handoff hail, bean not completed) — complete the handoff or escalation your skill prescribes.")
-
-(defn- continuations-exhausted! [cfg root delivery]
-  (let [failed (assoc delivery :reason :continuations-exhausted)]
-    (finish-failed! root failed)
-    (attention/maybe-notify-dead-letter! cfg failed :continuations-exhausted)
-    (log/error :hail/dead-lettered
-               {:id            (:id delivery)
-                :thread-id     (:thread-id delivery)
-                :session       (normalize-id (:bound-session delivery))
-                :continuations (:continuations delivery 0)
-                :reason        :continuations-exhausted})))
-
-(defn- queue-continuation! [root cfg opts delivery]
-  (let [max-c   (max-continuations cfg opts)
-        current (:continuations delivery 0)]
-    (if (>= current max-c)
-      (continuations-exhausted! cfg root delivery)
-      (let [next    (inc current)
-            updated (assoc delivery
-                           :continuations next
-                           :prompt (str (continuation-notice next max-c)
-                                        "\n\n"
-                                        (:prompt delivery)))]
-        (write-record! (delivery-path root (:id delivery)) updated)
-        (log/warn :hail/continuation-queued
-                  :id (:id delivery)
-                  :thread-id (:thread-id delivery)
-                  :session (normalize-id (:bound-session delivery))
-                  :continuations next)))))
-
-(defn- queue-limbo-continuation! [root cfg opts delivery]
-  (let [max-c   (max-continuations cfg opts)
-        current (:continuations delivery 0)]
-    (if (>= current max-c)
-      (continuations-exhausted! cfg root delivery)
-      (let [next    (inc current)
-            base    (:prompt delivery)
-            notice  (str (continuation-notice next max-c)
-                         "\n\n"
-                         limbo-notice)
-            updated (assoc delivery
-                           :continuations next
-                           :prompt (str notice "\n\n" base))]
-        (write-record! (delivery-path root (:id delivery)) updated)
-        (log/warn :hail/limbo-continuation-queued
-                  :id (:id delivery)
-                  :thread-id (:thread-id delivery)
-                  :session (normalize-id (:bound-session delivery))
-                  :continuations next)))))
-
 (defn- defer-delivery! [root now delivery retry-after-ms & {:keys [reason provider cfg]}]
   (let [reason (or reason :wall)]
     (write-record! (delivery-path root (:id delivery))
@@ -411,29 +347,51 @@
                                            (turn/run-turn! charge))]
                               (cond
                                 (suspend/suspended-response? result)
-                                (log/info :hail/delivery-suspended
-                                          :id (:id delivery)
-                                          :thread-id (:thread-id delivery)
-                                          :session session-id)
+                                (do
+                                  (log/info :hail/turn-ended
+                                            :id (:id delivery)
+                                            :thread-id (:thread-id delivery)
+                                            :session session-id
+                                            :outcome :suspended
+                                            :executed-tools (vec (:executed-tool-names result #{})))
+                                  (log/info :hail/delivery-suspended
+                                            :id (:id delivery)
+                                            :thread-id (:thread-id delivery)
+                                            :session session-id))
 
                                 (:unavailable? result)
-                                (defer-delivery! root (:now opts) delivery (:retry-after-ms result)
-                                                 {:reason   (or (:reason result) :wall)
-                                                  :provider (:provider result)
-                                                  :cfg      cfg})
-
-                                (= :tool-loop-limit (:ended-by result))
-                                (queue-continuation! root cfg opts delivery)
+                                (do
+                                  (log/info :hail/turn-ended
+                                            :id (:id delivery)
+                                            :thread-id (:thread-id delivery)
+                                            :session session-id
+                                            :outcome :unavailable
+                                            :reason (or (:reason result) :wall)
+                                            :executed-tools (vec (:executed-tool-names result #{})))
+                                  (defer-delivery! root (:now opts) delivery (:retry-after-ms result)
+                                                   {:reason   (or (:reason result) :wall)
+                                                    :provider (:provider result)
+                                                    :cfg      cfg}))
 
                                 (:error result)
-                                (reschedule! cfg root (:now opts) delivery (:error result))
-
-                                (beans-status/turn-in-limbo? cfg delivery result)
-                                (queue-limbo-continuation! root cfg opts delivery)
+                                (do
+                                  (log/info :hail/turn-ended
+                                            :id (:id delivery)
+                                            :thread-id (:thread-id delivery)
+                                            :session session-id
+                                            :outcome :error
+                                            :executed-tools (vec (:executed-tool-names result #{})))
+                                  (reschedule! cfg root (:now opts) delivery (:error result)))
 
                                 :else
                                 (do
                                   (finish-delivered! root delivery)
+                                  (log/info :hail/turn-ended
+                                            :id (:id delivery)
+                                            :thread-id (:thread-id delivery)
+                                            :session session-id
+                                            :outcome :delivered
+                                            :executed-tools (vec (:executed-tool-names result #{})))
                                   (log/info :hail/delivered
                                             :id (:id delivery)
                                             :thread-id (:thread-id delivery)
@@ -519,11 +477,9 @@
         failed (read-record path)]
     (when-not failed
       (throw (ex-info (str "hail requeue: " id " not found in failed/") {:id id})))
-    (let [error-kw (or (:error failed)
-                       (when (= :continuations-exhausted (:reason failed))
-                         :continuations-exhausted))
+    (let [error-kw (:error failed)
           resurrected (-> failed
-                          (dissoc :error :reason :ex-class :ex-message :next-attempt-at)
+                          (dissoc :error :reason :ex-class :ex-message :next-attempt-at :continuations)
                           (assoc :attempts 0
                                  :requeued-from id
                                  :requeued-error error-kw

@@ -438,7 +438,7 @@
       (should (str/includes? (:content (first (comm-queue/list-pending)))
                              "Context exhausted"))))
 
-  (it "re-queues limbo bean turns without hail-send when bean is not completed (isaac-je45)"
+  (it "delivers a quiet successful turn without re-queueing (isaac-fgo0)"
     (let [session-store (nexus/get-in [:sessions :store])]
       (store/open-session! session-store "engine-room" {:crew "bartholomew"})
       (write-delivery! {:id            "hail-1"
@@ -448,16 +448,15 @@
                         :attempts      0
                         :params        {:bean-id "isaac-limbo"}
                         :data          {:bean-repo "isaac"}})
-      (with-redefs [isaac.drive.turn/run-turn! (fn [_] {:executed-tool-names #{}})
-                    isaac.hail.beans-status/turn-in-limbo? (fn [_ _ _] true)]
+      (with-redefs [isaac.drive.turn/run-turn! (fn [_] {:executed-tool-names #{}})]
         @(first (sut/tick! {:cfg test-config :session-store session-store})))
-      (should= 1 (:continuations (read-edn "/test/isaac/hail/deliveries/hail-1.edn")))
-      (should (str/includes? (:prompt (read-edn "/test/isaac/hail/deliveries/hail-1.edn"))
-                             "terminal action"))
-      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/delivered/hail-1.edn"))
-      (should (some #(= :hail/limbo-continuation-queued (:event %)) @log/captured-logs))))
+      (should (fs/exists? (nexus/get :fs) "/test/isaac/hail/delivered/hail-1.edn"))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/deliveries/hail-1.edn"))
+      (should (some #(and (= :hail/turn-ended (:event %))
+                          (= :delivered (:outcome %)))
+                    @log/captured-logs))))
 
-  (it "delivers normally when turn executed hail-send (isaac-je45)"
+  (it "delivers normally when turn executed hail-send (isaac-fgo0)"
     (let [session-store (nexus/get-in [:sessions :store])]
       (store/open-session! session-store "engine-room" {:crew "bartholomew"})
       (write-delivery! {:id            "hail-1"
@@ -467,10 +466,13 @@
                         :attempts      0
                         :params        {:bean-id "isaac-limbo"}
                         :data          {:bean-repo "isaac"}})
-      (with-redefs [isaac.drive.turn/run-turn! (fn [_] {:executed-tool-names #{"hail-send"}})
-                    isaac.hail.beans-status/turn-in-limbo? (fn [_ _ _] false)]
+      (with-redefs [isaac.drive.turn/run-turn! (fn [_] {:executed-tool-names #{"hail-send"}})]
         @(first (sut/tick! {:cfg test-config :session-store session-store})))
-      (should (fs/exists? (nexus/get :fs) "/test/isaac/hail/delivered/hail-1.edn"))))
+      (should (fs/exists? (nexus/get :fs) "/test/isaac/hail/delivered/hail-1.edn"))
+      (should (some #(and (= :hail/turn-ended (:event %))
+                          (= :delivered (:outcome %))
+                          (= ["hail-send"] (:executed-tools %)))
+                    @log/captured-logs))))
 
   (it "registers the shared scheduler task"
     (let [shared-scheduler (scheduler/create {})]
