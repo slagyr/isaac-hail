@@ -21,7 +21,7 @@
 
   :spec {:extra-paths ["spec"]
          :extra-deps  {io.github.slagyr/isaac-foundation-test-support {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                                                       :git/sha "0c4f106e8206a789900089360d565b17d8ab71c2"
+                                                                       :git/sha "95cff519223491a61e5bfc46ec5e88b44d4debdc"
                                                                        :deps/root "spec-support"}
                        io.github.slagyr/isaac-agent-spec              {:git/url "https://github.com/slagyr/isaac-agent.git"
                                                                        :git/sha "430c6d8d2d1a2c380a9f95cd9b914b6f8430eaac"
