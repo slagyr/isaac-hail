@@ -34,6 +34,14 @@
   (it "returns nil when no matching id exists"
     (should-be-nil (sut/find-by-id "missing")))
 
+  (it "finds a record written to the durable ledger even when no lifecycle dir holds it"
+    (let [fs*  (nexus/get :fs)
+          path (str "/test/isaac/hail/records/hail-ledger.edn")]
+      (fs/mkdirs fs* (fs/parent path))
+      (fs/spit fs* path (pr-str {:id "hail-ledger" :prompt "kept"})))
+    (should= {:id "hail-ledger" :prompt "kept"} (sut/find-by-id "hail-ledger"))
+    (should= :delivered (:lifecycle (sut/find-by-id-with-lifecycle "hail-ledger"))))
+
   (it "reports the highest hail-N id across subdirectories"
     (write-hail! "delivered" "hail-1" {:id "hail-1"})
     (write-hail! "pending" "hail-3" {:id "hail-3"})

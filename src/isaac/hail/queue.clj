@@ -102,6 +102,7 @@
     (fs/mkdirs fs* (fs/parent path))
     (fs/spit fs* temp (write-edn record))
     (fs/move fs* temp path)
+    (store/persist-record! (:id record) record)
     (log/info :hail/sent
               :id (:id record)
               :thread-id (:thread-id record)

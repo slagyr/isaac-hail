@@ -110,3 +110,33 @@ Feature: Hail get and search
       | path      | value   |
       | id        | hail-55 |
       | lifecycle | :failed |
+
+  Scenario: hail_get finds a hail after the worker delivers it (isaac-u7ug)
+    A sent hail stays findable from send until archive. Claiming deletes
+    hail/deliveries/<id>.edn so the worker will not re-dispatch, but hail_get
+    must still resolve the record after the turn ends.
+    Given default Grover setup
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the following model responses are queued:
+      | type | content      | model  |
+      | text | Sealing now. | grover |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+      | attempts      | 0              |
+    When the hail delivery worker ticks
+    And the turn ends on session "engine-room"
+    And an agent calls the hail_get tool with id "hail-1"
+    Then it returns the hail record containing:
+      | path      | value          |
+      | id        | hail-1         |
+      | prompt    | Seal the leak. |
+      | lifecycle | :delivered     |

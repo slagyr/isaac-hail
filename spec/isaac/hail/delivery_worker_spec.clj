@@ -8,8 +8,9 @@
     [isaac.drive.turn]
     [isaac.fs :as fs]
     [isaac.comm.delivery.queue :as comm-queue]
-   [isaac.hail.attention :as attention]
-   [isaac.hail.delivery-worker :as sut]
+    [isaac.hail.attention :as attention]
+    [isaac.hail.delivery-worker :as sut]
+    [isaac.hail.store :as hail-store]
     [isaac.llm.api.grover :as grover]
     [isaac.logger :as log]
     [isaac.nexus :as nexus]
@@ -437,6 +438,30 @@
       (should= 1 (count (comm-queue/list-pending)))
       (should (str/includes? (:content (first (comm-queue/list-pending)))
                              "Context exhausted"))))
+
+  (it "keeps the hail findable after a successful turn even if delivered/ write is lost (isaac-u7ug)"
+    (let [session-store (nexus/get-in [:sessions :store])
+          real-exists?  fs/exists?
+          real-spit     fs/spit]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (write-delivery! {:id            "hail-vanish"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :attempts      0})
+      (with-redefs [isaac.drive.turn/run-turn! (fn [_] {})
+                    fs/exists? (fn [fs* path]
+                                 (if (str/includes? path "/hail/delivered/hail-vanish")
+                                   false
+                                   (real-exists? fs* path)))
+                    fs/spit (fn [fs* path content]
+                              (when-not (str/includes? path "/hail/delivered/hail-vanish")
+                                (real-spit fs* path content)))]
+        @(first (sut/tick! {:cfg test-config :session-store session-store})))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/deliveries/hail-vanish.edn"))
+      (should-not (store/in-flight? session-store "engine-room"))
+      (should= "hail-vanish" (:id (hail-store/find-by-id "hail-vanish")))
+      (should= :delivered (:lifecycle (hail-store/find-by-id-with-lifecycle "hail-vanish")))))
 
   (it "delivers a quiet successful turn without re-queueing (isaac-fgo0)"
     (let [session-store (nexus/get-in [:sessions :store])]

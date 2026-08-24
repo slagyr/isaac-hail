@@ -8,6 +8,7 @@
     [isaac.fs :as fs]
     [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.queue :as queue]
+    [isaac.hail.store :as hail-store]
     [isaac.logger :as log]
     [isaac.nexus :as nexus]
     [isaac.scheduler.runtime :as scheduler]
@@ -366,10 +367,12 @@
 
 (defn- write-delivery! [delivery]
   (write-record! (delivery-path (:id delivery)) delivery)
+  (hail-store/persist-record! (:id delivery) delivery)
   (delete-pending! (:id delivery)))
 
 (defn- write-undeliverable! [hail]
   (write-record! (undeliverable-path (:id hail)) hail)
+  (hail-store/persist-record! (:id hail) hail)
   (delete-pending! (:id hail)))
 
 (defn- write-broadcast! [root fs* parent child-addrs]
@@ -383,9 +386,11 @@
                                  :attempts    0))
                         child-addrs)]
     (doseq [child children]
-      (write-record! (delivery-path (:id child)) child))
-    (write-record! (broadcast-path parent-id)
-                   (assoc parent :children (mapv :id children)))
+      (write-record! (delivery-path (:id child)) child)
+      (hail-store/persist-record! (:id child) child))
+    (let [parent* (assoc parent :children (mapv :id children))]
+      (write-record! (broadcast-path parent-id) parent*)
+      (hail-store/persist-record! parent-id parent*))
     (delete-pending! parent-id)))
 
 (defn tick!

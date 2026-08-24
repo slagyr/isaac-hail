@@ -3,12 +3,15 @@
     [clojure.edn :as edn]
     [clojure.string :as str]
     [isaac.config.loader :as loader]
+    [isaac.config.root :as root]
     [isaac.fs :as fs]
+    [isaac.nexus :as nexus]
     [isaac.session.store.spi :as session-store]))
 
 (def hail-subdirs
-  "Subdirectories under <root>/hail/ scanned by find-by-id."
-  ["pending" "deliveries" "delivered" "failed" "undeliverable" "broadcasts"])
+  "Subdirectories under <root>/hail/ scanned by find-by-id.
+   Lifecycle dirs first; records/ is the durable ledger fallback (isaac-u7ug)."
+  ["pending" "deliveries" "delivered" "failed" "undeliverable" "broadcasts" "records"])
 
 (def ^:private subdir->lifecycle
   {"pending"        :pending
@@ -16,10 +19,14 @@
    "delivered"      :delivered
    "failed"         :failed
    "undeliverable"  :undeliverable
-   "broadcasts"     :broadcast})
+   "broadcasts"     :broadcast
+   "records"        :delivered})
 
 (defn- runtime-root []
-  (or (loader/root) (throw (ex-info "hail store requires :root" {}))))
+  (or (nexus/get :root)
+      (loader/root)
+      (root/current-root)
+      (throw (ex-info "hail store requires :root" {}))))
 
 (defn- filesystem []
   (or (fs/instance) (throw (ex-info "hail.store requires :fs in system" {}))))
@@ -106,3 +113,20 @@
            (remove nil?)
            vec)
       [])))
+
+(defn- write-edn [value]
+  (binding [*print-namespace-maps* false]
+    (pr-str value)))
+
+(defn persist-record!
+  "Write the hail to hail/records/<id>.edn — the durable ledger that survives
+   lifecycle-dir deletes (claim, stale-guard, pending move). Callers still
+   write the current lifecycle file; this copy is never deleted by the worker."
+  [id record]
+  (let [fs*  (filesystem)
+        path (hail-path "records" (normalize-id id))
+        temp (str path ".tmp")]
+    (fs/mkdirs fs* (fs/parent path))
+    (fs/spit fs* temp (write-edn record))
+    (fs/move fs* temp path)
+    record))

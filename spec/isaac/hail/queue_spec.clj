@@ -5,6 +5,7 @@
     [isaac.config.root :as root]
     [isaac.fs :as fs]
     [isaac.hail.queue :as sut]
+    [isaac.hail.store :as store]
     [isaac.logger :as log]
     [isaac.nexus :as nexus]
     [isaac.spec-helper :as helper]
@@ -97,6 +98,12 @@
   (it "stores the pending file at hail/pending/<id>.edn"
     (let [id (:id (sut/send! {:frequencies {:band "bean-pickup"} :from :cli}))]
       (should (fs/exists? (nexus/get :fs) (str "/test/isaac/hail/pending/" id ".edn")))))
+
+  (it "writes a durable ledger copy under hail/records on send (isaac-u7ug)"
+    (let [record (sut/send! {:frequencies {:band "bean-pickup"} :from :cli})
+          id     (:id record)]
+      (should= record (store/find-by-id id))
+      (should (fs/exists? (nexus/get :fs) (str "/test/isaac/hail/records/" id ".edn")))))
 
   (it "does not read or write hail/.counter when minting short-uuids"
     (let [fs* (nexus/get :fs)]

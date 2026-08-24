@@ -15,6 +15,7 @@
     [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.prepare :as hail-prepare]
     [isaac.hail.router :as router]
+    [isaac.hail.store :as hail-store]
     [isaac.logger :as log]
     [isaac.naming :as naming]
     [isaac.nexus :as nexus]
@@ -214,9 +215,11 @@
   (record-path (failed-dir root) id))
 
 (defn- finish-delivered! [root delivery]
+  (hail-store/persist-record! (:id delivery) delivery)
   (write-record! (delivered-path root (:id delivery)) delivery))
 
 (defn- finish-failed! [root delivery]
+  (hail-store/persist-record! (:id delivery) delivery)
   (write-record! (failed-path root (:id delivery)) delivery))
 
 (defn- backoff-ms [attempts]
@@ -246,10 +249,10 @@
                       (failure-log-context error)))))
 
 (defn- defer-delivery! [root now delivery retry-after-ms & {:keys [reason provider cfg]}]
-  (let [reason (or reason :wall)]
-    (write-record! (delivery-path root (:id delivery))
-                   (assoc delivery
-                          :next-attempt-at (str (.plusMillis now retry-after-ms))))
+  (let [reason (or reason :wall)
+        parked (assoc delivery :next-attempt-at (str (.plusMillis now retry-after-ms)))]
+    (hail-store/persist-record! (:id delivery) parked)
+    (write-record! (delivery-path root (:id delivery)) parked)
     (log/warn :hail/delivery-deferred
               :id (:id delivery)
               :thread-id (:thread-id delivery)
@@ -268,10 +271,11 @@
       (if (= attempts 5)
         (dead-letter! cfg root delivery attempts error)
         (do
-          (write-record! (delivery-path root (:id delivery))
-                         (assoc delivery
-                                :attempts attempts
-                                :next-attempt-at (str (.plusMillis now delay-ms))))
+          (let [retried (assoc delivery
+                               :attempts attempts
+                               :next-attempt-at (str (.plusMillis now delay-ms)))]
+            (hail-store/persist-record! (:id delivery) retried)
+            (write-record! (delivery-path root (:id delivery)) retried))
           (log/warn :hail/attempt-failed
                     (merge {:id        (:id delivery)
                             :thread-id (:thread-id delivery)
@@ -406,6 +410,7 @@
                               (store/clear-in-flight! session-store session-id)))))]
     (when (store/mark-in-flight! session-store session-id)
       (bridge/record-turn-marker! session-store session-id charge)
+      (hail-store/persist-record! (:id delivery) delivery)
       (delete-record! (delivery-path root (:id delivery)))
       (log/info :hail/bound
                 :id (:id delivery)
@@ -487,6 +492,7 @@
                                                        (Instant/now)))))]
       (delete-record! path)
       (write-record! (delivery-path root id) resurrected)
+      (hail-store/persist-record! id resurrected)
       resurrected)))
 
 (defn stop! [{:keys [scheduler task-id]}]

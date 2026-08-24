@@ -327,6 +327,36 @@ Feature: Hail delivery
       | id       | hail-1 |
       | attempts | 1      |
 
+  Scenario: a successful delivery leaves the hail findable after the deliveries file is gone (isaac-u7ug)
+    Hails never die as records. Claiming deletes hail/deliveries/<id>.edn so
+    the worker will not re-dispatch, but the hail itself must remain
+    findable — hail_get / find-by-id must resolve it after the turn ends.
+    Observed 2026-08-23: send returned 1232eaed, the worker delivered the
+    turn, then no file existed in any hail dir.
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the following model responses are queued:
+      | type | content      | model  |
+      | text | Sealing now. | grover |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+      | attempts      | 0              |
+    When the hail delivery worker ticks
+    And the turn ends on session "engine-room"
+    Then the isaac file "hail/deliveries/hail-1.edn" does not exist
+    And the isaac file "hail/delivered/hail-1.edn" EDN contains:
+      | path   | value          |
+      | id     | hail-1         |
+      | prompt | Seal the leak. |
+
   Scenario: a hail's lifecycle is fully reconstructable from the log (isaac-jnkp)
     Every state transition logs an INFO :hail/* event — grep :hail/ in the
     server log reconstructs any hail's journey chronologically. File state
