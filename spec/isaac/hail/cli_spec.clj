@@ -1,6 +1,7 @@
 (ns isaac.hail.cli-spec
   (:require
     [cheshire.core :as json]
+    [clojure.edn :as edn]
     [clojure.string :as str]
     [isaac.fs :as fs]
     [isaac.hail.cli :as sut]
@@ -137,4 +138,57 @@
     (let [err* (java.io.StringWriter.)]
       (binding [*err* err*]
         (should= 1 (sut/run-fn {:_raw-args ["requeue" "nope99"]})))
-      (should (.contains (str err*) "nope99")))))
+      (should (.contains (str err*) "nope99"))))
+
+  (it "dry-run validates a band send, prints the record, and writes nothing to pending"
+    (let [output (with-out-str
+                   (should= 0 (sut/run-fn {:_raw-args ["send" "--dry-run" "--band" "b" "--params" "{:bean-id \"x\"}"]})))
+          record (edn/read-string output)
+          pending-dir "/test/isaac/hail/pending"]
+      (should= {:bean-id "x"} (:params record))
+      (should= {:band "b"} (:frequencies record))
+      (should-be-nil (:id record))
+      (should-be-nil (:sent-at record))
+      (should-not (fs/exists? (nexus/get :fs) pending-dir))))
+
+  (it "dry-run --json prints JSON of the same unenqueued record"
+    (let [output (with-out-str
+                   (should= 0 (sut/run-fn {:_raw-args ["send" "--dry-run" "--band" "b" "--params" "{:bean-id \"x\"}" "--json"]})))
+          value  (json/parse-string output true)]
+      (should= {:bean-id "x"} (:params value))
+      (should= "b" (get-in value [:frequencies :band]))
+      (should-be-nil (:id value))
+      (should-be-nil (:sent-at value))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending"))))
+
+  (it "dry-run with a validation error exits 1, prints stderr, and enqueues nothing"
+    (let [err* (java.io.StringWriter.)]
+      (binding [*err* err*]
+        (should= 1 (sut/run-fn {:_raw-args ["send" "--dry-run" "--session-tag" "wip"]})))
+      (should (.contains (str err*) "--prompt"))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending"))))
+
+  (it "dry-run of whole-hail stdin --from-json echoes the record and enqueues nothing"
+    (let [output (with-in-str "{\"frequencies\":{\"band\":\"bean-pickup\"},\"params\":{\"n\":1}}"
+                   (with-out-str
+                     (should= 0 (sut/run-fn {:_raw-args ["send" "-" "--from-json" "--dry-run"]}))))
+          record (edn/read-string output)]
+      (should= {:band "bean-pickup"} (:frequencies record))
+      (should= {:n 1} (:params record))
+      (should-be-nil (:id record))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending"))))
+
+  (it "send --help lists --reply-to, --thread-id, and --dry-run"
+    (let [output (with-out-str
+                   (should= 0 (sut/run-fn {:_raw-args ["send" "--help"]})))]
+      (should (.contains output "--reply-to"))
+      (should (.contains output "--thread-id"))
+      (should (.contains output "--dry-run"))
+      (should (.contains output "[--dry-run]"))))
+
+  (it "hail --help send line mentions --dry-run to validate only"
+    (let [output (with-out-str
+                   (should= 0 (sut/run-fn {:_raw-args ["--help"]})))]
+      (should (.contains output "--dry-run"))
+      (should (.contains output "validate only"))))
+  )

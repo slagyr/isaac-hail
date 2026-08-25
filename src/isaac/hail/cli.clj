@@ -29,18 +29,19 @@
    [nil "--thread-id ID" "Thread id (defaults to hail id or inherited from reply-to)"]
    [nil "--from-json" "Read whole-hail stdin input as JSON"]
    [nil "--json" "Print the full hail record as JSON"]
-   [nil "--edn" "Print the full hail record as EDN"]])
+   [nil "--edn" "Print the full hail record as EDN"]
+    [nil "--dry-run" "Validate and print the record without enqueueing"]])
 
 (defn hail-help []
   (str "Usage: isaac hail <subcommand> [options]\n\n"
        "Send and inspect hail records.\n\n"
        "Subcommands:\n"
-       "  send    Persist a hail record to hail/pending\n"))
+       "  send    Persist a hail record to hail/pending (--dry-run to validate only)\n"))
 
 (defn- send-help []
-  (str "Usage: isaac hail send [addressing flags] [--prompt <text>] [--params <edn>] [--json|--edn]\n"
+  (str "Usage: isaac hail send [addressing flags] [--prompt <text>] [--params <edn>] [--json|--edn] [--dry-run]\n"
        "       isaac hail send - [--from-json]\n\n"
-       "Persist a hail record to hail/pending.\n\n"
+       "Persist a hail record to hail/pending (--dry-run to validate only).\n\n"
        "Options:\n"
        "  -h, --help                 Show help\n"
        "      --band NAME            Band name\n"
@@ -50,9 +51,12 @@
        "      --reach MODE           Reach mode (:one or :all) for direct/tag addressing\n"
        "      --prompt TEXT          Prompt for direct/tag-addressed hails\n"
        "      --params EDN           Band template parameters (EDN map)\n"
+       "      --reply-to ID          Hail id this message replies to\n"
+       "      --thread-id ID         Thread id (defaults to hail id or inherited from reply-to)\n"
        "      --from-json            Read whole-hail stdin input as JSON\n"
        "      --json                 Print the full hail record as JSON\n"
-       "      --edn                  Print the full hail record as EDN\n"))
+       "      --edn                  Print the full hail record as EDN\n"
+       "      --dry-run              Validate and print the record without enqueueing\n"))
 
 (defn- slurp-stdin []
   (let [content (slurp *in*)]
@@ -164,6 +168,7 @@
   (cond
     (:json options) (cli-common/print-json! record)
     (:edn options)  (cli-common/print-edn! record)
+    (:dry-run options) (cli-common/print-edn! record)
     :else           (println (:id record))))
 
 (defn- run-send [args]
@@ -188,7 +193,9 @@
               (binding [*out* *err*]
                 (println error)))
             1)
-          (let [record (queue/send! record)]
+          (let [record (if (:dry-run options)
+                         record
+                         (queue/send! record))]
             (print-record! record options)
             0))))))
 
