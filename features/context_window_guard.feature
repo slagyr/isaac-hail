@@ -79,7 +79,6 @@ Feature: Hail deferral when session context is exhausted (isaac-dark)
       | target  | boiler-room                  |
       | content | contains "Context exhausted" |
 
-  @wip
   Scenario: a provider 400 for prompt length defers the hail without burning attempts
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
