@@ -2,7 +2,7 @@
 
  :deps {
         io.github.slagyr/isaac-foundation {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                          :git/sha "43cf46e00087bf066a9e065ccc3d48dd2814ac23"}
+                                          :git/sha "16f478657b9534d3cb9d406327e686190838168c"}
         io.github.slagyr/isaac-agent {:git/url "https://github.com/slagyr/isaac-agent.git"
                                           :git/sha "57018753a4e5498b2b6e74f380b51ccba9e9efb3"}
         cheshire/cheshire                   {:mvn/version "5.13.0"}
