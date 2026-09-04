@@ -54,3 +54,26 @@ Feature: Hail HTTP route POST /hail/send
       | body                 | {not valid json  |
     Then the response status is 400
     And the response body has a "error" key
+
+  Scenario: POST with a string session is routed to that session
+    Given the isaac EDN file "config/crew/main.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew |
+      | watch-room  | main |
+    When a POST request is made to "/hail/send":
+      | key                  | value                                                                   |
+      | header.Content-Type  | application/json                                                        |
+      | header.Authorization | Bearer secret123                                                        |
+      | body                 | {"frequencies": {"session": "watch-room"}, "prompt": "wake the watch"}  |
+    Then the response status is 201
+    And the sole pending hail EDN contains:
+      | path        | value                      |
+      | frequencies | {:session [:watch-room]}   |
+      | prompt      | wake the watch             |
+      | from        | :http                      |
+    When the hail router ticks
+    Then the sole delivery hail EDN contains:
+      | path          | value        |
+      | bound-session | :watch-room  |

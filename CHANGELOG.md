@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- HTTP `POST /hail/send` no longer keywordizes a string `:session` (or `:session-tags`) character-wise. A string normalizes to the same vector/set the CLI produces for `--session` / `--session-tag`; a vector of strings maps element-wise; other shapes 400 naming the field. Same audit for `:crew`.
 - Hail pending/delivery paths honor the CLI `--root` binding when nexus `:root` is unset (feature in-process runs).
 - Ship `isaac-manifest.edn` under `src/` so scratch feature classpaths that omit `resources/` still register hail CLI and band schema.
 

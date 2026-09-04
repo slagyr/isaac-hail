@@ -89,4 +89,49 @@
           body     (json/parse-string (:body response) true)]
       (should= 400 (:status response))
       (should= "invalid body" (:error body))
-      (should= "request body could not be parsed" (:hint body)))))
+      (should= "request body could not be parsed" (:hint body))))
+
+  (it "normalizes a string session to the same vector the CLI produces for --session"
+    (let [response (sut/handler (post-request "application/json"
+                                              "{\"frequencies\":{\"session\":\"isaac-work-1\"},\"prompt\":\"wake the watch\"}"))
+          id       (:id (json/parse-string (:body response) true))]
+      (should= 201 (:status response))
+      (should= {:session [:isaac-work-1]} (:frequencies (queue/read-pending id)))))
+
+  (it "normalizes a vector of session strings element-wise"
+    (let [response (sut/handler (post-request "application/json"
+                                              "{\"frequencies\":{\"session\":[\"a\",\"b\"]},\"prompt\":\"wake the watch\"}"))
+          id       (:id (json/parse-string (:body response) true))]
+      (should= 201 (:status response))
+      (should= {:session [:a :b]} (:frequencies (queue/read-pending id)))))
+
+  (it "returns 400 naming session when session is not a string or vector of strings"
+    (let [response (sut/handler (post-request "application/json"
+                                              "{\"frequencies\":{\"session\":42},\"prompt\":\"wake the watch\"}"))
+          body     (json/parse-string (:body response) true)]
+      (should= 400 (:status response))
+      (should= "invalid session" (:error body))
+      (should (.contains (str (:hint body)) "session"))))
+
+  (it "normalizes a string session-tags value to a keyword set"
+    (let [response (sut/handler (post-request "application/json"
+                                              "{\"frequencies\":{\"session-tags\":\"wip\"},\"prompt\":\"wake the watch\"}"))
+          id       (:id (json/parse-string (:body response) true))]
+      (should= 201 (:status response))
+      (should= {:session-tags #{:wip}} (:frequencies (queue/read-pending id)))))
+
+  (it "returns 400 naming session-tags when session-tags is not a string or collection of strings"
+    (let [response (sut/handler (post-request "application/json"
+                                              "{\"frequencies\":{\"session-tags\":42},\"prompt\":\"wake the watch\"}"))
+          body     (json/parse-string (:body response) true)]
+      (should= 400 (:status response))
+      (should= "invalid session-tags" (:error body))
+      (should (.contains (str (:hint body)) "session-tags"))))
+
+  (it "returns 400 naming crew when crew is not a string"
+    (let [response (sut/handler (post-request "application/json"
+                                              "{\"frequencies\":{\"crew\":42},\"prompt\":\"wake the watch\"}"))
+          body     (json/parse-string (:body response) true)]
+      (should= 400 (:status response))
+      (should= "invalid crew" (:error body))
+      (should (.contains (str (:hint body)) "crew")))))

@@ -73,21 +73,72 @@
     (string? value)  (keyword value)
     :else            value))
 
-(defn- keywordize* [values]
-  (mapv ->keyword values))
+(defn- field-error [field]
+  {:error (str "invalid " (name field))
+   :hint  (str "frequencies." (name field) " must be a string or vector of strings")})
 
-(defn- keyword-set* [values]
-  (into #{} (map ->keyword) values))
+(defn- session-id [value]
+  (cond
+    (keyword? value) (keyword (name value))
+    (string? value)  (keyword value)
+    :else            ::invalid))
+
+(defn- session-ids [value]
+  (cond
+    (nil? value)     nil
+    (string? value)  [(session-id value)]
+    (keyword? value) [(session-id value)]
+    (sequential? value)
+    (let [ids (mapv session-id value)]
+      (if (some #{::invalid} ids) ::invalid ids))
+    :else            ::invalid))
+
+(defn- tag-id [value]
+  (cond
+    (keyword? value) value
+    (string? value)  (keyword value)
+    :else            ::invalid))
+
+(defn- session-tag-set [value]
+  (cond
+    (nil? value)     nil
+    (string? value)  #{(tag-id value)}
+    (keyword? value) #{(tag-id value)}
+    (or (set? value) (sequential? value))
+    (let [tags (into #{} (map tag-id) value)]
+      (if (contains? tags ::invalid) ::invalid tags))
+    :else            ::invalid))
+
+(defn- crew-id [value]
+  (cond
+    (nil? value)     nil
+    (string? value)  value
+    (keyword? value) (name value)
+    :else            ::invalid))
 
 (defn- normalize-frequencies [frequencies]
   (let [frequencies (some-> frequencies walk/keywordize-keys)]
-    (cond-> frequencies
-      (:session frequencies)      (update :session keywordize*)
-      (:session-tags frequencies) (update :session-tags keyword-set*)
-      (:reach frequencies)        (update :reach ->keyword)
-      (:create frequencies)       (update :create ->keyword)
-      (:prefer frequencies)        (update :prefer ->keyword)
-      (:crew frequencies)         (update :crew str))))
+    (if-not (map? frequencies)
+      frequencies
+      (let [session      (when (contains? frequencies :session)
+                           (session-ids (:session frequencies)))
+            session-tags (when (contains? frequencies :session-tags)
+                           (session-tag-set (:session-tags frequencies)))
+            crew         (when (contains? frequencies :crew)
+                           (crew-id (:crew frequencies)))]
+        (cond
+          (= ::invalid session)      (field-error :session)
+          (= ::invalid session-tags) (field-error :session-tags)
+          (= ::invalid crew)         {:error "invalid crew"
+                                      :hint  "frequencies.crew must be a string"}
+          :else
+          (cond-> frequencies
+            (some? session)      (assoc :session session)
+            (some? session-tags) (assoc :session-tags session-tags)
+            (some? crew)         (assoc :crew crew)
+            (:reach frequencies) (update :reach ->keyword)
+            (:create frequencies) (update :create ->keyword)
+            (:prefer frequencies) (update :prefer ->keyword)))))))
 
 (defn- direct-addressing? [frequencies]
   (and (map? frequencies)
@@ -102,6 +153,9 @@
 (defn- validate-record [record]
   (let [frequencies (:frequencies record)]
     (cond
+      (:error frequencies)
+      (select-keys frequencies [:error :hint])
+
       (contains? record :crew)
       {:error "invalid crew"
        :hint  "put :crew in :frequencies, not at the hail top level"}

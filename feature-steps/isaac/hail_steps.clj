@@ -243,6 +243,11 @@
         actual   (count (delivery-records))]
     (g/should= expected actual)))
 
+(defn sole-delivery-hail-edn-contains [table]
+  (let [records (delivery-records)]
+    (g/should= 1 (count records))
+    (assert-pending-record-fields (first records) table)))
+
 (defn stdout-is-bare-hail-id []
   (let [output (str/trim (or (g/get :output) ""))]
     (assert-short-uuid! "stdout" output)))
@@ -361,6 +366,8 @@
   isaac.hail-steps/delivery-prompt-contains)
 
 (defthen "the sole pending hail EDN contains:" isaac.hail-steps/sole-pending-hail-edn-contains)
+
+(defthen "the sole delivery hail EDN contains:" isaac.hail-steps/sole-delivery-hail-edn-contains)
 
 (defthen #"the last hail-send tool result is an error matching (.+)"
   isaac.hail-steps/last-hail-send-tool-result-is-error-matching)
