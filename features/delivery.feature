@@ -534,6 +534,37 @@ Feature: Hail delivery
       | level | event                   | session     | retry-after-ms | reason |
       | :warn | :hail/delivery-deferred | engine-room | 60000          | :wall  |
 
+  Scenario: a stalled provider stream defers the delivery without burning attempts (isaac-6zk5)
+    An SSE idle stall is provider weather, not poison — drive classifies it as
+    unavailable with retry-after, and the worker parks the delivery without
+    incrementing attempts.
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the following model responses are queued:
+      | type        | retry-after-ms | model  | reason         |
+      | unavailable | 90000          | grover | stream-stalled |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+      | attempts      | 2              |
+    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
+    And the turn ends on session "engine-room"
+    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
+      | path            | value                |
+      | attempts        | 2                    |
+      | next-attempt-at | 2026-04-21T10:01:30Z |
+    And the isaac file "hail/failed/hail-1.edn" does not exist
+    And the log has entries matching:
+      | level | event                   | session     | retry-after-ms | reason          |
+      | :warn | :hail/delivery-deferred | engine-room | 90000          | :stream-stalled |
+
   Scenario: auth unavailability defers then self-delivers when the provider recovers (isaac-5a4n)
     A provider auth outage is weather, not poison — the delivery parks with a
     short retry-after and delivers itself once auth is healthy again.

@@ -418,6 +418,25 @@
       (should= {:event :hail/stale-delivery-removed :session "engine-room" :id "hail-1"}
                (select-keys (last @log/captured-logs) [:event :session :id]))))
 
+  (it "defers a stream-stalled unavailable turn without incrementing attempts"
+    (let [session-store (nexus/get-in [:sessions :store])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (write-delivery! {:id            "hail-1"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :attempts      2})
+      (with-redefs [isaac.drive.turn/run-turn!
+                    (fn [_]
+                      {:error :stream-stalled :unavailable? true :reason :stream-stalled :retry-after-ms 90000})]
+        @(first (sut/tick! {:cfg           test-config
+                            :now           (Instant/parse "2026-04-21T10:00:00Z")
+                            :session-store session-store})))
+      (should= 2 (:attempts (read-edn "/test/isaac/hail/deliveries/hail-1.edn")))
+      (should= "2026-04-21T10:01:30Z"
+               (:next-attempt-at (read-edn "/test/isaac/hail/deliveries/hail-1.edn")))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/failed/hail-1.edn"))))
+
   (it "defers context-exhausted turns without incrementing attempts and enqueues attention"
     (attention/clear-throttle!)
     (let [session-store (nexus/get-in [:sessions :store])
