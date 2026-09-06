@@ -437,11 +437,11 @@
                (:next-attempt-at (read-edn "/test/isaac/hail/deliveries/hail-1.edn")))
       (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/failed/hail-1.edn"))))
 
-  (it "defers context-exhausted turns without incrementing attempts and enqueues attention"
+  (it "defers context-exhausted turns without incrementing attempts and without attention"
     (attention/clear-throttle!)
     (let [session-store (nexus/get-in [:sessions :store])
           cfg           (assoc-in test-config [:attention :notify] {:comm :discord :target "boiler-room"})]
-      (store/open-session! session-store "engine-room" {:crew "bartholomew" :compaction-disabled true})
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
       (write-delivery! {:id            "hail-1"
                         :prompt        "Seal the leak."
                         :crew          :bartholomew
@@ -454,9 +454,7 @@
                             :now           (Instant/parse "2026-04-21T10:00:00Z")
                             :session-store session-store})))
       (should= 0 (:attempts (read-edn "/test/isaac/hail/deliveries/hail-1.edn")))
-      (should= 1 (count (comm-queue/list-pending)))
-      (should (str/includes? (:content (first (comm-queue/list-pending)))
-                             "Context exhausted"))))
+      (should= 0 (count (comm-queue/list-pending)))))
 
   (it "keeps the hail findable after a successful turn even if delivered/ write is lost (isaac-u7ug)"
     (let [session-store (nexus/get-in [:sessions :store])

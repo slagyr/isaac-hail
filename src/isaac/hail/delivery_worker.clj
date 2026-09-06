@@ -260,10 +260,7 @@
               :reason reason
               :retry-after-ms retry-after-ms)
     (when (= :auth reason)
-      (attention/maybe-notify-auth! cfg provider (.toEpochMilli now)))
-    (when (= :context-exhausted reason)
-      (attention/maybe-notify-context-exhausted!
-       cfg (normalize-id (:bound-session delivery)) (.toEpochMilli now)))))
+      (attention/maybe-notify-auth! cfg provider (.toEpochMilli now)))))
 
 (defn- reschedule! [cfg root now delivery error]
   (let [attempts (inc (:attempts delivery 0))]

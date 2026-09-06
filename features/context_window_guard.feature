@@ -1,27 +1,20 @@
 Feature: Hail deferral when session context is exhausted (isaac-dark)
-  Context-exhausted turns defer with zero attempt burn and post throttled
-  attention to the comm outbox. A provider 400 whose message is a hard
-  prompt/context overflow classifies as the same weather — hail must not
-  retry it as :api-error. (isaac-bs5b)
+  Unavailable turns defer with zero attempt burn. Hail does not special-case
+  :context-exhausted — no context-exhausted attention. A provider 400 whose
+  message is a hard prompt/context overflow classifies as the same weather —
+  hail must not retry it as :api-error. (isaac-bs5b)
 
   Background:
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
   Scenario: context-exhausted deferral does not increment hail attempts
-    Given the isaac EDN file "config/models/grover.edn" exists with:
-      | path           | value |
-      | context-window | 100   |
-    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
       | model | grover |
     And the following sessions exist:
-      | name        | crew        | compaction-disabled |
-      | engine-room | bartholomew | true                |
-    And session "engine-room" has transcript:
-      | type    | message.role | message.content |
-      | message | user         | earlier prompt  |
-      | message | assistant    | earlier reply   |
+      | name        | crew        |
+      | engine-room | bartholomew |
     And the following model responses are queued:
       | type        | retry-after-ms | model  | reason            |
       | unavailable | 300000         | grover | context-exhausted |
@@ -41,15 +34,11 @@ Feature: Hail deferral when session context is exhausted (isaac-dark)
       | level | event                   | session     | reason              | retry-after-ms |
       | :warn | :hail/delivery-deferred | engine-room | :context-exhausted | 300000         |
 
-  @wip
   Scenario: Hail defers an unavailable turn without posting context-exhausted attention
     Given the isaac EDN file "config/isaac.edn" exists with:
       | path                    | value       |
       | attention.notify.comm   | discord     |
       | attention.notify.target | boiler-room |
-    And the isaac EDN file "config/models/grover.edn" exists with:
-      | path           | value |
-      | context-window | 100   |
     And the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
       | model | grover |
