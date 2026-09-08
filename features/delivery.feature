@@ -698,22 +698,26 @@ Feature: Hail delivery
       | level | event                    | session     |
       | :info | :hail/delivery-suspended | engine-room |
 
-  Scenario: tool-loop-limit ends as delivered without re-queue (isaac-fgo0)
-    Tool-loop budget exhaustion is a turn outcome, not a hail transport retry.
-    With continuations removed, the delivery finishes as delivered and the
-    worker emits a neutral turn-ended fact.
+  @wip
+  Scenario: a turn that hits the cycle limit wraps up and is re-queued as a continuation (isaac-ntt6, supersedes isaac-fgo0)
+    The delivery worker's comm answers :wrap-up on exhaustion: the drive runs
+    one final cycle with tools and a checkpoint nudge, then a tool-less note.
+    The delivery is NOT delivered: it goes back to deliveries/ with
+    :continuation incremented and attempts untouched, so the next tick runs a
+    fresh turn on the same session (a checkpointed continuation).
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path          | value  |
-      | model         | grover |
-      | tool-loop-max | 1      |
+      | path        | value  |
+      | model       | grover |
+      | cycle-limit | 1      |
     And the following sessions exist:
       | name        | crew        |
       | engine-room | bartholomew |
     And the built-in tools are registered
     And the following model responses are queued:
-      | tool_call | arguments           |
-      | exec      | {"command": "true"} |
-      | exec      | {"command": "true"} |
+      | tool_call | arguments                      | content                                      |
+      | exec      | {"command": "true"}            |                                              |
+      | exec      | {"command": "echo checkpoint"} |                                              |
+      |           |                                | Checkpoint committed; next: reseat the flange |
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path          | value          |
       | id            | hail-1         |
@@ -723,12 +727,91 @@ Feature: Hail delivery
       | attempts      | 0              |
     When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
     And the turn ends on session "engine-room"
-    Then the isaac file "hail/delivered/hail-1.edn" exists
-    And the isaac file "hail/deliveries/hail-1.edn" does not exist
+    Then the isaac file "hail/delivered/hail-1.edn" does not exist
     And the isaac file "hail/failed/hail-1.edn" does not exist
+    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
+      | path         | value  |
+      | id           | hail-1 |
+      | attempts     | 0      |
+      | continuation | 1      |
     And the log has entries matching:
-      | level | event            | session     | outcome    |
-      | :info | :hail/turn-ended | engine-room | :delivered |
+      | level | event                | session     | continuation |
+      | :info | :hail/turn-continued | engine-room | 1            |
+
+  @wip
+  Scenario: the band's continuation budget exhausts to dead-letter with attention (isaac-ntt6)
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path        | value  |
+      | model       | grover |
+      | cycle-limit | 1      |
+    And the isaac EDN file "config/hail/engine-band.edn" exists with:
+      | path          | value                  |
+      | session-tags  | #{:project/warp-coil}  |
+      | continuations | 1                      |
+    And the following sessions exist:
+      | name        | crew        | tags                  |
+      | engine-room | bartholomew | #{:project/warp-coil} |
+    And the built-in tools are registered
+    And the following model responses are queued:
+      | tool_call | arguments           | content                    |
+      | exec      | {"command": "true"} |                            |
+      | exec      | {"command": "true"} |                            |
+      |           |                     | Checkpoint; still not done |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | band          | engine-band    |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+      | attempts      | 0              |
+      | continuation  | 1              |
+    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
+    And the turn ends on session "engine-room"
+    Then the isaac file "hail/failed/hail-1.edn" exists
+    And the isaac file "hail/deliveries/hail-1.edn" does not exist
+    And the log has entries matching:
+      | level  | event                          | session     | continuation | budget |
+      | :error | :hail/continuations-exhausted  | engine-room | 1            | 1      |
+    And the memory comm has events matching:
+      | event    | text                                  |
+      | bulletin | #"(?s).*hail-1.*continuations.*"      |
+
+  @wip
+  Scenario: a band's cycle-limit overrides the crew's on the dispatched turn (isaac-ntt6)
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path        | value  |
+      | model       | grover |
+      | cycle-limit | 5      |
+    And the isaac EDN file "config/hail/engine-band.edn" exists with:
+      | path         | value                 |
+      | session-tags | #{:project/warp-coil} |
+      | cycle-limit  | 1                     |
+    And the following sessions exist:
+      | name        | crew        | tags                  |
+      | engine-room | bartholomew | #{:project/warp-coil} |
+    And the built-in tools are registered
+    And the following model responses are queued:
+      | tool_call | arguments           | content                  |
+      | exec      | {"command": "true"} |                          |
+      | exec      | {"command": "true"} |                          |
+      |           |                     | Checkpoint; next: valves |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | band          | engine-band    |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+      | attempts      | 0              |
+    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
+    And the turn ends on session "engine-room"
+    Then the log has entries matching:
+      | level | event       | session     | ended-by     | cycle-limit |
+      | :info | :turn/ended | engine-room | :cycle-limit | 1           |
+    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
+      | path         | value |
+      | continuation | 1     |
 
   Scenario: a successful turn without outbound hail-send still delivers (isaac-fgo0)
     Hail is pure transport: bean-workflow convergence is prompt-driven. A quiet
