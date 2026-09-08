@@ -2,7 +2,7 @@
   (:require
     [clojure.string :as str]
     [isaac.charge]
-    [isaac.comm.null :as null-comm]
+    [isaac.hail.comm :as hail-comm]
     [isaac.config.api :as config]
     [isaac.config.loader :as loader]
     [isaac.drive.turn]
@@ -88,7 +88,7 @@
           @future*))
       (should= {:kind :hail :hail-id "hail-1" :prompt "Seal the leak."}
                (:origin @captured))
-      (should= null-comm/channel (:comm @captured))
+      (should= hail-comm/channel (:comm @captured))
       (should= "Seal the leak." (:input @captured))
       (should= "engine-room" (:session-key @captured))
       (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/deliveries/hail-1.edn"))
@@ -515,6 +515,70 @@
                           (= :delivered (:outcome %))
                           (= ["hail-send"] (:executed-tools %)))
                     @log/captured-logs))))
+
+  (it "re-queues a cycle-limit wrap-up as continuation 1 without burning attempts"
+    (let [session-store (nexus/get-in [:sessions :store])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (write-delivery! {:id            "hail-1"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :attempts      0})
+      (with-redefs [isaac.drive.turn/run-turn! (fn [_] {:ended-by :cycle-limit :exhaustion :wrapped-up})]
+        @(first (sut/tick! {:cfg test-config :session-store session-store})))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/delivered/hail-1.edn"))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/failed/hail-1.edn"))
+      (should= {:id "hail-1" :attempts 0 :continuation 1}
+               (select-keys (read-edn "/test/isaac/hail/deliveries/hail-1.edn")
+                            [:id :attempts :continuation]))
+      (should (some #(and (= :hail/turn-continued (:event %))
+                          (= 1 (:continuation %))
+                          (= "engine-room" (:session %)))
+                    @log/captured-logs))))
+
+  (it "dead-letters when the band continuation budget is already spent"
+    (attention/clear-throttle!)
+    (hail-comm/clear-events!)
+    (let [session-store (nexus/get-in [:sessions :store])
+          cfg           (-> test-config
+                            (assoc :hail {"engine-band" {:session-tags #{:project/warp-coil}
+                                                         :continuations 1}})
+                            (assoc-in [:attention :notify] {:comm :discord :target "boiler-room"}))]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (write-delivery! {:id            "hail-1"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :band          "engine-band"
+                        :attempts      0
+                        :continuation  1})
+      (with-redefs [isaac.drive.turn/run-turn! (fn [_] {:ended-by :cycle-limit :exhaustion :wrapped-up})]
+        @(first (sut/tick! {:cfg cfg :session-store session-store})))
+      (should (fs/exists? (nexus/get :fs) "/test/isaac/hail/failed/hail-1.edn"))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/deliveries/hail-1.edn"))
+      (should= :continuations-exhausted
+               (:reason (read-edn "/test/isaac/hail/failed/hail-1.edn")))
+      (let [exhausted (some #(when (= :hail/continuations-exhausted (:event %)) %) @log/captured-logs)]
+        (should= {:event :hail/continuations-exhausted :session "engine-room"
+                  :continuation 1 :budget 1}
+                 (select-keys exhausted [:event :session :continuation :budget])))
+      (should (some #(and (= "bulletin" (:event %))
+                          (re-find #"(?s).*hail-1.*continuations.*" (or (:text %) "")))
+                    @hail-comm/events))))
+
+  (it "puts the band cycle-limit on the dispatched charge"
+    (let [captured (atom nil)
+          cfg      (assoc test-config :hail {"engine-band" {:session-tags #{:project/warp-coil}
+                                                            :cycle-limit  1}})]
+      (with-redefs [isaac.charge/build (fn [request]
+                                         (reset! captured request)
+                                         {:charge/type :charge})]
+        (#'sut/delivery-charge cfg {:id            "hail-1"
+                                    :prompt        "Seal the leak."
+                                    :bound-session :engine-room
+                                    :band          "engine-band"}))
+      (should= 1 (:cycle-limit @captured))
+      (should= hail-comm/channel (:comm @captured))))
 
   (it "registers the shared scheduler task"
     (let [shared-scheduler (scheduler/create {})]

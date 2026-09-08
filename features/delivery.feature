@@ -698,7 +698,6 @@ Feature: Hail delivery
       | level | event                    | session     |
       | :info | :hail/delivery-suspended | engine-room |
 
-  @wip
   Scenario: a turn that hits the cycle limit wraps up and is re-queued as a continuation (isaac-ntt6, supersedes isaac-fgo0)
     The delivery worker's comm answers :wrap-up on exhaustion: the drive runs
     one final cycle with tools and a checkpoint nudge, then a tool-less note.
@@ -738,7 +737,6 @@ Feature: Hail delivery
       | level | event                | session     | continuation |
       | :info | :hail/turn-continued | engine-room | 1            |
 
-  @wip
   Scenario: the band's continuation budget exhausts to dead-letter with attention (isaac-ntt6)
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path        | value  |
@@ -777,7 +775,6 @@ Feature: Hail delivery
       | event    | text                                  |
       | bulletin | #"(?s).*hail-1.*continuations.*"      |
 
-  @wip
   Scenario: a band's cycle-limit overrides the crew's on the dispatched turn (isaac-ntt6)
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path        | value  |

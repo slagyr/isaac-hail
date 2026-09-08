@@ -13,9 +13,9 @@
                                                         :git/sha "e0dc789b58723a3415a12d5f0d95e0d9148bc316"
                                                         :deps/root "spec-support"}
         io.github.slagyr/isaac-agent {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                      :git/sha "430c6d8d2d1a2c380a9f95cd9b914b6f8430eaac"}
+                                      :git/sha "461082b8b6106c74e4d7acf47cc74ad8319575fa"}
         io.github.slagyr/isaac-agent-spec {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                           :git/sha "430c6d8d2d1a2c380a9f95cd9b914b6f8430eaac"
+                                           :git/sha "461082b8b6106c74e4d7acf47cc74ad8319575fa"
                                            :deps/root "spec"}
         io.github.slagyr/isaac-server {:git/url "https://github.com/slagyr/isaac-server.git"
                                        :git/sha "eb51cc48b8964dabb678086ac36051a86d94c03a"}
@@ -56,6 +56,7 @@
                              "isaac.config.config-steps"
                              "isaac.scheduler-steps"
                              "isaac.session.session-steps"
+                             "isaac.comm.comm-steps"
                              "isaac.tool.tools-steps"
                              "isaac.server.server-steps"
                              "isaac.hail-steps"

@@ -79,4 +79,16 @@
                                  {:reach :one})]
       (should (schema/error? result))
       (should= {:addressing "must include at least one of :session, :session-tags, :crew, :base"}
-               (schema/message-map result)))))
+               (schema/message-map result))))
+
+  (it "conforms optional band :continuations and :cycle-limit"
+    (let [result (schema/conform (hail-band-schema)
+                                 {:session-tags  [:project/warp-coil]
+                                  :continuations 1
+                                  :cycle-limit   4})]
+      (should-not (schema/error? result))
+      (should= {:session-tags  [:project/warp-coil]
+                :continuations 1
+                :cycle-limit   4}
+               result)))
+  )

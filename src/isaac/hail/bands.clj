@@ -7,9 +7,12 @@
   (lookup [this band-name])
   (all-bands [this]))
 
-(defn- with-band-defaults [band]
+(def default-continuations 3)
+
+(defn with-band-defaults [band]
   (cond-> band
-    (and band (nil? (:reach band))) (assoc :reach :one)))
+    (and band (nil? (:reach band))) (assoc :reach :one)
+    (and band (nil? (:continuations band))) (assoc :continuations default-continuations)))
 
 (defn- load-slice [slice]
   (into {} (map (fn [[band-name band]] [band-name (with-band-defaults band)]))

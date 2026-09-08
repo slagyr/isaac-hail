@@ -6,13 +6,15 @@
     [isaac.bridge.core :as bridge]
     [isaac.bridge.suspend :as suspend]
     [isaac.charge :as charge]
-    [isaac.comm.null :as null-comm]
+    [isaac.comm.protocol :as comm]
     [isaac.config.loader :as loader]
     [isaac.config.root :as root]
     [isaac.drive.turn :as turn]
     [isaac.fs :as fs]
     [isaac.hail.attention :as attention]
     [isaac.hail.band-resolve :as band-resolve]
+    [isaac.hail.bands :as bands]
+    [isaac.hail.comm :as hail-comm]
     [isaac.hail.prepare :as hail-prepare]
     [isaac.hail.router :as router]
     [isaac.hail.store :as hail-store]
@@ -133,9 +135,18 @@
 ;; A routed delivery file IS the hail (flat — enriched in place by the router);
 ;; there is no :hail wrapper. A reach-:all child also carries :source-hail (it
 ;; rides along; the worker treats the child like any other delivery).
+(defn- band-name [delivery]
+  (when-let [raw (or (get-in delivery [:frequencies :band])
+                     (:band delivery))]
+    (if (keyword? raw) (name raw) (str raw))))
+
 (defn- delivery-band [cfg delivery]
-  (when-let [band-name (get-in delivery [:frequencies :band])]
-    (get (band-resolve/resolved-slice (:hail cfg)) band-name)))
+  (when-let [name (band-name delivery)]
+    (bands/with-band-defaults (get (band-resolve/resolved-slice (:hail cfg)) name))))
+
+(defn- continuation-budget [cfg delivery]
+  (or (:continuations (delivery-band cfg delivery))
+      bands/default-continuations))
 
 (defn- bind-candidate [cfg delivery session]
   ;; Binding lands the delivery in an existing session — run it in THAT
@@ -262,6 +273,42 @@
     (when (= :auth reason)
       (attention/maybe-notify-auth! cfg provider (.toEpochMilli now)))))
 
+(defn- continue-delivery! [root delivery]
+  (let [n         (inc (:continuation delivery 0))
+        continued (-> delivery
+                      (assoc :continuation n)
+                      (dissoc :next-attempt-at :error :reason))]
+    (hail-store/persist-record! (:id delivery) continued)
+    (write-record! (delivery-path root (:id delivery)) continued)
+    (log/info :hail/turn-continued
+              :id (:id delivery)
+              :thread-id (:thread-id delivery)
+              :session (normalize-id (:bound-session delivery))
+              :continuation n)
+    continued))
+
+(defn- continuations-exhausted! [cfg root delivery]
+  (let [budget  (continuation-budget cfg delivery)
+        n       (:continuation delivery 0)
+        failed  (assoc delivery :reason :continuations-exhausted)
+        session (normalize-id (:bound-session delivery))]
+    (finish-failed! root failed)
+    (attention/maybe-notify-dead-letter! cfg failed :continuations-exhausted)
+    (comm/on-bulletin hail-comm/channel session
+                      {:kind :hail/continuations-exhausted
+                       :text (str (:id delivery) " continuations exhausted")})
+    (log/error :hail/continuations-exhausted
+               :id (:id delivery)
+               :thread-id (:thread-id delivery)
+               :session session
+               :continuation n
+               :budget budget)))
+
+(defn- wrap-up-delivery! [cfg root delivery]
+  (if (>= (:continuation delivery 0) (continuation-budget cfg delivery))
+    (continuations-exhausted! cfg root delivery)
+    (continue-delivery! root delivery)))
+
 (defn- reschedule! [cfg root now delivery error]
   (let [attempts (inc (:attempts delivery 0))]
     (if-let [delay-ms (backoff-ms attempts)]
@@ -316,15 +363,17 @@
     (str/join "\n" (concat [hail-guidance "--- Hail metadata ---"] lines))))
 
 (defn- delivery-charge [cfg delivery]
-  (let [override (session-frequencies/behavioral-override (:frequencies delivery))]
-    (charge/build {:config         cfg
-                   :comm           null-comm/channel
-                   :guidance       (metadata-preamble delivery)
-                   :session-key    (normalize-id (:bound-session delivery))
-                   :input          (:prompt delivery)
-                   :origin         (hail-origin delivery)
-                   :crew           (or (:crew override) (normalize-id (:crew delivery)))
-                   :model-override (:model override)})))
+  (let [override    (session-frequencies/behavioral-override (:frequencies delivery))
+        cycle-limit (:cycle-limit (delivery-band cfg delivery))]
+    (charge/build (cond-> {:config         cfg
+                           :comm           hail-comm/channel
+                           :guidance       (metadata-preamble delivery)
+                           :session-key    (normalize-id (:bound-session delivery))
+                           :input          (:prompt delivery)
+                           :origin         (hail-origin delivery)
+                           :crew           (or (:crew override) (normalize-id (:crew delivery)))
+                           :model-override (:model override)}
+                    (some? cycle-limit) (assoc :cycle-limit cycle-limit)))))
 
 ;; Claim = the bridge records a durable turn marker (isaac-7li9), THEN we delete
 ;; the delivery file. A crash between them leaves marker + stray delivery — the
@@ -383,6 +432,16 @@
                                             :outcome :error
                                             :executed-tools (vec (:executed-tool-names result #{})))
                                   (reschedule! cfg root (:now opts) delivery (:error result)))
+
+                                (= :cycle-limit (:ended-by result))
+                                (do
+                                  (log/info :hail/turn-ended
+                                            :id (:id delivery)
+                                            :thread-id (:thread-id delivery)
+                                            :session session-id
+                                            :outcome :continued
+                                            :executed-tools (vec (:executed-tool-names result #{})))
+                                  (wrap-up-delivery! cfg root delivery))
 
                                 :else
                                 (do
@@ -481,7 +540,7 @@
       (throw (ex-info (str "hail requeue: " id " not found in failed/") {:id id})))
     (let [error-kw (:error failed)
           resurrected (-> failed
-                          (dissoc :error :reason :ex-class :ex-message :next-attempt-at :continuations)
+                          (dissoc :error :reason :ex-class :ex-message :next-attempt-at :continuations :continuation)
                           (assoc :attempts 0
                                  :requeued-from id
                                  :requeued-error error-kw

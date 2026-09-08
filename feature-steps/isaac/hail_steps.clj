@@ -13,6 +13,7 @@
     [isaac.foundation.cli-steps :as fcli]
     [isaac.fs :as fs]
     [isaac.hail.attention :as attention]
+    [isaac.hail.comm :as hail-comm]
     [isaac.hail.delivery-worker :as hail-delivery-worker]
     [isaac.hail.router :as hail-router]
     [isaac.llm.api.grover :as grover]
@@ -42,6 +43,7 @@
     (alter-var-root #'isaac.drive.turn/run-turn! (constantly real-run-turn!))
     (grover/reset-queue!)
     (attention/clear-throttle!)
+    (hail-comm/clear-events!)
     ))
 
 (def ^:private short-uuid-re #"^[0-9a-f]{8}$")
@@ -278,6 +280,7 @@
 (defn hail-delivery-worker-ticks []
   (log/set-output! :memory)
   (g/assoc! :runtime-root-dir (g/get :root))
+  (g/assoc! :memory-comm-events hail-comm/events)
   (with-server-fs
     (fn []
       (let [fs*           (server-fs)
@@ -294,6 +297,7 @@
 (defn hail-delivery-worker-ticks-at [iso]
   (log/set-output! :memory)
   (g/assoc! :runtime-root-dir (g/get :root))
+  (g/assoc! :memory-comm-events hail-comm/events)
   (with-server-fs
     (fn []
       (let [fs*           (server-fs)
