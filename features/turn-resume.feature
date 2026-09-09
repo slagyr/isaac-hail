@@ -118,3 +118,26 @@ Feature: Startup resume of interrupted turns
     Then the isaac file "hail/delivered/hail-1.edn" EDN contains:
       | path | value  |
       | id   | hail-1 |
+
+  @wip
+  Scenario: a cancelled hail marker is archived, not re-queued
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the isaac EDN file "sessions/turns/engine-room.edn" exists with:
+      | path          | value          |
+      | source        | :hail          |
+      | delivery-id   | hail-1         |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+      | attempts      | 2              |
+      | cancelled     | true           |
+    When interrupted turns are resumed at "2026-04-21T10:00:00Z"
+    Then the isaac file "hail/cancelled/hail-1.edn" exists
+    And the isaac file "hail/deliveries/hail-1.edn" does not exist
+    And no turn marker exists for session "engine-room"
+

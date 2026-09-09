@@ -840,3 +840,34 @@ Feature: Hail delivery
       | level | event            | session     | outcome    |
       | :info | :hail/turn-ended | engine-room | :delivered |
       | :info | :hail/delivered  | engine-room |            |
+
+  @wip
+  Scenario: cancelling a live hail turn archives to hail/cancelled, not delivered
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the following model responses are queued:
+      | type | content      | model  | wait |
+      | text | Sealing now. | grover | true |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+      | attempts      | 0              |
+    When the hail delivery worker ticks
+    Then session "engine-room" in-flight status is true
+    When isaac is run with "sessions cancel engine-room"
+    Then the exit code is 0
+    When the turn ends on session "engine-room"
+    Then the isaac file "hail/cancelled/hail-1.edn" exists
+    And the isaac file "hail/delivered/hail-1.edn" does not exist
+    And the isaac file "hail/failed/hail-1.edn" does not exist
+    And the isaac file "hail/deliveries/hail-1.edn" does not exist
+    And the log has entries matching:
+      | level | event            | session     | outcome    |
+      | :info | :hail/turn-ended | engine-room | :cancelled |
