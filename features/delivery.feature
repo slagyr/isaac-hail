@@ -871,3 +871,82 @@ Feature: Hail delivery
     And the log has entries matching:
       | level | event            | session     | outcome    |
       | :info | :hail/turn-ended | engine-room | :cancelled |
+
+  @wip
+  Scenario: a band's cycle map overrides the crew on the charge (isaac-tic5)
+    The crew sets no checkpoint; the band does. The charge carries the band's
+    :cycle map over the crew's, the same path the cycle limit already takes,
+    so the drive nudges a checkpoint after the first cycle.
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path        | value  |
+      | model       | grover |
+      | cycle.limit | 10     |
+    And the isaac EDN file "config/hail/engine-band.edn" exists with:
+      | path                   | value                 |
+      | session-tags           | #{:project/warp-coil} |
+      | cycle.checkpoint-every | 1                     |
+    And the following sessions exist:
+      | name        | crew        | tags                  |
+      | engine-room | bartholomew | #{:project/warp-coil} |
+    And the built-in tools are registered
+    And the following model responses are queued:
+      | tool_call | arguments           | content |
+      | exec      | {"command": "true"} |         |
+      |           |                     | done    |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | band          | engine-band    |
+      | bound-session | :engine-room   |
+      | attempts      | 0              |
+    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
+    And the turn ends on session "engine-room"
+    Then the last LLM request matches:
+      | key                  | value                                        |
+      | messages[-1].content | contains "Checkpoint: save work in progress" |
+    And the log has entries matching:
+      | event                   | session     | cycle |
+      | :turn/checkpoint-nudged | engine-room | 1     |
+    And the isaac file "hail/delivered/hail-1.edn" exists
+
+  @wip
+  Scenario: the default continuation budget is 2 (isaac-tic5)
+    A band that sets no :continuations gets two continuations, then the
+    delivery dead-letters with attention. Continuations are a last resort;
+    checkpoints inside the turn are the save point.
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path        | value  |
+      | model       | grover |
+      | cycle.limit | 1      |
+    And the isaac EDN file "config/hail/engine-band.edn" exists with:
+      | path         | value                 |
+      | session-tags | #{:project/warp-coil} |
+    And the following sessions exist:
+      | name        | crew        | tags                  |
+      | engine-room | bartholomew | #{:project/warp-coil} |
+    And the built-in tools are registered
+    And the following model responses are queued:
+      | tool_call | arguments           | content                 |
+      | exec      | {"command": "true"} |                         |
+      | exec      | {"command": "true"} |                         |
+      |           |                     | Checkpoint; next: seal. |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | band          | engine-band    |
+      | bound-session | :engine-room   |
+      | attempts      | 0              |
+      | continuation  | 2              |
+    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
+    And the turn ends on session "engine-room"
+    Then the isaac file "hail/deliveries/hail-1.edn" does not exist
+    And the isaac file "hail/failed/hail-1.edn" EDN contains:
+      | path   | value                     |
+      | reason | :continuations-exhausted  |
+    And the log has entries matching:
+      | level  | event                          | continuation | budget |
+      | :error | :hail/continuations-exhausted  | 2            | 2      |
