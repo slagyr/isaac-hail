@@ -873,7 +873,7 @@ Feature: Hail delivery
       | :info | :hail/turn-ended | engine-room | :cancelled |
 
   @wip
-  Scenario: wrap-up checkpoints the worktree deterministically before a continuation (isaac-wrapup-checkpoint)
+  Scenario: wrap-up checkpoints the worktree deterministically before a continuation (isaac-0uim)
     Field 2026-09-10 (isaac-mmod on isaac-work-2): three wrap-up cycles ended
     :cycle-limit :wrapped-up with no git command run — the model wrote a note
     and ignored the commit instruction; 37 files sat uncommitted across three
