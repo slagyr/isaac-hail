@@ -871,3 +871,47 @@ Feature: Hail delivery
     And the log has entries matching:
       | level | event            | session     | outcome    |
       | :info | :hail/turn-ended | engine-room | :cancelled |
+
+  @wip
+  Scenario: wrap-up checkpoints the worktree deterministically before a continuation (isaac-wrapup-checkpoint)
+    Field 2026-09-10 (isaac-mmod on isaac-work-2): three wrap-up cycles ended
+    :cycle-limit :wrapped-up with no git command run — the model wrote a note
+    and ignored the commit instruction; 37 files sat uncommitted across three
+    continuations. The checkpoint cannot be a request to the model: the band
+    names a checkpoint command and the delivery worker runs it in the bound
+    session's cwd at wrap-up, before re-queueing the continuation.
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path        | value  |
+      | model       | grover |
+      | cycle-limit | 1      |
+    And the isaac EDN file "config/hail/engine-band.edn" exists with:
+      | path         | value                                        |
+      | session-tags | #{:project/warp-coil}                        |
+      | checkpoint   | sh -c 'echo checkpointed > checkpoint.txt'   |
+    And the following sessions exist:
+      | name        | crew        | tags                  | cwd            |
+      | engine-room | bartholomew | #{:project/warp-coil} | /work/engine   |
+    And the built-in tools are registered
+    And the following model responses are queued:
+      | tool_call | arguments           | content                    |
+      | exec      | {"command": "true"} |                            |
+      | exec      | {"command": "true"} |                            |
+      |           |                     | Checkpoint; next: valves   |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path          | value          |
+      | id            | hail-1         |
+      | band          | engine-band    |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+      | attempts      | 0              |
+    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
+    And the turn ends on session "engine-room"
+    Then the file "/work/engine/checkpoint.txt" exists
+    And the log has entries matching:
+      | level | event                | session     | continuation |
+      | :info | :hail/checkpointed   | engine-room |              |
+      | :info | :hail/turn-continued | engine-room | 1            |
+    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
+      | path         | value |
+      | continuation | 1     |
