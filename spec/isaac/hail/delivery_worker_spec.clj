@@ -317,6 +317,29 @@
       (should= {:event :hail/dead-lettered :id "hail-1" :reason :exhausted}
                (select-keys (last @log/captured-logs) [:event :id :reason]))))
 
+  (it "archives a cancelled turn to hail/cancelled and does not deliver or fail"
+    (let [session-store (nexus/get-in [:sessions :store])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (write-delivery! {:id             "hail-1"
+                        :prompt         "Seal the leak."
+                        :crew           :bartholomew
+                        :bound-session  :engine-room
+                        :attempts       0})
+      (with-redefs [isaac.drive.turn/run-turn! (fn [_] {:stopReason "cancelled"})]
+        @(first (sut/tick! {:cfg test-config :session-store session-store})))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/deliveries/hail-1.edn"))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/delivered/hail-1.edn"))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/failed/hail-1.edn"))
+      (should= {:id            "hail-1"
+                :prompt        "Seal the leak."
+                :crew          :bartholomew
+                :bound-session :engine-room
+                :attempts      0}
+               (read-edn "/test/isaac/hail/cancelled/hail-1.edn"))
+      (should= {:event :hail/turn-ended :session "engine-room" :outcome :cancelled}
+               (select-keys (some #(when (= :hail/turn-ended (:event %)) %) @log/captured-logs)
+                            [:event :session :outcome]))))
+
   (it "logs :hail/bound then :hail/delivered for a successful delivery"
     (let [session-store (nexus/get-in [:sessions :store])]
       (store/open-session! session-store "engine-room" {:crew "bartholomew"})

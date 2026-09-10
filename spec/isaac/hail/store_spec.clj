@@ -31,6 +31,11 @@
     (write-hail! "deliveries" "hail-5" {:id "hail-5" :prompt "wait"})
     (should= :in-flight (:lifecycle (sut/find-by-id-with-lifecycle "hail-5"))))
 
+  (it "find-by-id-with-lifecycle tags cancelled/"
+    (write-hail! "cancelled" "hail-9" {:id "hail-9" :prompt "stopped"})
+    (should= {:record {:id "hail-9" :prompt "stopped"} :lifecycle :cancelled}
+             (sut/find-by-id-with-lifecycle "hail-9")))
+
   (it "returns nil when no matching id exists"
     (should-be-nil (sut/find-by-id "missing")))
 

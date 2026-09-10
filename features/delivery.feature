@@ -841,7 +841,6 @@ Feature: Hail delivery
       | :info | :hail/turn-ended | engine-room | :delivered |
       | :info | :hail/delivered  | engine-room |            |
 
-  @wip
   Scenario: cancelling a live hail turn archives to hail/cancelled, not delivered
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |

@@ -119,7 +119,6 @@ Feature: Startup resume of interrupted turns
       | path | value  |
       | id   | hail-1 |
 
-  @wip
   Scenario: a cancelled hail marker is archived, not re-queued
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |

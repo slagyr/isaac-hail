@@ -4,6 +4,7 @@
     [clojure.pprint :as pprint]
     [clojure.string :as str]
     [isaac.bridge.core :as bridge]
+    [isaac.bridge.cancellation :as cancellation]
     [isaac.bridge.suspend :as suspend]
     [isaac.charge :as charge]
     [isaac.comm.protocol :as comm]
@@ -64,6 +65,9 @@
 
 (defn- failed-dir [root]
   (str root "/hail/failed"))
+
+(defn- cancelled-dir [root]
+  (str root "/hail/cancelled"))
 
 (defn- record-path [dir id]
   (str dir "/" id ".edn"))
@@ -225,6 +229,9 @@
 (defn- failed-path [root id]
   (record-path (failed-dir root) id))
 
+(defn- cancelled-path [root id]
+  (record-path (cancelled-dir root) id))
+
 (defn- finish-delivered! [root delivery]
   (hail-store/persist-record! (:id delivery) delivery)
   (write-record! (delivered-path root (:id delivery)) delivery))
@@ -232,6 +239,10 @@
 (defn- finish-failed! [root delivery]
   (hail-store/persist-record! (:id delivery) delivery)
   (write-record! (failed-path root (:id delivery)) delivery))
+
+(defn- finish-cancelled! [root delivery]
+  (hail-store/persist-record! (:id delivery) delivery)
+  (write-record! (cancelled-path root (:id delivery)) delivery))
 
 (defn- backoff-ms [attempts]
   (get delays-ms attempts))
@@ -408,6 +419,17 @@
                                             :id (:id delivery)
                                             :thread-id (:thread-id delivery)
                                             :session session-id))
+
+                                (or (cancellation/cancelled-response? result)
+                                    (:cancelled? result))
+                                (do
+                                  (finish-cancelled! root delivery)
+                                  (log/info :hail/turn-ended
+                                            :id (:id delivery)
+                                            :thread-id (:thread-id delivery)
+                                            :session session-id
+                                            :outcome :cancelled
+                                            :executed-tools (vec (:executed-tool-names result #{}))))
 
                                 (:unavailable? result)
                                 (do
