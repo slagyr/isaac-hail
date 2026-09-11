@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.17
+
+- Cancelled hail turns are archived, not delivered or re-queued (isaac-jejt); pins isaac-agent ac1bf9b (operator cancel stamp).
+
 ## Unreleased
 
 ### Fixed
