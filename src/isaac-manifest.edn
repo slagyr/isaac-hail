@@ -2,6 +2,8 @@
  :version "0.1.17",
  :builtin? true,
  :factory isaac.hail.module/create-module,
+ :isaac/component
+ {:hail-runtime {:namespace isaac.hail.component}},
  :isaac.agent/tools
  {:hail-send {:factory isaac.tool.hail/hail-send-tool-factory}
   :hail-get  {:factory isaac.tool.hail-get/hail-get-tool-factory}},
