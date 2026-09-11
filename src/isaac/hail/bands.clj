@@ -7,7 +7,7 @@
   (lookup [this band-name])
   (all-bands [this]))
 
-(def default-continuations 3)
+(def default-continuations 2)
 
 (defn with-band-defaults [band]
   (cond-> band

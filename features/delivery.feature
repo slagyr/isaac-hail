@@ -707,15 +707,16 @@ Feature: Hail delivery
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path        | value  |
       | model       | grover |
-      | cycle-limit | 1      |
+      | cycle.limit | 1      |
+    And the crew "bartholomew" allows tools: "exec/run"
     And the following sessions exist:
       | name        | crew        |
       | engine-room | bartholomew |
     And the built-in tools are registered
     And the following model responses are queued:
       | tool_call | arguments                      | content                                      |
-      | exec      | {"command": "true"}            |                                              |
-      | exec      | {"command": "echo checkpoint"} |                                              |
+      | exec__run | {"command": "true"}            |                                              |
+      | exec__run | {"command": "echo checkpoint"} |                                              |
       |           |                                | Checkpoint committed; next: reseat the flange |
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path          | value          |
@@ -741,7 +742,8 @@ Feature: Hail delivery
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path        | value  |
       | model       | grover |
-      | cycle-limit | 1      |
+      | cycle.limit | 1      |
+    And the crew "bartholomew" allows tools: "exec/run"
     And the isaac EDN file "config/hail/engine-band.edn" exists with:
       | path          | value                  |
       | session-tags  | #{:project/warp-coil}  |
@@ -752,8 +754,8 @@ Feature: Hail delivery
     And the built-in tools are registered
     And the following model responses are queued:
       | tool_call | arguments           | content                    |
-      | exec      | {"command": "true"} |                            |
-      | exec      | {"command": "true"} |                            |
+      | exec__run | {"command": "true"} |                            |
+      | exec__run | {"command": "true"} |                            |
       |           |                     | Checkpoint; still not done |
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path          | value          |
@@ -775,23 +777,24 @@ Feature: Hail delivery
       | event    | text                                  |
       | bulletin | #"(?s).*hail-1.*continuations.*"      |
 
-  Scenario: a band's cycle-limit overrides the crew's on the dispatched turn (isaac-ntt6)
+  Scenario: a band's cycle.limit overrides the crew's on the dispatched turn (isaac-ntt6)
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path        | value  |
       | model       | grover |
-      | cycle-limit | 5      |
+      | cycle.limit | 5      |
+    And the crew "bartholomew" allows tools: "exec/run"
     And the isaac EDN file "config/hail/engine-band.edn" exists with:
       | path         | value                 |
       | session-tags | #{:project/warp-coil} |
-      | cycle-limit  | 1                     |
+      | cycle.limit   | 1                     |
     And the following sessions exist:
       | name        | crew        | tags                  |
       | engine-room | bartholomew | #{:project/warp-coil} |
     And the built-in tools are registered
     And the following model responses are queued:
       | tool_call | arguments           | content                  |
-      | exec      | {"command": "true"} |                          |
-      | exec      | {"command": "true"} |                          |
+      | exec__run | {"command": "true"} |                          |
+      | exec__run | {"command": "true"} |                          |
       |           |                     | Checkpoint; next: valves |
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path          | value          |
@@ -871,7 +874,6 @@ Feature: Hail delivery
       | level | event            | session     | outcome    |
       | :info | :hail/turn-ended | engine-room | :cancelled |
 
-  @wip
   Scenario: a band's cycle map overrides the crew on the charge (isaac-tic5)
     The crew sets no checkpoint; the band does. The charge carries the band's
     :cycle map over the crew's, the same path the cycle limit already takes,
@@ -880,6 +882,7 @@ Feature: Hail delivery
       | path        | value  |
       | model       | grover |
       | cycle.limit | 10     |
+    And the crew "bartholomew" allows tools: "exec/run"
     And the isaac EDN file "config/hail/engine-band.edn" exists with:
       | path                   | value                 |
       | session-tags           | #{:project/warp-coil} |
@@ -890,7 +893,7 @@ Feature: Hail delivery
     And the built-in tools are registered
     And the following model responses are queued:
       | tool_call | arguments           | content |
-      | exec      | {"command": "true"} |         |
+      | exec__run | {"command": "true"} |         |
       |           |                     | done    |
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path          | value          |
@@ -910,7 +913,6 @@ Feature: Hail delivery
       | :turn/checkpoint-nudged | engine-room | 1     |
     And the isaac file "hail/delivered/hail-1.edn" exists
 
-  @wip
   Scenario: the default continuation budget is 2 (isaac-tic5)
     A band that sets no :continuations gets two continuations, then the
     delivery dead-letters with attention. Continuations are a last resort;
@@ -919,6 +921,7 @@ Feature: Hail delivery
       | path        | value  |
       | model       | grover |
       | cycle.limit | 1      |
+    And the crew "bartholomew" allows tools: "exec/run"
     And the isaac EDN file "config/hail/engine-band.edn" exists with:
       | path         | value                 |
       | session-tags | #{:project/warp-coil} |
@@ -928,8 +931,8 @@ Feature: Hail delivery
     And the built-in tools are registered
     And the following model responses are queued:
       | tool_call | arguments           | content                 |
-      | exec      | {"command": "true"} |                         |
-      | exec      | {"command": "true"} |                         |
+      | exec__run | {"command": "true"} |                         |
+      | exec__run | {"command": "true"} |                         |
       |           |                     | Checkpoint; next: seal. |
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path          | value          |

@@ -374,8 +374,9 @@
     (str/join "\n" (concat [hail-guidance "--- Hail metadata ---"] lines))))
 
 (defn- delivery-charge [cfg delivery]
-  (let [override    (session-frequencies/behavioral-override (:frequencies delivery))
-        cycle-limit (:cycle-limit (delivery-band cfg delivery))]
+  (let [override (session-frequencies/behavioral-override (:frequencies delivery))
+        band     (delivery-band cfg delivery)
+        cycle    (:cycle band)]
     (charge/build (cond-> {:config         cfg
                            :comm           hail-comm/channel
                            :guidance       (metadata-preamble delivery)
@@ -384,7 +385,7 @@
                            :origin         (hail-origin delivery)
                            :crew           (or (:crew override) (normalize-id (:crew delivery)))
                            :model-override (:model override)}
-                    (some? cycle-limit) (assoc :cycle-limit cycle-limit)))))
+                    (some? cycle) (assoc :cycle cycle)))))
 
 ;; Claim = the bridge records a durable turn marker (isaac-7li9), THEN we delete
 ;; the delivery file. A crash between them leaves marker + stray delivery — the

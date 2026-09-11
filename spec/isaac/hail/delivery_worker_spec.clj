@@ -589,10 +589,11 @@
                           (re-find #"(?s).*hail-1.*continuations.*" (or (:text %) "")))
                     @hail-comm/events))))
 
-  (it "puts the band cycle-limit on the dispatched charge"
+  (it "puts the band cycle map on the dispatched charge"
     (let [captured (atom nil)
           cfg      (assoc test-config :hail {"engine-band" {:session-tags #{:project/warp-coil}
-                                                            :cycle-limit  1}})]
+                                                             :cycle        {:limit 1
+                                                                            :checkpoint-every 1}}})]
       (with-redefs [isaac.charge/build (fn [request]
                                          (reset! captured request)
                                          {:charge/type :charge})]
@@ -600,7 +601,8 @@
                                     :prompt        "Seal the leak."
                                     :bound-session :engine-room
                                     :band          "engine-band"}))
-      (should= 1 (:cycle-limit @captured))
+      (should= {:limit 1 :checkpoint-every 1} (:cycle @captured))
+      (should-not (contains? @captured :cycle-limit))
       (should= hail-comm/channel (:comm @captured))))
 
   (it "registers the shared scheduler task"

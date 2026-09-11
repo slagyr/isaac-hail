@@ -93,9 +93,14 @@
        :description "Override context mode for deliveries on this band"},
       :continuations
       {:type :int,
-       :description "Max checkpointed continuations after wrap-up (default 3)"},
-      :cycle-limit
-      {:type :int,
-       :description "Optional per-band override of the tool-cycle budget on the dispatched turn"}}}}}}
+       :description "Max checkpointed continuations after wrap-up (default 2)"},
+      :cycle
+      {:type :map,
+       :description "Optional per-band :cycle overlay (limit, checkpoint-every, prompts) on the dispatched turn",
+       :schema
+       {:limit {:type :int, :description "Tool-call cycle budget override"},
+        :checkpoint-every {:type :int, :description "Nudge a checkpoint every N cycles"},
+        :checkpoint-prompt {:type :string},
+        :wrap-up-prompt {:type :string}}}}}}}}
  :isaac.config/check
  {:hail-band-inheritance {:fn isaac.hail.band-resolve/check-config}}}
