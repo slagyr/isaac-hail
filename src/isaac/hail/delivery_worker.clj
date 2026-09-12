@@ -501,15 +501,26 @@
 
 (defn- referenced-delivery-ids
   "Map of delivery-id -> turn marker for every marker that already claims a
-   delivery — used to distinguish claim-crash strays from resumed deliveries."
+   delivery — used to drop stray deliveries instead of re-dispatching them."
   [session-store]
   (into {} (keep (fn [m] (when-let [did (:delivery-id m)] [(str did) m]))
                  (store/turn-markers session-store))))
 
-(defn- resume-requeued? [delivery marker]
-  (and (some? (:attempts marker))
-       (= (:attempts delivery)
-          (+ (:attempts marker) (if (:suspended marker) 0 1)))))
+(def ^:private resume-sweep-grace-ms 60000)
+
+(defn- resume-grace? [delivery now]
+  (when-let [requeued-at (:resume/requeued-at delivery)]
+    (< (- (.toEpochMilli ^Instant now)
+          (.toEpochMilli (Instant/parse requeued-at)))
+       resume-sweep-grace-ms)))
+
+(defn- remove-stray! [cfg root delivery marker]
+  (delete-record! (delivery-path root (:id delivery)))
+  (attention/maybe-notify-dead-letter! cfg delivery :stale-delivery-removed)
+  (log/warn :hail/stale-delivery-removed
+            :session (:session-id marker)
+            :id (:id delivery))
+  nil)
 
 (defn tick!
   ;; A tick is a wake boundary: config may have changed while we slept, so we
@@ -530,25 +541,20 @@
          (keep (fn [delivery]
                  (if-let [marker (get referenced (str (:id delivery)))]
                    (cond
+                     (store/in-flight? session-store (:session-id marker))
                      ;; live turn: failure-reschedule rewrote deliveries/ before
                      ;; finally cleared the marker — not a claim-crash stray (isaac-3tyl)
-                     (store/in-flight? session-store (:session-id marker))
                      nil
 
-                     ;; startup resume increments attempts before clearing the old
-                     ;; marker. Preserve that newly requeued delivery for the next tick.
-                     (resume-requeued? delivery marker)
+                     (resume-grace? delivery now)
+                     ;; Restart resume writes the delivery before clearing the
+                     ;; marker. Preserve it until that operation can converge.
                      nil
 
-                     ;; orphaned marker with the same attempt: claim-time crash stray —
-                     ;; drop, never re-dispatch (isaac-7li9)
                      :else
-                     (do
-                       (delete-record! (delivery-path root (:id delivery)))
-                       (log/warn :hail/stale-delivery-removed
-                                 :session (:session-id marker)
-                                 :id (:id delivery))
-                       nil))
+                     ;; orphaned marker: claim-time crash stray — drop, never
+                     ;; re-dispatch (isaac-7li9), and surface the loss.
+                     (remove-stray! cfg root delivery marker))
                    (when-let [runnable (runnable-delivery cfg session-store delivery)]
                      (launch-delivery! opts* runnable)))))
          vec)))

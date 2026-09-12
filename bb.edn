@@ -13,9 +13,9 @@
                                                         :git/sha "8b4a33bfff8d5ccae8aae5fff4193ea73ca42c5a"
                                                         :deps/root "spec-support"}
         io.github.slagyr/isaac-agent {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                      :git/sha "86a9a92ce6e665526f48ce6804945f80a07c593a"}
+                                      :git/sha "3a1cbfffb7c54b11ad0755a73ebae8cc5a18b951"}
         io.github.slagyr/isaac-agent-spec {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                           :git/sha "86a9a92ce6e665526f48ce6804945f80a07c593a"
+                                           :git/sha "3a1cbfffb7c54b11ad0755a73ebae8cc5a18b951"
                                            :deps/root "spec"}
         io.github.slagyr/isaac-server {:git/url "https://github.com/slagyr/isaac-server.git"
                                        :git/sha "eb51cc48b8964dabb678086ac36051a86d94c03a"}

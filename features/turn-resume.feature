@@ -41,9 +41,10 @@ Feature: Startup resume of interrupted turns
       | interrupted-at | 2026-04-21T09:59:00Z |
     When interrupted turns are resumed at "2026-04-21T10:00:00Z"
     Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path     | value  | #comment                        |
-      | id       | hail-1 |                                 |
-      | attempts | 2      | unchanged — suspend was planned |
+      | path                 | value                | #comment                        |
+      | id                   | hail-1               |                                 |
+      | attempts             | 2                    | unchanged — suspend was planned |
+      | resume/requeued-at   | 2026-04-21T10:00:00Z | protects the resume/sweep gap   |
     And no turn marker exists for session "engine-room"
     When the hail delivery worker ticks
     And the turn ends on session "engine-room"

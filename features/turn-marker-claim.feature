@@ -89,7 +89,9 @@ Feature: Delivery claim via durable turn markers
       | prompt        | Seal the leak. |
       | crew          | bartholomew    |
       | bound-session | :engine-room   |
-      | attempts      | 2              |
+      | attempts                       | 2              |
+      | data.notification-comm.id       | :discord       |
+      | data.notification-comm.channel  | boiler-room    |
     When the hail delivery worker ticks
     Then the isaac file "hail/deliveries/hail-1.edn" does not exist
     And the isaac file "hail/delivered/hail-1.edn" does not exist
@@ -99,6 +101,11 @@ Feature: Delivery claim via durable turn markers
     And the log has entries matching:
       | level | event                        | session     |
       | warn  | :hail/stale-delivery-removed | engine-room |
+    And the directory "comm/delivery/pending" has exactly 1 file
+    And the only file in "comm/delivery/pending" EDN contains:
+      | path    | value       |
+      | comm    | :discord    |
+      | target  | boiler-room |
 
   Scenario: a failure-rescheduled delivery survives tick while its turn is still in flight
     A transient turn error writes the retry back to deliveries/ before finally

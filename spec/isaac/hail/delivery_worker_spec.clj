@@ -437,13 +437,16 @@
                                   :crew          :bartholomew
                                   :bound-session :engine-room
                                   :attempts      0})
-      ;; Resume writes attempts+1 before clearing the interrupted turn's marker.
-      (write-delivery! {:id            "hail-1"
-                        :prompt        "Seal the leak."
-                        :crew          :bartholomew
-                        :bound-session :engine-room
-                        :attempts      1})
-      (should= [] (sut/tick! {:cfg test-config :session-store session-store}))
+      ;; Resume writes attempts+1 and provenance before clearing the interrupted marker.
+      (write-delivery! {:id                  "hail-1"
+                        :prompt              "Seal the leak."
+                        :crew                :bartholomew
+                        :bound-session       :engine-room
+                        :attempts            1
+                        :resume/requeued-at  "2026-04-21T10:00:00Z"})
+      (should= [] (sut/tick! {:cfg           test-config
+                              :session-store session-store
+                              :now           (Instant/parse "2026-04-21T10:00:01Z")}))
       (should= 1 (:attempts (read-edn "/test/isaac/hail/deliveries/hail-1.edn")))
       (should-not (some #(= :hail/stale-delivery-removed (:event %)) @log/captured-logs))
       (store/clear-turn-marker! session-store "engine-room")
@@ -460,12 +463,15 @@
                                   :session-id    "engine-room"
                                   :suspended     true
                                   :attempts      2})
-      (write-delivery! {:id            "hail-1"
-                        :prompt        "Seal the leak."
-                        :crew          :bartholomew
-                        :bound-session :engine-room
-                        :attempts      2})
-      (should= [] (sut/tick! {:cfg test-config :session-store session-store}))
+      (write-delivery! {:id                  "hail-1"
+                        :prompt              "Seal the leak."
+                        :crew                :bartholomew
+                        :bound-session       :engine-room
+                        :attempts            2
+                        :resume/requeued-at  "2026-04-21T10:00:00Z"})
+      (should= [] (sut/tick! {:cfg           test-config
+                              :session-store session-store
+                              :now           (Instant/parse "2026-04-21T10:00:01Z")}))
       (should= 2 (:attempts (read-edn "/test/isaac/hail/deliveries/hail-1.edn")))
       (should-not (some #(= :hail/stale-delivery-removed (:event %)) @log/captured-logs))))
 
@@ -478,11 +484,32 @@
                         :prompt        "Seal the leak."
                         :crew          :bartholomew
                         :bound-session :engine-room
-                        :attempts      2})
+                        :attempts      2
+                        :data          {:notification-comm {:id :discord :channel "boiler-room"}}})
       (should= [] (sut/tick! {:cfg test-config :session-store session-store}))
       (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/deliveries/hail-1.edn"))
       (should= {:event :hail/stale-delivery-removed :session "engine-room" :id "hail-1"}
-               (select-keys (last @log/captured-logs) [:event :session :id]))))
+               (select-keys (last @log/captured-logs) [:event :session :id]))
+      (should (some #(= {:comm :discord :target "boiler-room"}
+                         (select-keys % [:comm :target]))
+                    (comm-queue/list-pending)))))
+
+  (it "does not sweep a delivery requeued by restart resume"
+    (let [session-store (nexus/get-in [:sessions :store])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (store/record-turn-marker! session-store "engine-room"
+                                 {:source :hail :delivery-id "hail-1" :session-id "engine-room"})
+      (write-delivery! {:id                  "hail-1"
+                        :prompt              "Seal the leak."
+                        :crew                :bartholomew
+                        :bound-session       "engine-room"
+                        :attempts             2
+                        :resume/requeued-at  "2026-04-21T10:00:00Z"})
+      (should= [] (sut/tick! {:cfg           test-config
+                              :session-store session-store
+                              :now           (Instant/parse "2026-04-21T10:00:01Z")}))
+      (should (fs/exists? (nexus/get :fs) "/test/isaac/hail/deliveries/hail-1.edn"))
+      (should-not (some #(= :hail/stale-delivery-removed (:event %)) @log/captured-logs))))
 
   (it "defers a stream-stalled unavailable turn without incrementing attempts"
     (let [session-store (nexus/get-in [:sessions :store])]
