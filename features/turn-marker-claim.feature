@@ -44,6 +44,37 @@ Feature: Delivery claim via durable turn markers
       | path | value  |
       | id   | hail-1 |
 
+  Scenario: a hail-bound turn marker survives restart resume and is rebound
+    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name        | crew        |
+      | engine-room | bartholomew |
+    And the following model responses are queued:
+      | type | content       | model  |
+      | text | Resuming now. | grover |
+    And a hail turn marker exists for session "engine-room" with:
+      | key           | value          |
+      | delivery-id   | hail-restart   |
+      | prompt        | Seal the leak. |
+      | crew          | :bartholomew   |
+      | bound-session | :engine-room   |
+      | attempts      | 0              |
+    When interrupted turns are resumed at "2026-09-11T04:00:14Z"
+    And the hail delivery worker ticks
+    And the turn ends on session "engine-room"
+    Then the isaac file "hail/delivered/hail-restart.edn" EDN contains:
+      | path     | value        |
+      | id       | hail-restart |
+      | attempts | 1            |
+    And the log has entries matching:
+      | level | event       | id           | attempts |
+      | info  | :hail/bound | hail-restart | 1        |
+    And the log has no entries matching:
+      | event                        | id           |
+      | :hail/stale-delivery-removed | hail-restart |
+
   Scenario: a stray delivery already claimed by a turn marker is removed, not re-dispatched
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |

@@ -501,10 +501,15 @@
 
 (defn- referenced-delivery-ids
   "Map of delivery-id -> turn marker for every marker that already claims a
-   delivery — used to drop stray deliveries instead of re-dispatching them."
+   delivery — used to distinguish claim-crash strays from resumed deliveries."
   [session-store]
-  (into {} (keep (fn [m] (when-let [did (:delivery-id m)] [did m]))
+  (into {} (keep (fn [m] (when-let [did (:delivery-id m)] [(str did) m]))
                  (store/turn-markers session-store))))
+
+(defn- resume-requeued? [delivery marker]
+  (and (some? (:attempts marker))
+       (= (:attempts delivery)
+          (+ (:attempts marker) (if (:suspended marker) 0 1)))))
 
 (defn tick!
   ;; A tick is a wake boundary: config may have changed while we slept, so we
@@ -524,12 +529,20 @@
          (filter #(due? % now))
          (keep (fn [delivery]
                  (if-let [marker (get referenced (str (:id delivery)))]
-                   (if (store/in-flight? session-store (:session-id marker))
+                   (cond
                      ;; live turn: failure-reschedule rewrote deliveries/ before
                      ;; finally cleared the marker — not a claim-crash stray (isaac-3tyl)
+                     (store/in-flight? session-store (:session-id marker))
                      nil
-                     ;; orphaned marker: claim-time crash stray — drop, never
-                     ;; re-dispatch (isaac-7li9)
+
+                     ;; startup resume increments attempts before clearing the old
+                     ;; marker. Preserve that newly requeued delivery for the next tick.
+                     (resume-requeued? delivery marker)
+                     nil
+
+                     ;; orphaned marker with the same attempt: claim-time crash stray —
+                     ;; drop, never re-dispatch (isaac-7li9)
+                     :else
                      (do
                        (delete-record! (delivery-path root (:id delivery)))
                        (log/warn :hail/stale-delivery-removed

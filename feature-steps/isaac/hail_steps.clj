@@ -104,12 +104,29 @@
   (when-let [future* (first futures)]
     (g/assoc! :turn-future future*)))
 
+(declare feature-session-store parse-value)
+
+(defn- parse-marker-table [table]
+  (into {:source :hail}
+        (map (fn [[key value]]
+               [(keyword key) (parse-value value)]))
+        (:rows table)))
+
+(defn hail-turn-marker-exists [session-name table]
+  (let [root          (runtime-root-dir)
+        cfg           (current-server-config)
+        session-store (feature-session-store root cfg)]
+    (with-server-fs
+      #(session-store/record-turn-marker! session-store session-name
+                                          (parse-marker-table table)))))
+
+
 (defn delivery-turn-throws-with-message [message]
   (grover/install-test-fixture!)
   (reset! turn-throw-message* message)
   (alter-var-root #'isaac.drive.turn/run-turn! (constantly stub-run-turn!)))
 
-(defn- feature-session-store [root cfg]
+(defn- feature-session-store [_root cfg]
   (or (session-store/registered-store)
       (do (agent-runtime/install! {:config cfg})
           (session-store/registered-store))))
@@ -358,6 +375,10 @@
 
 (defgiven "a delivery whose turn throws with message {message:string}"
   isaac.hail-steps/delivery-turn-throws-with-message)
+
+(defgiven #"a hail turn marker exists for session \"([^\"]+)\" with:"
+  isaac.hail-steps/hail-turn-marker-exists
+  "Seeds a restart-surviving hail marker with the delivery payload in the session store.")
 
 (defwhen "the hail delivery worker ticks" isaac.hail-steps/hail-delivery-worker-ticks)
 

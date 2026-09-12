@@ -426,6 +426,49 @@
                (select-keys (read-edn "/test/isaac/hail/deliveries/hail-1.edn") [:id :attempts]))
       (should-not (some #(= :hail/stale-delivery-removed (:event %)) @log/captured-logs))))
 
+  (it "preserves a delivery that startup resume just requeued until its old marker clears"
+    (let [session-store (nexus/get-in [:sessions :store])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (store/record-turn-marker! session-store "engine-room"
+                                 {:source        :hail
+                                  :delivery-id   "hail-1"
+                                  :session-id    "engine-room"
+                                  :prompt        "Seal the leak."
+                                  :crew          :bartholomew
+                                  :bound-session :engine-room
+                                  :attempts      0})
+      ;; Resume writes attempts+1 before clearing the interrupted turn's marker.
+      (write-delivery! {:id            "hail-1"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :attempts      1})
+      (should= [] (sut/tick! {:cfg test-config :session-store session-store}))
+      (should= 1 (:attempts (read-edn "/test/isaac/hail/deliveries/hail-1.edn")))
+      (should-not (some #(= :hail/stale-delivery-removed (:event %)) @log/captured-logs))
+      (store/clear-turn-marker! session-store "engine-room")
+      (with-redefs [isaac.drive.turn/run-turn! (fn [_] {})]
+        @(first (sut/tick! {:cfg test-config :session-store session-store})))
+      (should= 1 (:attempts (read-edn "/test/isaac/hail/delivered/hail-1.edn")))))
+
+  (it "preserves a suspended delivery that startup resume just requeued"
+    (let [session-store (nexus/get-in [:sessions :store])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (store/record-turn-marker! session-store "engine-room"
+                                 {:source        :hail
+                                  :delivery-id   "hail-1"
+                                  :session-id    "engine-room"
+                                  :suspended     true
+                                  :attempts      2})
+      (write-delivery! {:id            "hail-1"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :attempts      2})
+      (should= [] (sut/tick! {:cfg test-config :session-store session-store}))
+      (should= 2 (:attempts (read-edn "/test/isaac/hail/deliveries/hail-1.edn")))
+      (should-not (some #(= :hail/stale-delivery-removed (:event %)) @log/captured-logs))))
+
   (it "removes a stray delivery when its turn marker is orphaned"
     (let [session-store (nexus/get-in [:sessions :store])]
       (store/open-session! session-store "engine-room" {:crew "bartholomew"})
