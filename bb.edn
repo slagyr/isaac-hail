@@ -13,22 +13,22 @@
                                                         :git/sha "ad0a97b7f039814dc92916299baf3c07a5b86f3a"
                                                         :deps/root "spec-support"}
         io.github.slagyr/isaac-agent {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                      :git/sha "ad0a97b7f039814dc92916299baf3c07a5b86f3a"}
+                                      :git/sha "3a1cbfffb7c54b11ad0755a73ebae8cc5a18b951"}
         io.github.slagyr/isaac-agent-spec {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                           :git/sha "ad0a97b7f039814dc92916299baf3c07a5b86f3a"
+                                           :git/sha "3a1cbfffb7c54b11ad0755a73ebae8cc5a18b951"
                                            :deps/root "spec"}
         io.github.slagyr/isaac-http {:git/url "https://github.com/slagyr/isaac-http.git"
-                                       :git/sha "ad0a97b7f039814dc92916299baf3c07a5b86f3a"}
+                                       :git/sha "11e43014ad5c7b9c8bb693e0eb4f673bbd23991d"}
         io.github.slagyr/isaac-http-spec {:git/url "https://github.com/slagyr/isaac-http.git"
-                                            :git/sha "ad0a97b7f039814dc92916299baf3c07a5b86f3a"
+                                            :git/sha "11e43014ad5c7b9c8bb693e0eb4f673bbd23991d"
                                             :deps/root "spec"}
         io.github.slagyr/isaac-http-test-support {:git/url "https://github.com/slagyr/isaac-http.git"
-                                                    :git/sha "ad0a97b7f039814dc92916299baf3c07a5b86f3a"
+                                                    :git/sha "11e43014ad5c7b9c8bb693e0eb4f673bbd23991d"
                                                     :deps/root "spec-support"}
         cheshire/cheshire {:mvn/version "5.13.0"}
         speclj/speclj {:mvn/version "3.13.0"}
         babashka/process {:mvn/version "0.5.22"}
-        io.github.slagyr/gherclj {:git/tag "v1.3.0" :git/sha "ad0a97b7f039814dc92916299baf3c07a5b86f3a"}
+        io.github.slagyr/gherclj {:git/tag "v1.3.0" :git/sha "9c3bb1d"}
         org.babashka/http-client {:mvn/version "0.4.22"}}
 
  :tasks
