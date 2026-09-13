@@ -53,6 +53,7 @@
                              "isaac.foundation.harness-config-steps"
                              "isaac.foundation.cli-steps"
                              "isaac.foundation.log-steps"
+                             "isaac.config.agent-steps"
                              "isaac.config.config-steps"
                              "isaac.scheduler-steps"
                              "isaac.session.session-steps"

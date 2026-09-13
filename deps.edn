@@ -66,6 +66,7 @@
                            "-s" "isaac.foundation.harness-config-steps"
                            "-s" "isaac.foundation.cli-steps"
                            "-s" "isaac.foundation.log-steps"
+                           "-s" "isaac.config.agent-steps"
                            "-s" "isaac.config.config-steps"
                            "-s" "isaac.scheduler-steps"
                            "-s" "isaac.session.session-steps"
