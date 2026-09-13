@@ -8,7 +8,6 @@
     [gherclj.core :as g :refer [defgiven defwhen defthen helper!]]
     [isaac.agent.config.runtime :as agent-runtime]
     [isaac.drive.turn]
-    [isaac.config.agent-steps]
     [isaac.config.api :as config]
     [isaac.config.loader :as loader]
     [isaac.foundation.cli-steps :as fcli]
