@@ -186,6 +186,7 @@
         (g/should= (parse-value value) (get record (keyword path)))))))
 
 (defn sole-pending-hail-edn-contains [table]
+  (session-steps/await-turn!)
   (let [records (pending-hails)]
     (g/should= 1 (count records))
     (assert-pending-record-fields (first records) table)))
