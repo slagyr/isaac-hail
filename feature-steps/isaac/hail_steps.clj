@@ -21,7 +21,7 @@
     [isaac.logger :as log]
     [isaac.module.loader :as module-loader]
     [isaac.nexus :as nexus]
-    [isaac.server.server-steps :as server-steps]
+    [isaac.http.server-steps :as server-steps]
     [isaac.session.session-steps :as session-steps]
     [isaac.session.store.spi :as session-store]
     [isaac.tool.memory :as memory])

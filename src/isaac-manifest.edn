@@ -12,7 +12,7 @@
   {:usage "hail <subcommand> [options]",
    :summary "Produce hail records",
    :namespace isaac.hail.cli}},
- :isaac.server/route
+ :isaac.http/route
  [{:method :post,
    :path "/hail/send",
    :handler isaac.hail.http/handler}],
