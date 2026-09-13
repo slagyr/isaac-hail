@@ -49,14 +49,16 @@
 (def ^:private short-uuid-re #"^[0-9a-f]{8}$")
 (def ^:private short-uuid-sentinel "<short-uuid>")
 
-(fcli/register-isaac-run-wrapper!
-  (fn [thunk]
-    (if-let [ct (g/get :current-time)]
-      (binding [memory/*now* ct] (thunk))
-      (thunk))))
-
 (defn- server-fs []
   (or (g/get :mem-fs) (fs/real-fs)))
+
+(fcli/register-isaac-run-wrapper!
+  (fn [thunk]
+    (let [config (:config (loader/load-config-result {:root (g/get :root) :fs (server-fs)}))]
+      (with-redefs [loader/snapshot (fn [_] config)]
+        (if-let [ct (g/get :current-time)]
+          (binding [memory/*now* ct] (thunk))
+          (thunk))))))
 
 (defn- with-server-fs [f]
   (let [fs* (server-fs)]
