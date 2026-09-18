@@ -161,3 +161,31 @@ Feature: Hail HTTP route POST /hail/send
     And the sole pending hail EDN contains:
       | path      | value |
       | principal | admin |
+
+  # --- isaac-2a2x: hail records carry the sending principal --------------------
+
+  @wip
+  Scenario: a hail record and its delivery carry the sending principal (isaac-2a2x)
+    Given the isaac EDN file "config/crew/main.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name       | crew |
+      | watch-room | main |
+    And principal "ci" is configured with secret "ci-secret" and scopes "hail/send"
+    When a POST request is made to "/hail/send":
+      | key                  | value                                                                  |
+      | header.Content-Type  | application/json                                                       |
+      | header.Authorization | Bearer ci-secret                                                       |
+      | body                 | {"frequencies": {"session": "watch-room"}, "prompt": "wake the watch"} |
+    Then the response status is 201
+    And the sole pending hail EDN contains:
+      | path      | value |
+      | principal | ci    |
+    When the hail router ticks
+    Then the sole delivery hail EDN contains:
+      | path      | value |
+      | principal | ci    |
+    When isaac is run with "hail show <the sole hail id>"
+    Then the stdout contains "principal"
+    And the stdout contains "ci"
