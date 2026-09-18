@@ -4,7 +4,8 @@
     [clojure.edn :as edn]
     [clojure.string :as str]
     [clojure.walk :as walk]
-    [isaac.hail.queue :as queue]))
+    [isaac.hail.queue :as queue]
+    [isaac.http.auth :as auth]))
 
 (defn- read-body [request]
   (let [body (:body request)]
@@ -189,6 +190,24 @@
     (contains? payload :thread-id) (assoc :thread-id (:thread-id payload))
     (contains? payload :reply-to)  (assoc :reply-to (:reply-to payload))))
 
+(defn- request-principal [request]
+  (or (:isaac/principal request)
+      {:name :admin :scopes #{:*}}))
+
+(defn- principal-name [principal]
+  (when-let [name (:name principal)]
+    (if (keyword? name) (clojure.core/name name) (str name))))
+
+(defn- band-prompt-override? [record]
+  (and (map? (:frequencies record))
+       (contains? (:frequencies record) :band)
+       (contains? record :prompt)))
+
+(defn- with-principal [record principal]
+  (if-let [name (principal-name principal)]
+    (assoc record :principal name)
+    record))
+
 (defn handler [request]
   (let [format  (response-format request)
         payload (parse-body request)]
@@ -200,11 +219,16 @@
       (error-response 400 format "invalid body" "request body could not be parsed")
 
       :else
-      (let [record (build-record payload)]
+      (let [principal (request-principal request)
+            request   (assoc request :isaac/principal principal)
+            record    (with-principal (build-record payload) principal)]
         (if-let [{:keys [error hint]} (validate-record record)]
           (error-response 400 format error hint)
-          (let [record (queue/send! record)]
-            {:status  201
-             :headers {"Content-Type" (response-content-type format)
-                       "Location"     (str "/hail/" (:id record))}
-             :body    (render-body format record)}))))))
+          (do
+            (when (band-prompt-override? record)
+              (auth/require-scope! request :hail/prompt-override))
+            (let [record (queue/send! record)]
+              {:status  201
+               :headers {"Content-Type" (response-content-type format)
+                         "Location"     (str "/hail/" (:id record))}
+               :body    (render-body format record)})))))))

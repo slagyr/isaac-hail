@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- POST `/hail/send` declares route scope `:hail/send`. Band-template `:prompt` overrides require `:hail/prompt-override` via `require-scope!`. Hail records persist `:principal` from `:isaac/principal` (legacy token → `admin`). Pins isaac-http ad4ba5d.
+
 ### Fixed
 
 - HTTP `POST /hail/send` no longer keywordizes a string `:session` (or `:session-tags`) character-wise. A string normalizes to the same vector/set the CLI produces for `--session` / `--session-tag`; a vector of strings maps element-wise; other shapes 400 naming the field. Same audit for `:crew`.

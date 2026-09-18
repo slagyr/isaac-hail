@@ -15,11 +15,15 @@
 (defn- short-uuid? [s]
   (and (string? s) (re-matches short-uuid-re s)))
 
-(defn- post-request [content-type body]
-  {:request-method :post
-   :uri            "/hail/send"
-   :headers        {"content-type" content-type}
-   :body           body})
+(defn- post-request
+  ([content-type body]
+   (post-request content-type body nil))
+  ([content-type body principal]
+   (cond-> {:request-method :post
+            :uri            "/hail/send"
+            :headers        {"content-type" content-type}
+            :body           body}
+     principal (assoc :isaac/principal principal))))
 
 (describe "hail HTTP handler"
 
@@ -46,6 +50,7 @@
                   :frequencies {:band "bean-pickup"}
                   :params      {:n 1}
                   :from        :http
+                  :principal   "admin"
                   :sent-at     "2026-05-24T17:00:00Z"}
                  (queue/read-pending id)))))
 
@@ -64,6 +69,7 @@
                   :frequencies {:band "bean-pickup"}
                   :params      {:n 1}
                   :from        :http
+                  :principal   "admin"
                   :sent-at     "2026-05-24T17:00:00Z"}
                  body))))
 
@@ -134,4 +140,52 @@
           body     (json/parse-string (:body response) true)]
       (should= 400 (:status response))
       (should= "invalid crew" (:error body))
-      (should (.contains (str (:hint body)) "crew")))))
+      (should (.contains (str (:hint body)) "crew"))))
+
+  (it "records the sending principal on the persisted hail"
+    (let [response (sut/handler (post-request "application/json"
+                                              "{\"frequencies\":{\"band\":\"bean-pickup\"},\"params\":{\"n\":1}}"
+                                              {:name :ci :scopes #{:hail/send}}))
+          id       (:id (json/parse-string (:body response) true))]
+      (should= 201 (:status response))
+      (should= "ci" (:principal (queue/read-pending id)))))
+
+  (it "refuses a band prompt override without hail/prompt-override and does not persist"
+    (let [sent (atom nil)]
+      (with-redefs [queue/send! (fn [record] (reset! sent record) record)]
+        (try
+          (sut/handler (post-request "application/json"
+                                     "{\"frequencies\":{\"band\":\"bean-pickup\"},\"prompt\":\"custom\"}"
+                                     {:name :ci :scopes #{:hail/send}}))
+          (should-fail "expected forbidden")
+          (catch clojure.lang.ExceptionInfo e
+            (should= 403 (:status (ex-data e)))
+            (should= :scope (:isaac.http/reason (ex-data e))))))
+      (should-be-nil @sent)))
+
+  (it "allows a band prompt override when the principal holds hail/prompt-override"
+    (let [response (sut/handler (post-request "application/json"
+                                              "{\"frequencies\":{\"band\":\"bean-pickup\"},\"prompt\":\"custom instructions\"}"
+                                              {:name :ops :scopes #{:hail/send :hail/prompt-override}}))
+          id       (:id (json/parse-string (:body response) true))]
+      (should= 201 (:status response))
+      (should= "custom instructions" (:prompt (queue/read-pending id)))
+      (should= "ops" (:principal (queue/read-pending id)))))
+
+  (it "treats a session-direct prompt as ordinary hail/send"
+    (let [response (sut/handler (post-request "application/json"
+                                              "{\"frequencies\":{\"session\":\"watch-room\"},\"prompt\":\"wake the watch\"}"
+                                              {:name :ci :scopes #{:hail/send}}))
+          id       (:id (json/parse-string (:body response) true))]
+      (should= 201 (:status response))
+      (should= "wake the watch" (:prompt (queue/read-pending id)))
+      (should= "ci" (:principal (queue/read-pending id)))))
+
+  (it "records admin and allows a band prompt override when wrap-auth attached no principal"
+    (let [response (sut/handler (post-request "application/json"
+                                              "{\"frequencies\":{\"band\":\"bean-pickup\"},\"prompt\":\"custom instructions\"}"))
+          id       (:id (json/parse-string (:body response) true))]
+      (should= 201 (:status response))
+      (should= "custom instructions" (:prompt (queue/read-pending id)))
+      (should= "admin" (:principal (queue/read-pending id)))))
+  )
