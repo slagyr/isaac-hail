@@ -191,4 +191,13 @@
                    (should= 0 (sut/run-fn {:_raw-args ["--help"]})))]
       (should (.contains output "--dry-run"))
       (should (.contains output "validate only"))))
+
+  (it "show prints principal from a persisted hail"
+    (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/pending")
+    (fs/spit (nexus/get :fs) "/test/isaac/hail/pending/abcd1234.edn"
+             "{:id \"abcd1234\" :principal \"ci\" :from :http}")
+    (let [output (with-out-str
+                   (should= 0 (sut/run-fn {:_raw-args ["show" "abcd1234"]})))]
+      (should (.contains output "principal"))
+      (should (.contains output "ci"))))
   )

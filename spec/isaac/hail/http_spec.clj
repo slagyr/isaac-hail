@@ -149,7 +149,6 @@
           id       (:id (json/parse-string (:body response) true))]
       (should= 201 (:status response))
       (should= "ci" (:principal (queue/read-pending id)))))
-
   (it "refuses a band prompt override without hail/prompt-override and does not persist"
     (let [sent (atom nil)]
       (with-redefs [queue/send! (fn [record] (reset! sent record) record)]

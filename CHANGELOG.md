@@ -4,7 +4,7 @@
 
 ### Added
 
-- POST `/hail/send` declares route scope `:hail/send`. Band-template `:prompt` overrides require `:hail/prompt-override` via `require-scope!`. Hail records persist `:principal` from `:isaac/principal` (legacy token → `admin`). Pins isaac-http ad4ba5d.
+- POST `/hail/send` declares route scope `:hail/send`. Band-template `:prompt` overrides require `:hail/prompt-override` via `require-scope!`. Hail records persist `:principal` from `:isaac/principal` (legacy token → `admin`). `isaac hail show <id>` prints the hail EDN, including principal.
 
 ### Fixed
 

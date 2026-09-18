@@ -6,10 +6,11 @@
     [clojure.string :as str]
     [clojure.tools.cli :as tools-cli]
     [isaac.cli.common :as cli-common]
-     [isaac.config.loader :as loader]
-     [isaac.hail.delivery-worker :as delivery-worker]
+    [isaac.config.loader :as loader]
     [isaac.hail.band-resolve :as band-resolve]
-    [isaac.hail.queue :as queue]))
+    [isaac.hail.delivery-worker :as delivery-worker]
+    [isaac.hail.queue :as queue]
+    [isaac.hail.store :as store]))
 
 (def hail-option-spec
   [["-h" "--help" "Show help"]])
@@ -36,7 +37,8 @@
   (str "Usage: isaac hail <subcommand> [options]\n\n"
        "Send and inspect hail records.\n\n"
        "Subcommands:\n"
-       "  send    Persist a hail record to hail/pending (--dry-run to validate only)\n"))
+       "  send    Persist a hail record to hail/pending (--dry-run to validate only)\n"
+       "  show    Print a hail record by id\n"))
 
 (defn- send-help []
   (str "Usage: isaac hail send [addressing flags] [--prompt <text>] [--params <edn>] [--json|--edn] [--dry-run]\n"
@@ -214,6 +216,14 @@
 
       (= "send" (first arguments))
       (run-send (rest arguments))
+
+      (= "show" (first arguments))
+      (let [id (second arguments)]
+        (if (str/blank? id)
+          (do (binding [*out* *err*] (println "Usage: isaac hail show <id>")) 1)
+          (if-let [record (store/find-by-id id)]
+            (do (cli-common/print-edn! record) 0)
+            (do (binding [*out* *err*] (println (str "hail not found: " id))) 1))))
 
       (= "requeue" (first arguments))
       (let [id (second arguments)]

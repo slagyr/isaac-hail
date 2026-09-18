@@ -158,7 +158,6 @@ Feature: Hail HTTP route POST /hail/send
 
   # --- isaac-2a2x: hail records carry the sending principal --------------------
 
-  @wip
   Scenario: a hail record and its delivery carry the sending principal (isaac-2a2x)
     Given the isaac EDN file "config/crew/main.edn" exists with:
       | path  | value  |

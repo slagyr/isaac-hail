@@ -374,6 +374,21 @@
 
 ;; endregion ^^^^^ Hail delivery system preamble ^^^^^
 
+(defn- interpolate-sole-hail-id [args]
+  (if (str/includes? (str args) "<the sole hail id>")
+    (let [id (or (:id (first (pending-hails)))
+                 (:id (first (delivery-records))))]
+      (str/replace args "<the sole hail id>" (str id)))
+    args))
+
+(defonce ^:private patched-isaac-run?*
+  (do
+    (alter-var-root #'fcli/isaac-run
+      (fn [orig]
+        (fn [args]
+          (orig (interpolate-sole-hail-id args)))))
+    true))
+
 (defwhen "the hail router ticks" isaac.hail-steps/hail-router-ticks)
 
 (defgiven "a delivery whose turn throws with message {message:string}"
