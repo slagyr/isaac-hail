@@ -69,9 +69,14 @@
                 :task (binding [tests/*jvm-features-cmd* ["clojure" "-M:features"]]
                         (apply tests/run-jvm-features! *command-line-args*))}
 
+  lint-cli-host {:doc "Fail on process-global operations outside the CLI host boundary"
+                 :requires ([isaac.foundation.cli-host-lint :as lint])
+                 :task (lint/lint! *command-line-args*)}
+
   ci {:doc  "Run unit specs + acceptance features (native bb path)"
       :requires ([bb.test-tasks :as tests])
       :task (do (run 'config-bypass-lint)
+                (run 'lint-cli-host)
                 (tests/run-ci!))}
 
   lint {:doc      "Run clj-kondo lint (default: src spec; pass file/dir to narrow)"

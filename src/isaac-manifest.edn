@@ -11,7 +11,8 @@
  {:hail
   {:usage "hail <subcommand> [options]",
    :summary "Produce hail records",
-   :namespace isaac.hail.cli}},
+   :namespace isaac.hail.cli,
+   :hosted true}},
  :isaac.http/route
  [{:method :post,
    :path "/hail/send",
