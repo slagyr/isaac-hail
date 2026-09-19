@@ -3,6 +3,9 @@
     [cheshire.core :as json]
     [clojure.edn :as edn]
     [clojure.string :as str]
+    [isaac.cli.host :as host]
+    [isaac.cli.registry :as registry]
+    [isaac.config.api :as config-api]
     [isaac.fs :as fs]
     [isaac.hail.cli :as sut]
     [isaac.nexus :as nexus]
@@ -217,4 +220,29 @@
                    (should= 0 (sut/run-fn {:_raw-args ["show" "abcd1234"]})))]
       (should (.contains output "principal"))
       (should (.contains output "ci"))))
+
+  (it "declares the hail command hosted"
+    (let [manifest (edn/read-string (slurp "src/isaac-manifest.edn"))]
+      (should= true (get-in manifest [:isaac/cli :hail :hosted]))))
+
+  (it "reads hail send - from the embedded host stream without mutating ambient runtime"
+    (registry/register! {:name "hail" :hosted true :run-fn sut/run-fn})
+    (let [before-nexus (nexus/necho)
+          before-memo  (config-api/process-memo-snapshot)
+          payload      "{\"frequencies\":{\"band\":\"bean-pickup\"},\"params\":{\"n\":1}}"
+          out          (java.io.StringWriter.)
+          err          (java.io.StringWriter.)
+          exit         (host/run-embedded {:argv ["hail" "send" "-" "--from-json" "--dry-run"]
+                                           :in   (java.io.StringReader. payload)
+                                           :out  out
+                                           :err  err
+                                           :env  {}
+                                           :cwd  "/test/isaac"
+                                           :root "/test/isaac"})
+          record       (edn/read-string (str out))]
+      (should= 0 exit)
+      (should= {:band "bean-pickup"} (:frequencies record))
+      (should= {:n 1} (:params record))
+      (should= before-nexus (nexus/necho))
+      (should= before-memo (config-api/process-memo-snapshot))))
   )

@@ -1,11 +1,12 @@
 (ns isaac.hail.cli
   (:require
-    [isaac.cli.api :as cli-api]
     [cheshire.core :as json]
     [clojure.edn :as edn]
     [clojure.string :as str]
     [clojure.tools.cli :as tools-cli]
+    [isaac.cli.api :as cli-api]
     [isaac.cli.common :as cli-common]
+    [isaac.cli.host :as host]
     [isaac.config.loader :as loader]
     [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.delivery-worker :as delivery-worker]
@@ -63,7 +64,7 @@
        "      --dry-run              Validate and print the record without enqueueing\n"))
 
 (defn- slurp-stdin []
-  (let [content (slurp *in*)]
+  (let [content (slurp (host/in))]
     (when-not (str/blank? content)
       content)))
 
