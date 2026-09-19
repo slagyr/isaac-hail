@@ -16,7 +16,6 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
       | name        | crew        |
       | engine-room | bartholomew |
 
-  @wip
   Scenario: a gated bound delivery logs why it was skipped on every tick
     Given session "engine-room" is in flight
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
@@ -36,7 +35,6 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
       | path     | value |
       | attempts | 0     |
 
-  @wip
   Scenario: a crew at capacity is a named skip reason, not silence
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path          | value  |
@@ -58,13 +56,12 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
       | level | event                  | id     | reason            |
       | :warn | :hail/delivery-skipped | hail-1 | :crew-at-capacity |
 
-  @wip
   Scenario: a bound delivery unclaimed past the stale threshold while its session is idle is claimed with a recovery log
     The 08-29 shape: the in-flight gate said busy, the session was idle. Past
     the threshold the worker re-derives in-flight from the session's turn
     marker instead of the in-memory gate, finds it idle, and claims.
     Given config:
-      | hail.stale-bound-ms | 300000 |
+      | hail-settings.stale-bound-ms | 300000 |
     And the in-flight gate falsely reports session "engine-room" busy
     And the following model responses are queued:
       | type | content      | model  |
@@ -90,10 +87,9 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
       | path | value  |
       | id   | hail-1 |
 
-  @wip
   Scenario: a bound delivery unclaimed past the stale threshold while its session is genuinely busy is requeued unbound
     Given config:
-      | hail.stale-bound-ms | 300000 |
+      | hail-settings.stale-bound-ms | 300000 |
     And the following sessions exist:
       | name        | crew        |
       | boiler-room | bartholomew |
@@ -118,7 +114,6 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
       | bound-session | :boiler-room |
       | attempts      | 0           |
 
-  @wip
   Scenario: the bind timestamp is recorded when the worker binds a delivery
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path     | value          |
@@ -133,7 +128,6 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
       | bound-session | :engine-room         |
       | bound-at      | 2026-04-21T10:00:00Z |
 
-  @wip
   Scenario: an operator drops a bound-unclaimed delivery and nothing phantom gates the session
     Given the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path          | value          |
@@ -166,7 +160,6 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
       | path | value  |
       | id   | hail-2 |
 
-  @wip
   Scenario: hail drop of an unknown id fails cleanly
     When isaac is run with "hail drop nope99"
     Then the exit code is 1

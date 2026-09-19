@@ -400,6 +400,14 @@
 
 (defwhen "the hail delivery worker ticks" isaac.hail-steps/hail-delivery-worker-ticks)
 
+(defn in-flight-gate-falsely-reports-busy [session-name]
+  (let [store (feature-session-store (runtime-root-dir) (current-server-config))]
+    (session-store/mark-in-flight! store session-name)))
+
+(defgiven #"the in-flight gate falsely reports session \"([^\"]+)\" busy"
+  isaac.hail-steps/in-flight-gate-falsely-reports-busy
+  "Marks the session busy in the in-memory gate (spi/in-flight*) without a turn marker or running turn.")
+
 (defwhen #"the hail delivery worker ticks at \"([^\"]+)\"" isaac.hail-steps/hail-delivery-worker-ticks-at)
 
 (defwhen "the Isaac system is started" isaac.hail-steps/isaac-system-started)

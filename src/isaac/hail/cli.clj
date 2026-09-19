@@ -10,7 +10,8 @@
     [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.delivery-worker :as delivery-worker]
     [isaac.hail.queue :as queue]
-    [isaac.hail.store :as store]))
+    [isaac.hail.store :as store]
+    [isaac.nexus :as nexus]))
 
 (def hail-option-spec
   [["-h" "--help" "Show help"]])
@@ -38,7 +39,8 @@
        "Send and inspect hail records.\n\n"
        "Subcommands:\n"
        "  send    Persist a hail record to hail/pending (--dry-run to validate only)\n"
-       "  show    Print a hail record by id\n"))
+       "  show    Print a hail record by id\n"
+       "  drop    Move a bound-unclaimed delivery to hail/undeliverable\n"))
 
 (defn- send-help []
   (str "Usage: isaac hail send [addressing flags] [--prompt <text>] [--params <edn>] [--json|--edn] [--dry-run]\n"
@@ -225,6 +227,19 @@
             (do (cli-common/print-edn! record) 0)
             (do (binding [*out* *err*] (println (str "hail not found: " id))) 1))))
 
+      (= "drop" (first arguments))
+      (let [id (second arguments)]
+        (if (str/blank? id)
+          (do (binding [*out* *err*] (println "Usage: isaac hail drop <id>")) 1)
+          (try
+            (delivery-worker/drop! (or (nexus/get :root) (loader/root)) id)
+            (println id)
+            0
+            (catch Exception e
+              (binding [*out* *err*]
+                (println (or (.getMessage e) id)))
+              1))))
+
       (= "requeue" (first arguments))
       (let [id (second arguments)]
         (if (str/blank? id)
@@ -259,3 +274,8 @@
 
 (defmethod cli-api/help :hail [_id]
   (hail-help))
+
+(defmethod cli-api/subcommands :hail [_id]
+  [{:name "send" :summary "Persist a hail record to hail/pending"}
+   {:name "show" :summary "Print a hail record by id"}
+   {:name "drop" :summary "Move a bound-unclaimed delivery to hail/undeliverable"}])

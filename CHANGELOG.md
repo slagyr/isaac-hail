@@ -5,6 +5,7 @@
 ### Added
 
 - POST `/hail/send` declares route scope `:hail/send`. Band-template `:prompt` overrides require `:hail/prompt-override` via `require-scope!`. Hail records persist `:principal` from `:isaac/principal` (legacy token → `admin`). `isaac hail show <id>` prints the hail EDN, including principal.
+- Bound deliveries log `:hail/delivery-skipped` (`:session-in-flight`, `:crew-at-capacity`) instead of parking silently. Stale bound-unclaimed past `:hail-settings :stale-bound-ms` (default 5 min) recovers: idle session (`:false-in-flight`) or rebound to another idle candidate (`:rebound-stale`). `:bound-at` stamped at bind. `isaac hail drop <id>` moves a bound-unclaimed delivery to `undeliverable/` with `:reason :dropped`.
 
 ### Fixed
 

@@ -15,7 +15,9 @@
     (and band (nil? (:continuations band))) (assoc :continuations default-continuations)))
 
 (defn- load-slice [slice]
-  (into {} (map (fn [[band-name band]] [band-name (with-band-defaults band)]))
+  (into {} (keep (fn [[band-name band]]
+                   (when (map? band)
+                     [band-name (with-band-defaults band)])))
         (band-resolve/resolved-slice (or slice {}))))
 
 (deftype HailBands [bands*]

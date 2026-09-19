@@ -27,7 +27,10 @@
     {:naming-strategy
      {:type :keyword,
       :description "Hail id naming strategy: :short-uuid (default), :uuid, or :sequential",
-      :validations [[:one-of? :short-uuid :uuid :sequential]]}}}}
+      :validations [[:one-of? :short-uuid :uuid :sequential]]}
+      :stale-bound-ms
+      {:type :int,
+       :description "Milliseconds a bound-unclaimed delivery may sit before recovery. Default 300000."}}}}
   :hail
   {:entity-dir "hail",
    :frontmatter? true,

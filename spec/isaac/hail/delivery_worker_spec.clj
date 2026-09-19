@@ -239,7 +239,7 @@
                              :create :if-missing}
                  :attempts 0}))))
 
-  (it "leaves a delivery pending when its session is already in flight"
+  (it "logs a bound delivery skipped by an in-flight session"
     (let [session-store (nexus/get-in [:sessions :store])]
       (store/open-session! session-store "engine-room" {:crew "bartholomew"})
       (store/mark-in-flight! session-store "engine-room")
@@ -249,16 +249,20 @@
                         :bound-session :engine-room
                         :attempts 0})
       (should= []
-               (sut/tick! {:cfg test-config :session-store session-store}))
+               (sut/tick! {:cfg test-config :session-store session-store
+                           :now (Instant/parse "2026-04-21T10:00:00Z")}))
       (should= {:id       "hail-1"
                 :prompt   "Seal the leak."
                 :crew     :bartholomew
                 :bound-session :engine-room
                 :attempts 0}
                (read-edn "/test/isaac/hail/deliveries/hail-1.edn"))
-      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/inflight/hail-1.edn"))))
+      (should= {:event :hail/delivery-skipped :id "hail-1" :session "engine-room"
+                :reason :session-in-flight :unclaimed-ms 0}
+               (select-keys (last @log/captured-logs)
+                            [:event :id :session :reason :unclaimed-ms]))))
 
-  (it "leaves a delivery pending when its crew is at capacity"
+  (it "logs a bound delivery skipped by crew capacity"
     (let [session-store (nexus/get-in [:sessions :store])
           cfg           (assoc-in test-config [:crew "bartholomew" :max-in-flight] 1)
           cfg           (loader/normalize-config cfg)]
@@ -278,7 +282,8 @@
                 :crew     :bartholomew
                 :bound-session :engine-room
                 :attempts 0}
-               (read-edn "/test/isaac/hail/deliveries/hail-1.edn"))))
+               (read-edn "/test/isaac/hail/deliveries/hail-1.edn"))
+      (should= :crew-at-capacity (:reason (last @log/captured-logs)))))
 
   (it "reschedules a failed turn with the next backoff and clears in-flight"
     (let [session-store (nexus/get-in [:sessions :store])]

@@ -31,6 +31,7 @@
     (java.time Instant)))
 
 (def default-tick-ms 1000)
+(def default-stale-bound-ms 300000)
 
 (def ^:private hail-guidance
   "Autonomous hail; the user may not see your reply.")
@@ -69,6 +70,9 @@
 (defn- cancelled-dir [root]
   (str root "/hail/cancelled"))
 
+(defn- undeliverable-dir [root]
+  (str root "/hail/undeliverable"))
+
 (defn- record-path [dir id]
   (str dir "/" id ".edn"))
 
@@ -96,6 +100,9 @@
     (fs/mkdirs fs* (fs/parent path))
     (fs/spit fs* temp (write-edn record))
     (fs/move fs* temp path)))
+
+(defn- delivery-path [root id]
+  (record-path (deliveries-dir root) id))
 
 (defn- delete-record! [path]
   (fs/delete (filesystem) path))
@@ -163,6 +170,15 @@
                :bound-session (router/state-id-value (:id session)))
         (dissoc :candidates))))
 
+(defn- stamp-bound-at [delivery now]
+  (cond-> delivery
+    (and (:bound-session delivery) (nil? (:bound-at delivery)))
+    (assoc :bound-at (str now))))
+
+(defn- bind-candidate-at [cfg delivery session now]
+  (-> (bind-candidate cfg delivery session)
+      (assoc :bound-at (str now))))
+
 (defn- create-delivery? [cfg delivery]
   (let [band (delivery-band cfg delivery)]
     (and (= :one (router/effective-reach band delivery))
@@ -206,22 +222,112 @@
       :spawn (bind-candidate cfg delivery (create-session! session-store delivery crew-id))
       nil)))
 
-(defn- runnable-delivery [cfg session-store delivery]
-  (cond
-    (create-delivery? cfg delivery)
-    (spawn-runnable-delivery cfg session-store delivery)
+(declare delivery-crew-sessions delivery-path write-record!)
 
-    :else
-    (if-let [session-id (normalize-id (:bound-session delivery))]
-      (when (session-available? cfg session-store session-id)
-        delivery)
-      (some (fn [{:keys [session]}]
-              (when-let [session-entry (session-available? cfg session-store (normalize-id session))]
-                (bind-candidate cfg delivery session-entry)))
-            (:candidates delivery)))))
+(defn- runnable-delivery
+  ([cfg session-store delivery]
+   (runnable-delivery cfg session-store delivery (Instant/now)))
+  ([cfg session-store delivery now]
+   (cond
+     (create-delivery? cfg delivery)
+     (spawn-runnable-delivery cfg session-store delivery)
 
-(defn- delivery-path [root id]
-  (record-path (deliveries-dir root) id))
+     :else
+     (if-let [session-id (normalize-id (:bound-session delivery))]
+       (when (session-available? cfg session-store session-id)
+         delivery)
+       (or (some (fn [{:keys [session]}]
+                   (when-let [session-entry (session-available? cfg session-store (normalize-id session))]
+                     (bind-candidate-at cfg delivery session-entry now)))
+                 (:candidates delivery))
+           (when-let [session (first (filter #(session-available? cfg session-store (normalize-id (:id %)))
+                                             (delivery-crew-sessions session-store delivery)))]
+             (bind-candidate-at cfg delivery session now)))))))
+
+(defn- delivery-crew-sessions [session-store delivery]
+  (let [crew-id (normalize-id (:crew delivery))]
+    (->> (store/list-sessions session-store)
+         (filter #(= crew-id (normalize-id (:crew %))))
+         (sort-by #(normalize-id (:id %))))))
+
+(defn- bind-legacy-delivery [cfg session-store delivery now]
+  (if (or (:bound-session delivery) (seq (:candidates delivery)) (create-delivery? cfg delivery))
+    delivery
+    (if-let [session (first (delivery-crew-sessions session-store delivery))]
+      (-> (bind-candidate cfg delivery session)
+          (assoc :bound-at (str now)))
+      delivery)))
+
+(defn- maybe-bind-unbound! [cfg root session-store delivery now]
+  (let [bound (bind-legacy-delivery cfg session-store delivery now)]
+    (if (not= bound delivery)
+      (do
+        (write-record! (delivery-path root (:id delivery)) bound)
+        (hail-store/persist-record! (:id delivery) bound)
+        bound)
+      delivery)))
+
+(defn- unclaimed-ms [delivery now]
+  (if-let [bound-at (:bound-at delivery)]
+    (max 0 (- (.toEpochMilli ^Instant now)
+              (.toEpochMilli (Instant/parse bound-at))))
+    0))
+
+(defn- stale-bound? [cfg delivery now]
+  (and (:bound-session delivery)
+       (:bound-at delivery)
+       (> (unclaimed-ms delivery now)
+          (long (or (get-in cfg [:hail-settings :stale-bound-ms])
+                    (when (number? (get-in cfg [:hail :stale-bound-ms]))
+                      (get-in cfg [:hail :stale-bound-ms]))
+                    default-stale-bound-ms)))))
+
+(defn- alternate-session [cfg session-store delivery]
+  (let [bound-id (normalize-id (:bound-session delivery))]
+    (some #(when (and (not= bound-id (normalize-id (:id %)))
+                      (not (store/in-flight? session-store (normalize-id (:id %)))))
+             %)
+          (delivery-crew-sessions session-store delivery))))
+
+(defn- recover-stale-bound! [cfg root session-store delivery now]
+  (when (stale-bound? cfg delivery now)
+    (let [session-id (normalize-id (:bound-session delivery))
+          marker     (store/get-turn-marker session-store session-id)
+          alternate  (alternate-session cfg session-store delivery)]
+      (cond
+        alternate
+        (let [rebound (-> (bind-candidate cfg delivery alternate)
+                          (assoc :bound-at (str now)))]
+          (write-record! (delivery-path root (:id delivery)) rebound)
+          (hail-store/persist-record! (:id delivery) rebound)
+          (log/warn :hail/delivery-recovered :id (:id delivery) :reason :rebound-stale
+                    :session (normalize-id (:bound-session rebound)))
+          rebound)
+
+        (nil? marker)
+        (do
+          (store/clear-in-flight! session-store session-id)
+          (log/warn :hail/delivery-recovered :id (:id delivery) :reason :false-in-flight
+                    :session session-id)
+          delivery)
+
+        :else nil))))
+
+(defn- skip-reason [cfg session-store delivery]
+  (when-let [session-id (normalize-id (:bound-session delivery))]
+    (let [session (store/get-session session-store session-id)
+          crew-id (normalize-id (:crew session))]
+      (cond
+        (store/in-flight? session-store session-id) :session-in-flight
+        (and session (not (crew-available? cfg session-store crew-id))) :crew-at-capacity
+        (nil? session) :session-missing))))
+
+(defn- log-skipped! [delivery now reason]
+  (log/warn :hail/delivery-skipped
+            :id (:id delivery)
+            :session (normalize-id (:bound-session delivery))
+            :reason reason
+            :unclaimed-ms (unclaimed-ms delivery now)))
 
 (defn- delivered-path [root id]
   (record-path (delivered-dir root) id))
@@ -231,6 +337,9 @@
 
 (defn- cancelled-path [root id]
   (record-path (cancelled-dir root) id))
+
+(defn- undeliverable-path [root id]
+  (record-path (undeliverable-dir root) id))
 
 (defn- finish-delivered! [root delivery]
   (hail-store/persist-record! (:id delivery) delivery)
@@ -555,9 +664,13 @@
                      ;; orphaned marker: claim-time crash stray — drop, never
                      ;; re-dispatch (isaac-7li9), and surface the loss.
                      (remove-stray! cfg root delivery marker))
-                   (when-let [runnable (runnable-delivery cfg session-store delivery)]
-                     (launch-delivery! opts* runnable)))))
-         vec)))
+                   (let [delivery (maybe-bind-unbound! cfg root session-store delivery now)
+                         delivery (or (recover-stale-bound! cfg root session-store delivery now) delivery)]
+                     (if-let [runnable (runnable-delivery cfg session-store delivery now)]
+                       (launch-delivery! opts* runnable)
+                       (when-let [reason (skip-reason cfg session-store delivery)]
+                         (log-skipped! delivery now reason)
+                         nil)))))))))
 
 (defn start!
   [{:keys [tick-ms]
@@ -592,6 +705,21 @@
       (write-record! (delivery-path root id) resurrected)
       (hail-store/persist-record! id resurrected)
       resurrected)))
+
+(defn drop!
+  "Move a bound-unclaimed delivery to undeliverable with operator-drop provenance."
+  [root id]
+  (let [path     (delivery-path root id)
+        delivery (read-record path)]
+    (when-not delivery
+      (throw (ex-info (str "hail drop: " id " not found in deliveries/") {:id id})))
+    (let [dropped (-> delivery
+                      (assoc :reason :dropped)
+                      (dissoc :bound-session :bound-at :candidates :next-attempt-at))]
+      (delete-record! path)
+      (write-record! (undeliverable-path root id) dropped)
+      (hail-store/persist-record! id dropped)
+      dropped)))
 
 (defn stop! [{:keys [scheduler task-id]}]
   (when scheduler

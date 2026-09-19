@@ -134,6 +134,23 @@
     (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/failed/hail-9.edn"))
     (should= 0 (get-in (read-string (fs/slurp (nexus/get :fs) "/test/isaac/hail/deliveries/hail-9.edn")) [:attempts])))
 
+  (it "drop moves a bound delivery to undeliverable"
+    (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/deliveries")
+    (fs/spit (nexus/get :fs) "/test/isaac/hail/deliveries/hail-9.edn"
+             "{:id \"hail-9\" :bound-session :engine-room :attempts 0}")
+    (let [output (with-out-str (should= 0 (sut/run-fn {:_raw-args ["drop" "hail-9"]})))]
+      (should-contain "hail-9" output))
+    (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/deliveries/hail-9.edn"))
+    (should= :dropped
+             (:reason (read-string (fs/slurp (nexus/get :fs)
+                                             "/test/isaac/hail/undeliverable/hail-9.edn")))))
+
+  (it "drop unknown id exits 1 and mentions id"
+    (let [err* (java.io.StringWriter.)]
+      (binding [*err* err*]
+        (should= 1 (sut/run-fn {:_raw-args ["drop" "nope99"]})))
+      (should (.contains (str err*) "nope99"))))
+
   (it "requeue unknown id exits 1 and mentions id"
     (let [err* (java.io.StringWriter.)]
       (binding [*err* err*]

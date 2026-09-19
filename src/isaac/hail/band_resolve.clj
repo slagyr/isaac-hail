@@ -9,7 +9,7 @@
 (defn template-band?
   "Band files whose names start with _ are templates — inherited from, not hailed."
   [band-name]
-  (str/starts-with? (name band-name) "_"))
+  (and band-name (str/starts-with? (name band-name) "_")))
 
 (defn addressable-band?
   [band-name]
@@ -26,7 +26,9 @@
               child))
 
 (defn- error-row [band-id message]
-  {:key   (str "hail." (name band-id))
+  {:key   (str "hail." (if (or (keyword? band-id) (string? band-id) (symbol? band-id))
+                         (name band-id)
+                         (str band-id)))
    :value message})
 
 (defn- base-name [band]
@@ -35,6 +37,9 @@
 (defn resolve-band
   "Resolve one band against raw bands, following base: transitively."
   [band-id band raw-bands visited]
+  (when-not (map? band)
+    (throw (ex-info "hail band is not a map"
+                    {:band band-id :type :hail-band/not-a-map})))
   (let [base-id (base-name band)]
     (if-not base-id
       (dissoc band :base)
@@ -58,28 +63,33 @@
   "Resolve bands in raw-slice. Templates are validated but omitted from :bands."
   [raw-slice]
   (reduce
-    (fn [{:keys [bands errors]} [band-id band]]
-      (try
-        (let [resolved (resolve-band band-id band raw-slice #{})]
-          (if (template-band? band-id)
-            {:bands bands :errors errors}
-            {:bands (assoc bands band-id resolved) :errors errors}))
-        (catch clojure.lang.ExceptionInfo e
-          (let [data (ex-data e)]
-            (case (:type data)
-              :hail-band/cycle
-              {:bands  bands
-               :errors (conj errors (error-row band-id
-                                                (str "base cycle: "
-                                                     (str/join " -> " (map name (:visited data)))
-                                                     " -> " (name band-id))))}
+    (fn [{:keys [bands errors]} entry]
+      (let [[band-id band] (if (and (sequential? entry) (>= (count entry) 2))
+                             entry
+                             [nil nil])]
+        (if-not (map? band)
+          {:bands bands :errors errors}
+          (try
+            (let [resolved (resolve-band band-id band raw-slice #{})]
+              (if (template-band? band-id)
+                {:bands bands :errors errors}
+                {:bands (assoc bands band-id resolved) :errors errors}))
+            (catch clojure.lang.ExceptionInfo e
+              (let [data (ex-data e)]
+                (case (:type data)
+                  :hail-band/cycle
+                  {:bands  bands
+                   :errors (conj errors (error-row band-id
+                                                    (str "base cycle: "
+                                                         (str/join " -> " (map name (:visited data)))
+                                                         " -> " (name band-id))))}
 
-              :hail-band/missing-base
-              {:bands  bands
-               :errors (conj errors (error-row band-id
-                                                (str "missing base band: " (:base data))))}
+                  :hail-band/missing-base
+                  {:bands  bands
+                   :errors (conj errors (error-row band-id
+                                                    (str "missing base band: " (:base data))))}
 
-              (throw e))))))
+                  (throw e))))))))
     {:bands {} :errors []}
     raw-slice))
 
@@ -87,7 +97,9 @@
   [root-schema raw-hail]
   (let [entity-schema (schema-compose/schema-for-kind root-schema :hail)
         {:keys [bands errors]} (resolve-slice raw-hail)
-        validate-errors (mapcat #(validate-resolved-band entity-schema (key %) (val %))
+        validate-errors (mapcat (fn [[k v]]
+                                  (when (map? v)
+                                    (validate-resolved-band entity-schema k v)))
                                 bands)]
     {:bands bands :errors (vec (concat errors validate-errors))}))
 
@@ -98,7 +110,8 @@
   [raw-slice]
   (if (empty? raw-slice)
     {}
-    (:bands (resolve-slice raw-slice))))
+    (let [settings (into {} (remove (fn [[_ v]] (map? v)) raw-slice))]
+      (merge settings (:bands (resolve-slice raw-slice))))))
 
 (defn check-config
   "isaac.config/check contribution — surface inheritance errors at validate time."
@@ -115,7 +128,8 @@
   (let [raw-hail (:hail config)]
     (if (empty? raw-hail)
       result
-      (let [{:keys [bands errors]} (resolution-errors root-schema raw-hail)]
+      (let [{:keys [bands errors]} (resolution-errors root-schema raw-hail)
+            settings (into {} (remove (fn [[_ v]] (map? v)) raw-hail))]
         (cond-> result
-          true (assoc-in [:config :hail] bands)
+          true (assoc-in [:config :hail] (merge settings bands))
           true (update :errors into errors))))))
