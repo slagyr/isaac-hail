@@ -27,7 +27,7 @@
                                                                        :git/sha "fd8922637fa2ec7a2d29d46d8c8c8ec3a495d2c3"
                                                                        :deps/root "spec"}
                        io.github.slagyr/isaac-http                {:git/url "https://github.com/slagyr/isaac-http.git"
-                                                                       :git/sha "ad4ba5d86a104356c5e7de3a0a0360e2528f0db8"}
+                                                                       :git/sha "493416d8e6508190f72ce56f7a99128b6a4a63f6"}
                        speclj/speclj                                  {:mvn/version "3.13.0"}
                        babashka/process                               {:mvn/version "0.5.22"}}
          :main-opts   ["-m" "speclj.main" "-c" "-D" "spec"]}

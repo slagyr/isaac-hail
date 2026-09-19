@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.20
+
+### Fixed
+
+- Pin isaac-http to main 493416d (OIDC trust-rule config refs). Agent remains fd89226; foundation remains df64bf1.
+
 ### Added
 
 - POST `/hail/send` declares route scope `:hail/send`. Band-template `:prompt` overrides require `:hail/prompt-override` via `require-scope!`. Hail records persist `:principal` from `:isaac/principal` (legacy token → `admin`). `isaac hail show <id>` prints the hail EDN, including principal.
