@@ -66,6 +66,20 @@
     (grover/reset-queue!)
     (example))
 
+  (it "dispatches without the caller realizing the returned seq (isaac-bsqm)"
+    ;; The scheduler calls (tick! {}) and throws the result away. A lazy body
+    ;; means every delivery is walked and none is launched — silently, with no
+    ;; log line and no error. Every other example here calls `first` on the
+    ;; result, which forced the seq and hid this for a whole release.
+    (let [session-store (nexus/get-in [:sessions :store])
+          launched      (atom [])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (write-delivery! {:id "hail-lazy" :prompt "Seal the leak." :crew :bartholomew
+                        :bound-session :engine-room :attempts 0})
+      (with-redefs-fn {#'sut/launch-delivery! (fn [_ delivery] (swap! launched conj (:id delivery)) delivery)}
+        (fn [] (sut/tick! {:cfg test-config :session-store session-store})))
+      (should= ["hail-lazy"] @launched)))
+
   (it "dispatches a bound delivery as a hail-origin turn and moves it to delivered"
     (let [session-store (nexus/get-in [:sessions :store])
           captured      (atom nil)]

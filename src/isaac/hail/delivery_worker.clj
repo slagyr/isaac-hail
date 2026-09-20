@@ -670,7 +670,8 @@
                        (launch-delivery! opts* runnable)
                        (when-let [reason (skip-reason cfg session-store delivery)]
                          (log-skipped! delivery now reason)
-                         nil)))))))))
+                         nil))))))
+         vec)))
 
 (defn start!
   [{:keys [tick-ms]
