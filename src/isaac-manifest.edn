@@ -2,6 +2,9 @@
  :version "0.1.20",
  :builtin? true,
  :factory isaac.hail.module/create-module,
+ :isaac.config/component
+ {:hail-bands {:path [:hail] :impl "hail-bands" :factory isaac.hail.bands/make}},
+
  :isaac/component
  {:hail-runtime {:namespace isaac.hail.component}},
  :isaac.agent/tools

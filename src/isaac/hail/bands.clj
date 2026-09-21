@@ -37,9 +37,3 @@
 
 (defn make [_host]
   (->HailBands (atom {})))
-
-(def registry
-  {:kind    :component
-   :path    [:hail]
-   :impl    "hail-bands"
-   :factory make})
