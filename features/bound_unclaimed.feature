@@ -16,6 +16,11 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
       | name        | crew        |
       | engine-room | bartholomew |
 
+# isaac-udlg (2026-09-21, Micah): the skip is still logged on every tick with
+# its reason — at5m's "never silently" contract is intact — but at :debug rather
+# than :warn. Expected backpressure (:session-in-flight, :crew-at-capacity) ran
+# 357 warns in one log file and buried real errors. :session-missing still warns.
+
   Scenario: a gated bound delivery logs why it was skipped on every tick
     Given session "engine-room" is in flight
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
@@ -29,8 +34,8 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
     And the hail delivery worker ticks at "2026-04-21T10:00:30Z"
     Then the log has entries matching:
       | level | event                  | id     | session     | reason             | unclaimed-ms |
-      | :warn | :hail/delivery-skipped | hail-1 | engine-room | :session-in-flight | #*           |
-      | :warn | :hail/delivery-skipped | hail-1 | engine-room | :session-in-flight | #*           |
+      | :debug | :hail/delivery-skipped | hail-1 | engine-room | :session-in-flight | #*           |
+      | :debug | :hail/delivery-skipped | hail-1 | engine-room | :session-in-flight | #*           |
     And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
       | path     | value |
       | attempts | 0     |
@@ -54,7 +59,7 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
     When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
     Then the log has entries matching:
       | level | event                  | id     | reason            |
-      | :warn | :hail/delivery-skipped | hail-1 | :crew-at-capacity |
+      | :debug | :hail/delivery-skipped | hail-1 | :crew-at-capacity |
 
   Scenario: a bound delivery unclaimed past the stale threshold while its session is idle is claimed with a recovery log
     The 08-29 shape: the in-flight gate said busy, the session was idle. Past

@@ -322,12 +322,26 @@
         (and session (not (crew-available? cfg session-store crew-id))) :crew-at-capacity
         (nil? session) :session-missing))))
 
+(def ^:private expected-skip-reasons
+  "Backpressure, not trouble: the hail simply waits and the worker retries.
+   Logged at :debug so a busy pipeline does not bury real warnings — these ran
+   357 times in a single log file before isaac-udlg."
+  #{:session-in-flight :crew-at-capacity})
+
 (defn- log-skipped! [delivery now reason]
-  (log/warn :hail/delivery-skipped
-            :id (:id delivery)
-            :session (normalize-id (:bound-session delivery))
-            :reason reason
-            :unclaimed-ms (unclaimed-ms delivery now)))
+  ;; log/debug and log/warn are macros, so the level is chosen by branching
+  ;; rather than by picking the fn as a value.
+  (if (contains? expected-skip-reasons reason)
+    (log/debug :hail/delivery-skipped
+               :id (:id delivery)
+               :session (normalize-id (:bound-session delivery))
+               :reason reason
+               :unclaimed-ms (unclaimed-ms delivery now))
+    (log/warn :hail/delivery-skipped
+              :id (:id delivery)
+              :session (normalize-id (:bound-session delivery))
+              :reason reason
+              :unclaimed-ms (unclaimed-ms delivery now))))
 
 (defn- delivered-path [root id]
   (record-path (delivered-dir root) id))
