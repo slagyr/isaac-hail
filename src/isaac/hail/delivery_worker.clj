@@ -328,20 +328,36 @@
    357 times in a single log file before isaac-udlg."
   #{:session-in-flight :crew-at-capacity})
 
+;; {delivery-id reason} — the last skip reason logged for each delivery. A
+;; delivery waiting behind a busy session is skipped on every tick; saying so
+;; every tick buried real errors under hundreds of identical lines (isaac-udlg).
+;; It is said once, and again only if the reason changes.
+;; defonce (not def) so a reload does not re-announce every waiting delivery;
+;; SCI's defonce takes no docstring, hence the comment.
+(defonce ^:private logged-skips* (atom {}))
+
+(defn- forget-skip!
+  "Drop a delivery's remembered skip so its next wait is announced afresh."
+  [id]
+  (swap! logged-skips* dissoc id))
+
 (defn- log-skipped! [delivery now reason]
-  ;; log/debug and log/warn are macros, so the level is chosen by branching
-  ;; rather than by picking the fn as a value.
-  (if (contains? expected-skip-reasons reason)
-    (log/debug :hail/delivery-skipped
-               :id (:id delivery)
-               :session (normalize-id (:bound-session delivery))
-               :reason reason
-               :unclaimed-ms (unclaimed-ms delivery now))
-    (log/warn :hail/delivery-skipped
-              :id (:id delivery)
-              :session (normalize-id (:bound-session delivery))
-              :reason reason
-              :unclaimed-ms (unclaimed-ms delivery now))))
+  (let [id (:id delivery)]
+    (when (not= reason (get @logged-skips* id))
+      (swap! logged-skips* assoc id reason)
+      ;; log/debug and log/warn are macros, so the level is chosen by branching
+      ;; rather than by picking the fn as a value.
+      (if (contains? expected-skip-reasons reason)
+        (log/debug :hail/delivery-skipped
+                   :id id
+                   :session (normalize-id (:bound-session delivery))
+                   :reason reason
+                   :unclaimed-ms (unclaimed-ms delivery now))
+        (log/warn :hail/delivery-skipped
+                  :id id
+                  :session (normalize-id (:bound-session delivery))
+                  :reason reason
+                  :unclaimed-ms (unclaimed-ms delivery now))))))
 
 (defn- delivered-path [root id]
   (record-path (delivered-dir root) id))
@@ -706,7 +722,8 @@
                    (let [delivery (maybe-bind-unbound! cfg root session-store delivery now)
                          delivery (or (recover-stale-bound! cfg root session-store delivery now) delivery)]
                      (if-let [runnable (runnable-delivery cfg session-store delivery now)]
-                       (launch-delivery! opts* runnable)
+                       (do (forget-skip! (:id delivery))
+                           (launch-delivery! opts* runnable))
                        (when-let [reason (skip-reason cfg session-store delivery)]
                          (log-skipped! delivery now reason)
                          nil))))))

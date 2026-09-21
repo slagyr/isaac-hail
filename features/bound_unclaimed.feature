@@ -21,7 +21,7 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
 # than :warn. Expected backpressure (:session-in-flight, :crew-at-capacity) ran
 # 357 warns in one log file and buried real errors. :session-missing still warns.
 
-  Scenario: a gated bound delivery logs why it was skipped on every tick
+  Scenario: a gated bound delivery says why it is waiting once, not once per tick
     Given session "engine-room" is in flight
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path          | value          |
@@ -32,9 +32,8 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
       | attempts      | 0              |
     When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
     And the hail delivery worker ticks at "2026-04-21T10:00:30Z"
-    Then the log has entries matching:
-      | level | event                  | id     | session     | reason             | unclaimed-ms |
-      | :debug | :hail/delivery-skipped | hail-1 | engine-room | :session-in-flight | #*           |
+    Then the log has exactly 1 entries matching:
+      | level  | event                  | id     | session     | reason             | unclaimed-ms |
       | :debug | :hail/delivery-skipped | hail-1 | engine-room | :session-in-flight | #*           |
     And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
       | path     | value |
