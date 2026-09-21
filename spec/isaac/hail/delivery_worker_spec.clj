@@ -530,6 +530,33 @@
       (should (fs/exists? (nexus/get :fs) "/test/isaac/hail/deliveries/hail-1.edn"))
       (should-not (some #(= :hail/stale-delivery-removed (:event %)) @log/captured-logs))))
 
+  (it "defers a weather-suspended turn (nqeq shape) without incrementing attempts"
+    ;; isaac-nqeq: the drive suspends on provider weather, so the result
+    ;; carries :stopReason "suspended" AND the weather fields. The worker
+    ;; must park the delivery, not hand it to the plain-suspend branch.
+    (let [session-store (nexus/get-in [:sessions :store])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (write-delivery! {:id            "hail-1"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :attempts      2})
+      (with-redefs [isaac.drive.turn/run-turn!
+                    (fn [_]
+                      {:stopReason "suspended"
+                       :ended-by   :suspended
+                       :unavailable? true
+                       :reason     :wall
+                       :retry-at   "2026-04-21T10:01:00Z"
+                       :retry-after-ms 60000})]
+        @(first (sut/tick! {:cfg           test-config
+                            :now           (Instant/parse "2026-04-21T10:00:00Z")
+                            :session-store session-store})))
+      (should= 2 (:attempts (read-edn "/test/isaac/hail/deliveries/hail-1.edn")))
+      (should= "2026-04-21T10:01:00Z"
+               (:next-attempt-at (read-edn "/test/isaac/hail/deliveries/hail-1.edn")))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/failed/hail-1.edn"))))
+
   (it "defers a stream-stalled unavailable turn without incrementing attempts"
     (let [session-store (nexus/get-in [:sessions :store])]
       (store/open-session! session-store "engine-room" {:crew "bartholomew"})

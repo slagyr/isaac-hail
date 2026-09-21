@@ -562,8 +562,8 @@ Feature: Hail delivery
       | next-attempt-at | 2026-04-21T10:01:30Z |
     And the isaac file "hail/failed/hail-1.edn" does not exist
     And the log has entries matching:
-      | level | event                   | session     | retry-after-ms | reason          |
-      | :warn | :hail/delivery-deferred | engine-room | 90000          | :stream-stalled |
+      | level | event                   | session     | retry-after-ms | reason |
+      | :warn | :hail/delivery-deferred | engine-room | 90000          | :stall |
 
   Scenario: auth unavailability defers then self-delivers when the provider recovers (isaac-5a4n)
     A provider auth outage is weather, not poison — the delivery parks with a

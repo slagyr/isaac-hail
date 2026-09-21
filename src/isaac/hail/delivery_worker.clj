@@ -517,6 +517,45 @@
                                            {:error (:charge/reason charge)}
                                            (turn/run-turn! charge))]
                               (cond
+                                ;; Weather first (isaac-nqeq): the drive suspends
+                                ;; on provider weather, so an unavailable result
+                                ;; may arrive as {:stopReason "suspended" ...}
+                                ;; carrying the weather fields. Every weather
+                                ;; result carries :unavailable? — a plain
+                                ;; suspend never does — so this test must run
+                                ;; before the suspend branch, or the delivery
+                                ;; stays claimed-and-deleted instead of parked.
+                                (:unavailable? result)
+                                (let [;; nqeq's suspended weather result carries no :provider,
+                                      ;; but the session's weather marker records it under
+                                      ;; :suspended-on. Read it before the marker clear below
+                                      ;; so auth attention names the provider.
+                                      marker   (store/get-turn-marker session-store session-id)
+                                      provider (or (:provider result)
+                                                   (get-in marker [:suspended-on :provider]))]
+                                  (log/info :hail/turn-ended
+                                            :id (:id delivery)
+                                            :thread-id (:thread-id delivery)
+                                            :session session-id
+                                            :outcome :unavailable
+                                            :reason (or (:reason result) :wall)
+                                            :executed-tools (vec (:executed-tool-names result #{})))
+                                  (defer-delivery! root (:now opts) delivery (:retry-after-ms result)
+                                                   {:reason   (or (:reason result) :wall)
+                                                    :provider provider
+                                                    :cfg      cfg})
+                                  ;; The drive parks provider weather as a
+                                  ;; session turn marker for its resume sweep
+                                  ;; (isaac-nqeq); bridge/clear-turn-marker!
+                                  ;; deliberately keeps weather-parked markers.
+                                  ;; But hail's defer owns this retry — the
+                                  ;; parked delivery IS the re-drive. Without
+                                  ;; this clear, the next tick's stale-marker
+                                  ;; guard reads the kept marker (session no
+                                  ;; longer in-flight) as a claim-crash stray
+                                  ;; and deletes the parked delivery.
+                                  (store/clear-turn-marker! session-store session-id))
+
                                 (suspend/suspended-response? result)
                                 (do
                                   (log/info :hail/turn-ended
@@ -540,20 +579,6 @@
                                             :session session-id
                                             :outcome :cancelled
                                             :executed-tools (vec (:executed-tool-names result #{}))))
-
-                                (:unavailable? result)
-                                (do
-                                  (log/info :hail/turn-ended
-                                            :id (:id delivery)
-                                            :thread-id (:thread-id delivery)
-                                            :session session-id
-                                            :outcome :unavailable
-                                            :reason (or (:reason result) :wall)
-                                            :executed-tools (vec (:executed-tool-names result #{})))
-                                  (defer-delivery! root (:now opts) delivery (:retry-after-ms result)
-                                                   {:reason   (or (:reason result) :wall)
-                                                    :provider (:provider result)
-                                                    :cfg      cfg}))
 
                                 (:error result)
                                 (do

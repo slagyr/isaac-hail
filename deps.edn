@@ -4,7 +4,7 @@
         io.github.slagyr/isaac-foundation {:git/url "https://github.com/slagyr/isaac-foundation.git"
                                           :git/sha "9586b08417d9e5412fbc5ed193d1ab3d6e1c716a"}
         io.github.slagyr/isaac-agent {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                          :git/sha "fd8922637fa2ec7a2d29d46d8c8c8ec3a495d2c3"}
+                                          :git/sha "14825ced9e5b64989e5c3e6e97ea9b3ed698c7cc"}
         cheshire/cheshire                   {:mvn/version "5.13.0"}
         }
 
@@ -24,7 +24,7 @@
                                                                        :git/sha "9586b08417d9e5412fbc5ed193d1ab3d6e1c716a"
                                                                        :deps/root "spec-support"}
                        io.github.slagyr/isaac-agent-spec              {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                                                       :git/sha "fd8922637fa2ec7a2d29d46d8c8c8ec3a495d2c3"
+                                                                       :git/sha "14825ced9e5b64989e5c3e6e97ea9b3ed698c7cc"
                                                                        :deps/root "spec"}
                        io.github.slagyr/isaac-http                {:git/url "https://github.com/slagyr/isaac-http.git"
                                                                        :git/sha "32603e6999f95e0dfea6ca0cf36926c493991773"}
