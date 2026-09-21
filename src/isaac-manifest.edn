@@ -1,5 +1,5 @@
 {:id :isaac.hail,
- :version "0.1.20",
+ :version "0.1.21",
  :builtin? true,
  :factory isaac.hail.module/create-module,
  :isaac.config/component
