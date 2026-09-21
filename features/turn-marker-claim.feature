@@ -1,27 +1,29 @@
 Feature: Delivery claim via durable turn markers
-  Claiming a delivery no longer moves it to hail/inflight/ — the bridge is
-  the single writer of durable turn markers (sessions/turns/<session-id>.edn)
-  for every turn source. The worker hands the full delivery record to the
-  bridge inside the charge; the bridge records the marker with the delivery
-  payload EMBEDDED (attempts, backoff, claimed-at); only after the record
-  returns does the worker delete hail/deliveries/<id>.edn. A crash between
-  the two leaves a duplicate (marker + stray delivery), never a loss: on any
-  tick, a delivery already referenced by a turn marker is stale — removed,
-  logged, never re-dispatched. hail/inflight/ and its orphan recovery
-  (isaac-0tf3) are replaced by this mechanism. (isaac-7li9)
+  Claiming a delivery is the bind: the bridge — the single writer of durable
+  turn markers (sessions/turns/<session-id>.edn) for every turn source —
+  records the marker, hail writes the delivered receipt to hail/delivered/,
+  and only then does the worker delete hail/deliveries/<id>.edn (isaac-7li9,
+  isaac-9azm). The marker carries the turn's routing (source, started-at)
+  and nothing of hail's: no delivery id, no attempts, no embedded payload —
+  the receipt is the record. A crash between receipt and delete leaves a
+  duplicate (receipt + stray delivery), never a loss: on any tick, a
+  delivery whose receipt already exists is stale — removed, logged, never
+  re-dispatched. hail/inflight/ and its orphan recovery (isaac-0tf3) stay
+  replaced by this mechanism.
 
   Background:
     Given an Isaac root at "target/test-state"
     And default Grover setup
-
-  Scenario: claiming a delivery records the turn marker and removes the delivery file
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
       | model | grover |
     And the following sessions exist:
       | name        | crew        |
       | engine-room | bartholomew |
-    And the following model responses are queued:
+
+  @wip
+  Scenario: claiming a delivery records the turn marker, writes the receipt, and removes the delivery file (isaac-9azm)
+    Given the following model responses are queued:
       | type | content      | model  | wait |
       | text | Sealing now. | grover | true |
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
@@ -33,10 +35,13 @@ Feature: Delivery claim via durable turn markers
       | attempts      | 2              |
     When the hail delivery worker ticks
     Then a turn marker exists for session "engine-room" with:
-      | key         | value  |
-      | source      | :hail  |
-      | delivery-id | hail-1 |
-      | attempts    | 2      |
+      | key        | value |
+      | source     | :hail |
+      | started-at | #*    |
+    And the isaac file "hail/delivered/hail-1.edn" EDN contains:
+      | path     | value  |
+      | id       | hail-1 |
+      | attempts | 2      |
     And the isaac file "hail/deliveries/hail-1.edn" does not exist
     When the turn ends on session "engine-room"
     Then no turn marker exists for session "engine-room"
@@ -44,60 +49,61 @@ Feature: Delivery claim via durable turn markers
       | path | value  |
       | id   | hail-1 |
 
-  Scenario: a hail-bound turn marker survives restart resume and is rebound
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value  |
-      | model | grover |
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
+  @wip
+  Scenario: a hail-bound turn marker survives restart and resumes in its own session (isaac-9azm)
+    Given session "engine-room" has transcript:
+      | type    | message.role | message.content |
+      | message | user         | Seal the leak.  |
+    And the isaac EDN file "hail/delivered/hail-restart.edn" exists with:
+      | path          | value          |
+      | id            | hail-restart   |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+    And the isaac EDN file "sessions/turns/engine-room.edn" exists with:
+      | path      | value  |
+      | source    | :hail  |
+      | suspended | true   |
+      | boundary  | :clean |
     And the following model responses are queued:
       | type | content       | model  |
       | text | Resuming now. | grover |
-    And a hail turn marker exists for session "engine-room" with:
-      | key           | value          |
-      | delivery-id   | hail-restart   |
-      | prompt        | Seal the leak. |
-      | crew          | :bartholomew   |
-      | bound-session | :engine-room   |
-      | attempts      | 0              |
     When interrupted turns are resumed at "2026-09-11T04:00:14Z"
-    And the hail delivery worker ticks
-    And the turn ends on session "engine-room"
-    Then the isaac file "hail/delivered/hail-restart.edn" EDN contains:
-      | path     | value        |
-      | id       | hail-restart |
-      | attempts | 1            |
+    And the turn queue ticks at "2026-09-11T04:00:20Z"
+    Then session "engine-room" has transcript matching:
+      | type    | message.role | message.content    |
+      | message | user         | Seal the leak.     |
+      | message | user         | #".*interrupted.*" |
+      | message | assistant    | Resuming now.      |
+    And the isaac file "hail/delivered/hail-restart.edn" EDN contains:
+      | path | value        |
+      | id   | hail-restart |
     And the log has entries matching:
-      | level | event       | id           | attempts |
-      | info  | :hail/bound | hail-restart | 1        |
-    And the log has no entries matching:
-      | event                        | id           |
-      | :hail/stale-delivery-removed | hail-restart |
+      | level | event                 | requeued |
+      | :info | :resume/scan-complete | 1        |
 
-  Scenario: a stray delivery already claimed by a turn marker is removed, not re-dispatched
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value  |
-      | model | grover |
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
-    And a turn marker exists for session "engine-room" referencing delivery "hail-1"
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+  @wip
+  Scenario: a stray delivery whose receipt already exists is removed, not re-dispatched (isaac-9azm)
+    Given the isaac EDN file "hail/delivered/hail-1.edn" exists with:
       | path          | value          |
       | id            | hail-1         |
       | prompt        | Seal the leak. |
       | crew          | bartholomew    |
       | bound-session | :engine-room   |
+    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
+      | path                           | value          |
+      | id                             | hail-1         |
+      | prompt                         | Seal the leak. |
+      | crew                           | bartholomew    |
+      | bound-session                  | :engine-room   |
       | attempts                       | 2              |
-      | data.notification-comm.id       | :discord       |
-      | data.notification-comm.channel  | boiler-room    |
+      | data.notification-comm.id      | :discord       |
+      | data.notification-comm.channel | boiler-room    |
     When the hail delivery worker ticks
     Then the isaac file "hail/deliveries/hail-1.edn" does not exist
-    And the isaac file "hail/delivered/hail-1.edn" does not exist
-    And a turn marker exists for session "engine-room" with:
-      | key         | value  |
-      | delivery-id | hail-1 |
+    And the isaac file "hail/delivered/hail-1.edn" EDN contains:
+      | path | value  |
+      | id   | hail-1 |
     And the log has entries matching:
       | level | event                        | session     |
       | warn  | :hail/stale-delivery-removed | engine-room |
@@ -106,32 +112,3 @@ Feature: Delivery claim via durable turn markers
       | path    | value       |
       | comm    | :discord    |
       | target  | boiler-room |
-
-  Scenario: a failure-rescheduled delivery survives tick while its turn is still in flight
-    A transient turn error writes the retry back to deliveries/ before finally
-    clears the marker. The stale-delivery guard must not fire while the session
-    is still in flight — otherwise every failure-path retry is annihilated on
-    the next tick (isaac-3tyl).
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value  |
-      | model | grover |
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
-    And session "engine-room" is in flight
-    And a turn marker exists for session "engine-room" referencing delivery "hail-1"
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path          | value          |
-      | id            | hail-1         |
-      | prompt        | Seal the leak. |
-      | crew          | bartholomew    |
-      | bound-session | :engine-room   |
-      | attempts      | 1              |
-    When the hail delivery worker ticks
-    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path     | value |
-      | id       | hail-1 |
-      | attempts | 1     |
-    And the log has no entries matching:
-      | level | event                        |
-      | warn  | :hail/stale-delivery-removed |

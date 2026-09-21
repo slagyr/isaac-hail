@@ -1,19 +1,24 @@
 Feature: Hail delivery
-  The hail delivery worker ticks on the shared scheduler, reads routed
-  delivery hails from hail/deliveries/ (each named by its own hail id),
-  binds unbound (reach-one) deliveries to an idle candidate, and gates on
-  session in-flight + crew capacity. For each ready delivery it claims the
-  session — the bridge records a durable turn marker (isaac-7li9) and the
-  worker deletes the delivery file — then schedules the turn as a background
-  task WITHOUT waiting, so it never dispatches two turns on the same session
-  at once. The turn opens with an origin+autonomy system preamble (this turn
-  came from a hail; it runs unattended, the user may not see the reply or be
-  available for questions) followed by the resolved prompt. On turn
-  completion the delivery hail moves to hail/delivered/; a failed turn
-  increments attempts and backs off (re-queued to deliveries/),
-  dead-lettering to hail/failed/ after the 5-attempt max. A reach-all
-  child delivery is just a delivery hail (carrying :source-hail); the
-  worker treats it like any other and never touches the broadcast parent.
+  Hail is a mailman. The delivery worker ticks on the shared scheduler,
+  reads routed delivery hails from hail/deliveries/ (each named by its own
+  hail id), binds unbound (reach-one) deliveries to an idle candidate, and
+  gates on session in-flight + crew capacity. For each ready delivery it
+  starts a turn: the bridge records a durable turn marker (isaac-7li9), the
+  receipt is written to hail/delivered/ and the deliveries/ file removed —
+  at bind, before the turn ends (isaac-9azm). A delivery either started a
+  turn or it did not; that is the only distinction hail draws. Only a
+  delivery whose turn cannot start (an unresolved charge — unknown crew, no
+  model — or a throw before the turn) is a delivery failure: attempts
+  increment, it backs off (re-queued to deliveries/), and it dead-letters to
+  hail/failed/ after the 5-attempt max. Everything that happens inside the
+  turn — provider weather, suspension, cancellation, cycle limits, errors —
+  is the drive's business (isaac-f3hq, isaac-xpkf, isaac-6doh); hail holds
+  nothing open and never reads the turn's outcome. The turn opens with an
+  origin+autonomy system preamble (this turn came from a hail; it runs
+  unattended, the user may not see the reply or be available for questions)
+  followed by the resolved prompt. A reach-all child delivery is just a
+  delivery hail (carrying :source-hail); the worker treats it like any other
+  and never touches the broadcast parent.
 
   In tests the scheduler interval is mocked away — ticks are invoked
   directly — and turn completion is driven explicitly with
@@ -24,7 +29,11 @@ Feature: Hail delivery
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
-  Scenario: a bound delivery dispatches a turn and moves to delivered
+  @wip
+  Scenario: a bound delivery starts a turn and is delivered at bind, before the turn ends (isaac-9azm)
+    Delivered means "a turn started". The receipt is written when the worker
+    binds the turn, not when it ends: the record is never in limbo and hail
+    holds nothing open for the turn's duration.
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
       | model | grover |
@@ -32,18 +41,27 @@ Feature: Hail delivery
       | name        | crew        |
       | engine-room | bartholomew |
     And the following model responses are queued:
-      | type | content      | model  |
-      | text | Sealing now. | grover |
+      | type | content      | model  | wait |
+      | text | Sealing now. | grover | true |
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path     | value                  |
-      | id       | hail-1                 |
-      | params   | {:dilithium-leak true} |
-      | prompt   | Seal the leak.         |
-      | crew     | bartholomew            |
-      | bound-session | :engine-room         |
-      | attempts | 0                      |
+      | path          | value                  |
+      | id            | hail-1                 |
+      | params        | {:dilithium-leak true} |
+      | prompt        | Seal the leak.         |
+      | crew          | bartholomew            |
+      | bound-session | :engine-room           |
+      | attempts      | 0                      |
     When the hail delivery worker ticks
-    And the turn ends on session "engine-room"
+    Then session "engine-room" in-flight status is true
+    And the isaac file "hail/delivered/hail-1.edn" EDN contains:
+      | path | value  | #comment                                  |
+      | id   | hail-1 | the receipt — written while the turn runs |
+    And the isaac file "hail/deliveries/hail-1.edn" does not exist
+    And the log has entries matching:
+      | level | event           | session     |
+      | :info | :hail/bound     | engine-room |
+      | :info | :hail/delivered | engine-room |
+    When the turn ends on session "engine-room"
     Then session "engine-room" has transcript matching:
       | type    | message.role | message.content | #comment                        |
       | message | user         | Seal the leak.  | resolved prompt                 |
@@ -169,59 +187,61 @@ Feature: Hail delivery
       | path | value  |
       | id   | hail-2 |
 
-  Scenario: a dispatch failure increments attempts and backs off
+  @wip
+  Scenario: a delivery whose turn cannot start increments attempts and backs off (isaac-9azm)
+    An unresolved charge — here an unknown crew — means no turn ever
+    started. That, and only that, is a delivery failure: attempts++, backoff,
+    back to deliveries/.
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
       | model | grover |
     And the following sessions exist:
       | name        | crew        |
       | engine-room | bartholomew |
-    And the following model responses are queued:
-      | type  | content | model  |
-      | error | boom    | grover |
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path     | value          |
-      | id       | hail-1         |
-      | prompt   | Seal the leak. |
-      | crew     | bartholomew    |
-      | bound-session | :engine-room |
-      | attempts | 0              |
+      | path          | value          | #comment                      |
+      | id            | hail-1         |                               |
+      | prompt        | Seal the leak. |                               |
+      | crew          | nobody         | no such crew — cannot resolve |
+      | bound-session | :engine-room   |                               |
+      | attempts      | 0              |                               |
     When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    And the turn ends on session "engine-room"
     Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path            | value                | #comment                              |
-      | attempts        | 1                    | incremented after the failed dispatch |
-      | next-attempt-at | 2026-04-21T10:00:01Z | tick time + 1s (first backoff step)   |
+      | path            | value                | #comment                            |
+      | attempts        | 1                    | incremented — no turn started       |
+      | next-attempt-at | 2026-04-21T10:00:01Z | tick time + 1s (first backoff step) |
     And the isaac file "hail/delivered/hail-1.edn" does not exist
     And the isaac file "hail/failed/hail-1.edn" does not exist
+    And the log has entries matching:
+      | level | event                | attempts | error         |
+      | :warn | :hail/attempt-failed | 1        | :unknown-crew |
 
-  Scenario: a delivery that exhausts max attempts dead-letters to failed
+  @wip
+  Scenario: a delivery whose turn cannot start exhausts max attempts and dead-letters to failed (isaac-9azm)
+    The dead-letter budget is for poison that never becomes a turn.
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
       | model | grover |
     And the following sessions exist:
       | name        | crew        |
       | engine-room | bartholomew |
-    And the following model responses are queued:
-      | type  | content | model  |
-      | error | boom    | grover |
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path     | value          | #comment                                          |
-      | id       | hail-1         |                                                   |
-      | prompt   | Seal the leak. |                                                   |
-      | crew     | bartholomew    |                                                   |
-      | bound-session | :engine-room |                                                   |
-      | attempts | 4              | one short of the 5-attempt max; this tick is last |
+      | path          | value          | #comment                                          |
+      | id            | hail-1         |                                                   |
+      | prompt        | Seal the leak. |                                                   |
+      | crew          | nobody         | no such crew — cannot resolve                     |
+      | bound-session | :engine-room   |                                                   |
+      | attempts      | 4              | one short of the 5-attempt max; this tick is last |
     When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    And the turn ends on session "engine-room"
     Then the isaac file "hail/deliveries/hail-1.edn" does not exist
     And the isaac file "hail/failed/hail-1.edn" EDN contains:
-      | path     | value  | #comment                                |
-      | id       | hail-1 |                                         |
-      | attempts | 5      | hit the max on this tick; dead-lettered |
+      | path     | value         | #comment                                |
+      | id       | hail-1        |                                         |
+      | attempts | 5             | hit the max on this tick; dead-lettered |
+      | error    | :unknown-crew | why no turn ever started                |
     And the log has entries matching:
-      | level | event               | id     | reason     |
-      | error | :hail/dead-lettered | hail-1 | :exhausted |
+      | level | event               | id     | reason     | error         |
+      | error | :hail/dead-lettered | hail-1 | :exhausted | :unknown-crew |
     And the isaac file "hail/delivered/hail-1.edn" does not exist
 
   Scenario: a reach-all child delivery completes independently and leaves the broadcast parent untouched
@@ -297,11 +317,12 @@ Feature: Hail delivery
       | message | user         |               | Resonance climbing. |
       | message | assistant    | echo-alt      | On it.              |
 
-  Scenario: a turn that dies on empty responses fails the delivery instead of completing it (isaac-k4mf)
-    An empty-terminal-response turn failure is a DELIVERY failure: attempts
-    increment and the hail backs off for redelivery (dead-lettering to
-    hail/failed/ after max attempts, per the existing convention) — the
-    session is never silently freed with the work unfinished.
+  @wip
+  Scenario: a turn that goes silent is delivered; the drive parks it as weather (isaac-k4mf, isaac-9azm)
+    A turn started, so the delivery is done. Silence after the nudge is the
+    drive's weather (isaac-f3hq): the session's marker parks with :silence and
+    the drive's sweep re-drives it — hail neither retries nor dead-letters,
+    and the session is never silently freed with the work unfinished.
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
       | model | grover |
@@ -309,23 +330,26 @@ Feature: Hail delivery
       | name        | crew        |
       | engine-room | bartholomew |
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path     | value              |
-      | id       | hail-1             |
-      | bound-session | :engine-room     |
-      | crew     | bartholomew        |
-      | prompt   | Seal the leak.     |
-      | attempts | 0                  |
+      | path          | value          |
+      | id            | hail-1         |
+      | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
+      | attempts      | 0              |
     And the following model responses are queued:
       | type | content | model  |
       | text |         | grover |
       | text |         | grover |
     When the hail delivery worker ticks
     And the turn ends on session "engine-room"
-    Then the isaac file "hail/delivered/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path     | value  |
-      | id       | hail-1 |
-      | attempts | 1      |
+    Then the isaac file "hail/delivered/hail-1.edn" EDN contains:
+      | path | value  |
+      | id   | hail-1 |
+    And a turn marker exists for session "engine-room" with:
+      | key       | value    |
+      | source    | :hail    |
+      | suspended | true     |
+      | reason    | :silence |
 
   Scenario: a successful delivery leaves the hail findable after the deliveries file is gone (isaac-u7ug)
     Hails never die as records. Claiming deletes hail/deliveries/<id>.edn so
@@ -391,7 +415,8 @@ Feature: Hail delivery
       | :info | :hail/bound     | engine-room |
       | :info | :hail/delivered | engine-room |
 
-  Scenario: a failed delivery turn logs the attempt and backoff (isaac-jnkp)
+  @wip
+  Scenario: a delivery whose turn cannot start logs the attempt and backoff (isaac-jnkp, isaac-9azm)
     Given default Grover setup
     And the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
@@ -400,22 +425,22 @@ Feature: Hail delivery
       | name        | crew        |
       | engine-room | bartholomew |
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path     | value          |
-      | id       | hail-1         |
-      | bound-session | :engine-room |
-      | crew     | bartholomew    |
-      | prompt   | Seal the leak. |
-      | attempts | 0              |
-    And the following model responses are queued:
-      | type  | content   | model  |
-      | error | boom      | grover |
+      | path          | value          | #comment                      |
+      | id            | hail-1         |                               |
+      | prompt        | Seal the leak. |                               |
+      | crew          | nobody         | no such crew — cannot resolve |
+      | bound-session | :engine-room   |                               |
+      | attempts      | 0              |                               |
     When the hail delivery worker ticks
-    And the turn ends on session "engine-room"
     Then the log has entries matching:
-      | level | event                | attempts |
-      | :warn | :hail/attempt-failed | 1        |
+      | level | event                | attempts | error         |
+      | :warn | :hail/attempt-failed | 1        | :unknown-crew |
 
-  Scenario: a thrown delivery turn logs ex-class and ex-message on attempt-failed (isaac-cehc)
+  @wip
+  Scenario: a throw before the turn starts logs ex-class and ex-message on attempt-failed (isaac-cehc, isaac-9azm)
+    A throw while preparing the turn (rendering the band prompt, building
+    the charge) is a delivery failure with a diagnosis; a throw inside the
+    turn is the drive's and never reaches hail.
     Given default Grover setup
     And the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
@@ -426,21 +451,18 @@ Feature: Hail delivery
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path          | value          |
       | id            | hail-1         |
-      | bound-session | :engine-room   |
-      | crew          | bartholomew    |
       | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
       | attempts      | 0              |
-    And the following model responses are queued:
-      | type | content | model  |
-      | text | unused  | grover |
-    And a delivery whose turn throws with message "boom-xyz"
+    And a delivery whose turn cannot start throws with message "boom-xyz"
     When the hail delivery worker ticks
-    And the turn ends on session "engine-room"
     Then the log has entries matching:
-      | level | event                | error      | ex-class                  | ex-message | attempts |
+      | level | event                | error      | ex-class                   | ex-message | attempts |
       | :warn | :hail/attempt-failed | :exception | clojure.lang.ExceptionInfo | boom-xyz   | 1        |
 
-  Scenario: a thrown delivery dead-letters with ex-class and ex-message (isaac-cehc, isaac-3tvq)
+  @wip
+  Scenario: a throw before the turn starts dead-letters with ex-class and ex-message (isaac-cehc, isaac-3tvq, isaac-9azm)
     Given default Grover setup
     And the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
@@ -448,26 +470,22 @@ Feature: Hail delivery
     And the following sessions exist:
       | name        | crew        |
       | engine-room | bartholomew |
-    And the following model responses are queued:
-      | type | content | model  |
-      | text | unused  | grover |
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path          | value          |
       | id            | hail-1         |
-      | bound-session | :engine-room   |
-      | crew          | bartholomew    |
       | prompt        | Seal the leak. |
+      | crew          | bartholomew    |
+      | bound-session | :engine-room   |
       | attempts      | 4              |
-    And a delivery whose turn throws with message "boom-xyz"
+    And a delivery whose turn cannot start throws with message "boom-xyz"
     When the hail delivery worker ticks
-    And the turn ends on session "engine-room"
     Then the isaac file "hail/failed/hail-1.edn" EDN contains:
       | path       | value      | #comment                          |
       | attempts   | 5          |                                   |
       | error      | :exception | failure class on the record       |
       | ex-message | boom-xyz   | diagnosis without log archaeology |
     And the log has entries matching:
-      | level | event               | error      | ex-class                  | ex-message | reason     |
+      | level | event               | error      | ex-class                   | ex-message | reason     |
       | error | :hail/dead-lettered | :exception | clojure.lang.ExceptionInfo | boom-xyz   | :exhausted |
 
   Scenario: binding stamps bound-session on the delivery record (isaac-fq9c)
@@ -502,11 +520,13 @@ Feature: Hail delivery
       | path          | value  |
       | bound-session | :bridge |
 
-  Scenario: an unavailable provider defers the delivery without burning attempts (isaac-3tvq)
-    A provider wall (usage limit, quota, credit exhaustion) is weather, not
-    poison — the drive classifies it as unavailable with a retry-after, and
-    the worker defers the delivery the way it treats a busy session: back to
-    pending, attempts untouched, no dead-letter progress.
+  @wip
+  Scenario: a provider wall is the turn's weather — delivered at bind, parked by the drive, attempts untouched (isaac-3tvq, isaac-9azm)
+    A wall (usage limit, quota, credit exhaustion) is weather, not poison —
+    and it is the drive's weather. The turn started, so the delivery is
+    delivered; the drive parks the session's marker with backoff and its
+    sweep re-drives it (isaac-nqeq, isaac-f3hq). Hail's attempts never move
+    because hail never sees the wall.
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
       | model | grover |
@@ -525,19 +545,25 @@ Feature: Hail delivery
       | attempts      | 2              |
     When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
     And the turn ends on session "engine-room"
-    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path            | value                | #comment                                     |
-      | attempts        | 2                    | unchanged — a wall is not evidence of poison |
-      | next-attempt-at | 2026-04-21T10:01:00Z | tick time + retry-after-ms, not backoff      |
+    Then the isaac file "hail/delivered/hail-1.edn" EDN contains:
+      | path     | value  | #comment                                     |
+      | id       | hail-1 |                                              |
+      | attempts | 2      | unchanged — a wall is not evidence of poison |
+    And a turn marker exists for session "engine-room" with:
+      | key       | value                |
+      | source    | :hail                |
+      | suspended | true                 |
+      | reason    | :wall                |
+      | retry-at  | 2026-04-21T10:01:00Z |
     And the isaac file "hail/failed/hail-1.edn" does not exist
     And the log has entries matching:
-      | level | event                   | session     | retry-after-ms | reason |
-      | :warn | :hail/delivery-deferred | engine-room | 60000          | :wall  |
+      | level | event           | session     | reason | retry-at             |
+      | :warn | :turn/suspended | engine-room | :wall  | 2026-04-21T10:01:00Z |
 
-  Scenario: a stalled provider stream defers the delivery without burning attempts (isaac-6zk5)
-    An SSE idle stall is provider weather, not poison — drive classifies it as
-    unavailable with retry-after, and the worker parks the delivery without
-    incrementing attempts.
+  @wip
+  Scenario: a stalled provider stream is the turn's weather — delivered at bind, parked by the drive (isaac-6zk5, isaac-9azm)
+    An SSE idle stall is provider weather, not poison — the drive parks it
+    with the provider's retry-after and its sweep re-drives it.
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
       | model | grover |
@@ -556,18 +582,24 @@ Feature: Hail delivery
       | attempts      | 2              |
     When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
     And the turn ends on session "engine-room"
-    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path            | value                |
-      | attempts        | 2                    |
-      | next-attempt-at | 2026-04-21T10:01:30Z |
+    Then the isaac file "hail/delivered/hail-1.edn" EDN contains:
+      | path     | value  |
+      | id       | hail-1 |
+      | attempts | 2      |
+    And a turn marker exists for session "engine-room" with:
+      | key       | value                |
+      | source    | :hail                |
+      | suspended | true                 |
+      | reason    | :stall               |
+      | retry-at  | 2026-04-21T10:01:30Z |
     And the isaac file "hail/failed/hail-1.edn" does not exist
-    And the log has entries matching:
-      | level | event                   | session     | retry-after-ms | reason |
-      | :warn | :hail/delivery-deferred | engine-room | 90000          | :stall |
 
-  Scenario: auth unavailability defers then self-delivers when the provider recovers (isaac-5a4n)
-    A provider auth outage is weather, not poison — the delivery parks with a
-    short retry-after and delivers itself once auth is healthy again.
+  @wip
+  Scenario: auth weather parks the turn and the drive's sweep completes it when the provider recovers (isaac-5a4n, isaac-9azm)
+    Hails never die: an expired login parks the turn, not the delivery. The
+    receipt was written at bind; when auth is healthy again the weather sweep
+    re-drives the turn in its own session and it completes. Nothing counts
+    against the dead-letter budget.
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
       | model | grover |
@@ -575,9 +607,9 @@ Feature: Hail delivery
       | name        | crew        |
       | engine-room | bartholomew |
     And the following model responses are queued:
-      | type        | retry-after-ms | model  | reason |
-      | unavailable | 300000         | grover | auth   |
-      | text        | Sealed.        | grover |        |
+      | type        | retry-after-ms | model  | reason | content |
+      | unavailable | 300000         | grover | auth   |         |
+      | text        |                | grover |        | Sealed. |
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path          | value          |
       | id            | hail-1         |
@@ -587,85 +619,30 @@ Feature: Hail delivery
       | attempts      | 0              |
     When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
     And the turn ends on session "engine-room"
-    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path            | value                |
-      | attempts        | 0                    |
-      | next-attempt-at | 2026-04-21T10:05:00Z |
-    And the log has entries matching:
-      | level | event                   | session     | reason | retry-after-ms |
-      | :warn | :hail/delivery-deferred | engine-room | :auth  | 300000         |
-    When the hail delivery worker ticks at "2026-04-21T10:05:30Z"
+    Then the isaac file "hail/delivered/hail-1.edn" EDN contains:
+      | path | value  |
+      | id   | hail-1 |
+    And a turn marker exists for session "engine-room" with:
+      | key       | value                |
+      | source    | :hail                |
+      | suspended | true                 |
+      | reason    | :auth                |
+      | retry-at  | 2026-04-21T10:05:00Z |
+    When the resume sweep runs at "2026-04-21T10:05:30Z"
     And the turn ends on session "engine-room"
-    Then the isaac file "hail/delivered/hail-1.edn" exists
-    And the isaac file "hail/deliveries/hail-1.edn" does not exist
+    Then session "engine-room" has transcript matching:
+      | type    | message.role | message.content |
+      | message | user         | Seal the leak.  |
+      | message | assistant    | Sealed.         |
+    And no turn marker exists for session "engine-room"
     And the isaac file "hail/failed/hail-1.edn" does not exist
 
-  Scenario: auth deferrals post throttled attention to the comm outbox (isaac-5a4n)
-    Given the isaac EDN file "config/isaac.edn" exists with:
-      | path                      | value         |
-      | attention.notify.comm     | discord       |
-      | attention.notify.target   | boiler-room   |
-    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value  |
-      | model | grover |
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
-    And the following model responses are queued:
-      | type        | retry-after-ms | model  | reason |
-      | unavailable | 300000         | grover | auth   |
-      | unavailable | 300000         | grover | auth   |
-      | unavailable | 300000         | grover | auth   |
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path          | value          |
-      | id            | hail-1         |
-      | prompt        | Seal the leak. |
-      | crew          | bartholomew    |
-      | bound-session | :engine-room   |
-      | attempts      | 0              |
-    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    And the turn ends on session "engine-room"
-    When the hail delivery worker ticks at "2026-04-21T10:05:30Z"
-    And the turn ends on session "engine-room"
-    Then the directory "comm/delivery/pending" has exactly 1 file
-    And the only file in "comm/delivery/pending" EDN contains:
-      | path    | value                        |
-      | comm    | :discord                     |
-      | target  | boiler-room                  |
-      | content | contains "auth" and "grover" |
-    When the hail delivery worker ticks at "2026-04-21T11:06:00Z"
-    And the turn ends on session "engine-room"
-    Then the directory "comm/delivery/pending" has exactly 2 files
-
-  Scenario: wall deferrals stay silent when attention is configured (isaac-5a4n)
-    Given the isaac EDN file "config/isaac.edn" exists with:
-      | path                      | value         |
-      | attention.notify.comm     | discord       |
-      | attention.notify.target   | boiler-room   |
-    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value  |
-      | model | grover |
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
-    And the following model responses are queued:
-      | type        | retry-after-ms | model  |
-      | unavailable | 60000          | grover |
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path          | value          |
-      | id            | hail-1         |
-      | prompt        | Seal the leak. |
-      | crew          | bartholomew    |
-      | bound-session | :engine-room   |
-      | attempts      | 0              |
-    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    And the turn ends on session "engine-room"
-    Then the directory "comm/delivery/pending" has exactly 0 files
-
-  Scenario: a suspended hail turn leaves its marker for resume — no reschedule, no attempts (isaac-2xj5)
-    Suspend is not a failure: the delivery lives on only inside the stamped
-    turn marker (embedded attempts intact) for isaac-vdfc to re-queue at next
-    startup. It is neither re-queued, concluded, nor punished here.
+  @wip
+  Scenario: a suspended hail turn leaves a plain marker for the drive to resume (isaac-2xj5, isaac-9azm)
+    Suspend is the drive's business. The delivery was delivered at bind; the
+    marker carries the turn's routing and the suspend stamp and nothing of
+    hail's — no delivery payload, no attempts. The drive resumes it in its
+    own session at the next start (isaac-6doh).
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
       | model | grover |
@@ -685,99 +662,19 @@ Feature: Hail delivery
     When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
     And in-flight turns are suspended
     Then a turn marker exists for session "engine-room" with:
-      | key         | value  | #comment                             |
-      | source      | :hail  |                                      |
-      | delivery-id | hail-1 |                                      |
-      | attempts    | 2      | unchanged — suspend is not a failure |
-      | suspended   | true   |                                      |
-      | boundary    | :clean |                                      |
+      | key       | value  |
+      | source    | :hail  |
+      | suspended | true   |
+      | boundary  | :clean |
+    And the isaac file "hail/delivered/hail-1.edn" EDN contains:
+      | path | value  |
+      | id   | hail-1 |
     And the isaac file "hail/deliveries/hail-1.edn" does not exist
-    And the isaac file "hail/delivered/hail-1.edn" does not exist
-    And the isaac file "hail/failed/hail-1.edn" does not exist
-    And the log has entries matching:
-      | level | event                    | session     |
-      | :info | :hail/delivery-suspended | engine-room |
 
-  Scenario: a turn that hits the cycle limit wraps up and is re-queued as a continuation (isaac-ntt6, supersedes isaac-fgo0)
-    The delivery worker's comm answers :wrap-up on exhaustion: the drive runs
-    one final cycle with tools and a checkpoint nudge, then a tool-less note.
-    The delivery is NOT delivered: it goes back to deliveries/ with
-    :continuation incremented and attempts untouched, so the next tick runs a
-    fresh turn on the same session (a checkpointed continuation).
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path        | value  |
-      | model       | grover |
-      | cycle.limit | 1      |
-    And the crew "bartholomew" allows tools: "exec/run"
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
-    And the built-in tools are registered
-    And the following model responses are queued:
-      | tool_call | arguments                      | content                                      |
-      | exec__run | {"command": "true"}            |                                              |
-      | exec__run | {"command": "echo checkpoint"} |                                              |
-      |           |                                | Checkpoint committed; next: reseat the flange |
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path          | value          |
-      | id            | hail-1         |
-      | prompt        | Seal the leak. |
-      | crew          | bartholomew    |
-      | bound-session | :engine-room   |
-      | attempts      | 0              |
-    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    And the turn ends on session "engine-room"
-    Then the isaac file "hail/delivered/hail-1.edn" does not exist
-    And the isaac file "hail/failed/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path         | value  |
-      | id           | hail-1 |
-      | attempts     | 0      |
-      | continuation | 1      |
-    And the log has entries matching:
-      | level | event                | session     | continuation |
-      | :info | :hail/turn-continued | engine-room | 1            |
-
-  Scenario: the band's continuation budget exhausts to dead-letter with attention (isaac-ntt6)
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path        | value  |
-      | model       | grover |
-      | cycle.limit | 1      |
-    And the crew "bartholomew" allows tools: "exec/run"
-    And the isaac EDN file "config/hail/engine-band.edn" exists with:
-      | path          | value                  |
-      | session-tags  | #{:project/warp-coil}  |
-      | continuations | 1                      |
-    And the following sessions exist:
-      | name        | crew        | tags                  |
-      | engine-room | bartholomew | #{:project/warp-coil} |
-    And the built-in tools are registered
-    And the following model responses are queued:
-      | tool_call | arguments           | content                    |
-      | exec__run | {"command": "true"} |                            |
-      | exec__run | {"command": "true"} |                            |
-      |           |                     | Checkpoint; still not done |
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path          | value          |
-      | id            | hail-1         |
-      | band          | engine-band    |
-      | prompt        | Seal the leak. |
-      | crew          | bartholomew    |
-      | bound-session | :engine-room   |
-      | attempts      | 0              |
-      | continuation  | 1              |
-    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    And the turn ends on session "engine-room"
-    Then the isaac file "hail/failed/hail-1.edn" exists
-    And the isaac file "hail/deliveries/hail-1.edn" does not exist
-    And the log has entries matching:
-      | level  | event                          | session     | continuation | budget |
-      | :error | :hail/continuations-exhausted  | engine-room | 1            | 1      |
-    And the memory comm has events matching:
-      | event    | text                                  |
-      | bulletin | #"(?s).*hail-1.*continuations.*"      |
-
-  Scenario: a band's cycle.limit overrides the crew's on the dispatched turn (isaac-ntt6)
+  @wip
+  Scenario: a band's cycle.limit overrides the crew's on the dispatched turn (isaac-ntt6, isaac-9azm)
+    The band's cycle map rides the charge, as before; what the drive does at
+    the limit (wrap-up, continuation — isaac-xpkf) is no longer hail's.
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path        | value  |
       | model       | grover |
@@ -809,13 +706,15 @@ Feature: Hail delivery
     Then the log has entries matching:
       | level | event       | session     | ended-by     | cycle-limit |
       | :info | :turn/ended | engine-room | :cycle-limit | 1           |
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path         | value |
-      | continuation | 1     |
+    And the isaac file "hail/delivered/hail-1.edn" EDN contains:
+      | path | value  | #comment                                          |
+      | id   | hail-1 | delivered at bind — continuations are the drive's |
 
-  Scenario: a successful turn without outbound hail-send still delivers (isaac-fgo0)
+  @wip
+  Scenario: a successful turn without outbound hail-send still delivers (isaac-fgo0, isaac-9azm)
     Hail is pure transport: bean-workflow convergence is prompt-driven. A quiet
-    successful turn concludes as delivered rather than being re-queued.
+    successful turn is delivered — the receipt was written at bind and hail
+    never re-queues.
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
       | model | grover |
@@ -840,11 +739,13 @@ Feature: Hail delivery
     Then the isaac file "hail/delivered/hail-1.edn" exists
     And the isaac file "hail/deliveries/hail-1.edn" does not exist
     And the log has entries matching:
-      | level | event            | session     | outcome    |
-      | :info | :hail/turn-ended | engine-room | :delivered |
-      | :info | :hail/delivered  | engine-room |            |
+      | level | event           | session     |
+      | :info | :hail/delivered | engine-room |
 
-  Scenario: cancelling a live hail turn archives to hail/cancelled, not delivered
+  @wip
+  Scenario: cancelling a live hail turn is the drive's cancel — the receipt stands (isaac-9azm)
+    Hail is done once the turn started. Cancel ends the turn (the drive logs
+    it); the delivered receipt written at bind is the delivery's whole story.
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
       | model | grover |
@@ -866,13 +767,12 @@ Feature: Hail delivery
     When isaac is run with "sessions cancel engine-room"
     Then the exit code is 0
     When the turn ends on session "engine-room"
-    Then the isaac file "hail/cancelled/hail-1.edn" exists
-    And the isaac file "hail/delivered/hail-1.edn" does not exist
-    And the isaac file "hail/failed/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" does not exist
+    Then the isaac file "hail/delivered/hail-1.edn" EDN contains:
+      | path | value  |
+      | id   | hail-1 |
     And the log has entries matching:
-      | level | event            | session     | outcome    |
-      | :info | :hail/turn-ended | engine-room | :cancelled |
+      | level | event       | session     | ended-by   |
+      | :info | :turn/ended | engine-room | :cancelled |
 
   Scenario: a band's cycle map overrides the crew on the charge (isaac-tic5)
     The crew sets no checkpoint; the band does. The charge carries the band's
@@ -912,43 +812,3 @@ Feature: Hail delivery
       | event                   | session     | cycle |
       | :turn/checkpoint-nudged | engine-room | 1     |
     And the isaac file "hail/delivered/hail-1.edn" exists
-
-  Scenario: the default continuation budget is 2 (isaac-tic5)
-    A band that sets no :continuations gets two continuations, then the
-    delivery dead-letters with attention. Continuations are a last resort;
-    checkpoints inside the turn are the save point.
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path        | value  |
-      | model       | grover |
-      | cycle.limit | 1      |
-    And the crew "bartholomew" allows tools: "exec/run"
-    And the isaac EDN file "config/hail/engine-band.edn" exists with:
-      | path         | value                 |
-      | session-tags | #{:project/warp-coil} |
-    And the following sessions exist:
-      | name        | crew        | tags                  |
-      | engine-room | bartholomew | #{:project/warp-coil} |
-    And the built-in tools are registered
-    And the following model responses are queued:
-      | tool_call | arguments           | content                 |
-      | exec__run | {"command": "true"} |                         |
-      | exec__run | {"command": "true"} |                         |
-      |           |                     | Checkpoint; next: seal. |
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path          | value          |
-      | id            | hail-1         |
-      | prompt        | Seal the leak. |
-      | crew          | bartholomew    |
-      | band          | engine-band    |
-      | bound-session | :engine-room   |
-      | attempts      | 0              |
-      | continuation  | 2              |
-    When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    And the turn ends on session "engine-room"
-    Then the isaac file "hail/deliveries/hail-1.edn" does not exist
-    And the isaac file "hail/failed/hail-1.edn" EDN contains:
-      | path   | value                     |
-      | reason | :continuations-exhausted  |
-    And the log has entries matching:
-      | level  | event                          | continuation | budget |
-      | :error | :hail/continuations-exhausted  | 2            | 2      |
