@@ -16,7 +16,7 @@
     [speclj.core :refer :all]))
 
 (def ^:private test-config
-  {:defaults  {:crew "bartholomew" :model "grover"}
+  {:defaults  {:frequencies {:crew "bartholomew"} :crew {:model "grover"}}
    :crew      {"bartholomew" {:model :grover :soul "You are Bartholomew."}}
    :models    {"grover" {:model "echo" :provider :grover :context-window 32768}}
    :providers {"grover" {}}})

@@ -5,17 +5,17 @@
  ;; ships bb.test-tasks under spec-support/src/bb/.
  :deps {com.cleancoders.c3kit/apron {:mvn/version "3.0.0"}
         io.github.slagyr/isaac-foundation {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                           :git/sha "9586b08417d9e5412fbc5ed193d1ab3d6e1c716a"}
+                                           :git/sha "97da637e711acb30c8e8c2bb2643a82449a5beea"}
         io.github.slagyr/isaac-foundation-spec {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                                :git/sha "9586b08417d9e5412fbc5ed193d1ab3d6e1c716a"
+                                                :git/sha "97da637e711acb30c8e8c2bb2643a82449a5beea"
                                                 :deps/root "spec"}
         io.github.slagyr/isaac-foundation-test-support {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                                        :git/sha "9586b08417d9e5412fbc5ed193d1ab3d6e1c716a"
+                                                        :git/sha "97da637e711acb30c8e8c2bb2643a82449a5beea"
                                                         :deps/root "spec-support"}
         io.github.slagyr/isaac-agent {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                      :git/sha "14825ced9e5b64989e5c3e6e97ea9b3ed698c7cc"}
+                                      :git/sha "28404cbb0fdee54c0f0fff898491da5f39afe057"}
         io.github.slagyr/isaac-agent-spec {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                           :git/sha "14825ced9e5b64989e5c3e6e97ea9b3ed698c7cc"
+                                           :git/sha "28404cbb0fdee54c0f0fff898491da5f39afe057"
                                            :deps/root "spec"}
         io.github.slagyr/isaac-http {:git/url "https://github.com/slagyr/isaac-http.git"
                                        :git/sha "32603e6999f95e0dfea6ca0cf36926c493991773"}

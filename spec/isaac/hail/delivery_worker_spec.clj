@@ -23,7 +23,7 @@
     (java.time Instant)))
 
 (def ^:private test-config
-  {:defaults {:crew "bartholomew" :model "grover"}
+  {:defaults {:frequencies {:crew "bartholomew"} :crew {:model "grover"}}
    :crew     {"atticus"     {:model :grover :soul "You are Atticus."}
               "bartholomew" {:model :grover :soul "You are Bartholomew."}
               "cordelia"    {:model :grover :soul "You are Cordelia."}}

@@ -3,6 +3,7 @@
     [clojure.edn :as edn]
     [clojure.pprint :as pprint]
     [clojure.set :as set]
+    [isaac.config.defaults :as defaults]
     [isaac.config.loader :as loader]
     [isaac.config.root :as root]
     [isaac.fs :as fs]
@@ -258,12 +259,12 @@
 
 (defn effective-crew
   "Resolve the processing crew for a matched session: :with-crew override,
-   session :crew, cfg [:defaults :crew] (default :main)."
+   session :crew, cfg [:defaults :frequencies :crew] (default :main)."
   [cfg band hail session]
   (or (id-keyword (get-in hail [:frequencies :with-crew]))
       (id-keyword (:with-crew (band-frequencies band)))
       (id-keyword (:crew session))
-      (id-keyword (get-in cfg [:defaults :crew]))
+      (id-keyword (defaults/crew-id cfg))
       :main))
 
 (defn spawn-crew
@@ -271,7 +272,7 @@
   [cfg band hail]
   (or (id-keyword (get-in hail [:frequencies :with-crew]))
       (id-keyword (:with-crew (band-frequencies band)))
-      (id-keyword (get-in cfg [:defaults :crew]))
+      (id-keyword (defaults/crew-id cfg))
       :main))
 
 (defn- sort-by-prefer [sessions prefer]

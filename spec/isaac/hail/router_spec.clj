@@ -17,7 +17,7 @@
   (and (string? s) (re-matches short-uuid-re s)))
 
 (def ^:private test-cfg
-  {:defaults {:crew "main"}})
+  {:defaults {:frequencies {:crew "main"}}})
 
 (describe "hail router"
 
@@ -130,7 +130,7 @@
       (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/pending")
       (fs/spit (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"
                (pr-str {:id "hail-1" :frequencies {:session [:engine-room]} :from :cli}))
-      (sut/tick! {:cfg           {:defaults {:crew "main"}
+      (sut/tick! {:cfg           {:defaults {:frequencies {:crew "main"}}
                                   :crew {:bartholomew {:model "grover"}}}
                   :session-store session-store})
       (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"))
@@ -150,7 +150,7 @@
       (fs/spit (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"
                (pr-str {:id "hail-1" :thread-id "thread-9"
                         :frequencies {:session [:engine-room]} :from :cli}))
-      (sut/tick! {:cfg           {:defaults {:crew "main"} :crew {:bartholomew {:model "grover"}}}
+      (sut/tick! {:cfg           {:defaults {:frequencies {:crew "main"}} :crew {:bartholomew {:model "grover"}}}
                   :session-store session-store})
       (let [routed (some #(when (= :hail/routed (:event %)) %) @log/captured-logs)]
         (should= {:event :hail/routed :id "hail-1" :thread-id "thread-9"
@@ -163,7 +163,7 @@
       (fs/spit (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"
                (pr-str {:id "hail-1" :thread-id "thread-9"
                         :frequencies {:session [:ghost-session]} :from :cli}))
-      (sut/tick! {:cfg {:defaults {:crew "main"}} :session-store session-store})
+      (sut/tick! {:cfg {:defaults {:frequencies {:crew "main"}}} :session-store session-store})
       (let [undeliverable (some #(when (= :hail/undeliverable (:event %)) %) @log/captured-logs)]
         (should= {:level :warn :event :hail/undeliverable :id "hail-1" :thread-id "thread-9" :reason :no-recipients}
                  (select-keys undeliverable [:level :event :id :thread-id :reason])))))
