@@ -39,15 +39,22 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
       | path     | value |
       | attempts | 0     |
 
-  Scenario: a crew at capacity is a named skip reason, not silence
+  # No crew-wide cap (isaac-ximd): one busy session never gates another session's
+  # delivery on the same crew; only the bound session's own turn does.
+
+  @wip
+  Scenario: a busy session on the crew does not gate another session's delivery — no crew-wide cap (isaac-ximd)
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path          | value  |
-      | model         | grover |
-      | max-in-flight | 1      |
+      | path  | value  |
+      | model | grover |
     And the following sessions exist:
-      | name       | crew        |
+      | name        | crew        |
       | boiler-room | bartholomew |
+      | engine-room | bartholomew |
     And session "boiler-room" is in flight
+    And the following model responses are queued:
+      | model | type | content |
+      | echo  | text | Sealed. |
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path          | value          |
       | id            | hail-1         |
@@ -56,9 +63,9 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
       | bound-session | :engine-room   |
       | attempts      | 0              |
     When the hail delivery worker ticks at "2026-04-21T10:00:00Z"
-    Then the log has entries matching:
-      | level | event                  | id     | reason            |
-      | :debug | :hail/delivery-skipped | hail-1 | :crew-at-capacity |
+    Then the isaac file "hail/delivered/hail-1.edn" EDN contains:
+      | path | value  |
+      | id   | hail-1 |
 
   Scenario: a bound delivery unclaimed past the stale threshold while its session is idle is claimed with a recovery log
     The 08-29 shape: the in-flight gate said busy, the session was idle. Past
