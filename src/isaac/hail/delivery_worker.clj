@@ -279,6 +279,9 @@
           marker     (store/get-turn-marker session-store session-id)
           alternate  (alternate-session cfg session-store delivery)]
       (cond
+        marker
+        nil
+
         alternate
         (let [rebound (-> (bind-candidate cfg delivery alternate)
                           (assoc :bound-at (str now)))]
@@ -288,14 +291,12 @@
                     :session (normalize-id (:bound-session rebound)))
           rebound)
 
-        (nil? marker)
+        :else
         (do
           (store/clear-in-flight! session-store session-id)
           (log/warn :hail/delivery-recovered :id (:id delivery) :reason :false-in-flight
                     :session session-id)
-          delivery)
-
-        :else nil))))
+          delivery)))))
 
 (defn- skip-reason [_cfg session-store delivery]
   (when-let [session-id (normalize-id (:bound-session delivery))]

@@ -287,6 +287,28 @@
                (select-keys (last @log/captured-logs)
                             [:event :id :session :reason :unclaimed-ms]))))
 
+  (it "leaves a stale bound delivery on its genuinely busy session"
+    (let [session-store (nexus/get-in [:sessions :store])]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (store/open-session! session-store "boiler-room" {:crew "bartholomew"})
+      (store/mark-in-flight! session-store "engine-room")
+      (store/record-turn-marker! session-store "engine-room" {:source :hail :session-id "engine-room"})
+      (write-delivery! {:id            "hail-1"
+                        :prompt        "Seal the leak."
+                        :crew          :bartholomew
+                        :bound-session :engine-room
+                        :bound-at      "2026-04-21T10:00:00Z"
+                        :attempts      0})
+      (should= []
+               (sut/tick! {:cfg           (assoc-in test-config [:hail-settings :stale-bound-ms] 300000)
+                           :now           (Instant/parse "2026-04-21T10:06:00Z")
+                           :session-store session-store}))
+      (should= :engine-room
+               (:bound-session (read-edn "/test/isaac/hail/deliveries/hail-1.edn")))
+      (should-not (some #(and (= :hail/delivery-recovered (:event %))
+                              (= :rebound-stale (:reason %)))
+                        @log/captured-logs))))
+
   (it "dispatches a bound delivery when another session on its crew is in flight"
     (let [session-store (nexus/get-in [:sessions :store])]
       (store/open-session! session-store "engine-room" {:crew "bartholomew"})

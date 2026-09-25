@@ -44,7 +44,6 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
   # No crew-wide cap (isaac-ximd): one busy session never gates another session's
   # delivery on the same crew; only the bound session's own turn does.
 
-  @wip
   Scenario: a busy session on the crew does not gate another session's delivery — no crew-wide cap (isaac-ximd)
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
@@ -100,7 +99,6 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
       | path | value  |
       | id   | hail-1 |
 
-  @wip
   Scenario: a bound delivery unclaimed past the stale threshold while its session is genuinely busy stays bound — no crew-wide rebound (isaac-ximd)
     A stale bind used to requeue onto another idle session of the crew, because
     the crew cap made that session the only place the delivery could run. With
