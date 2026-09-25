@@ -42,7 +42,6 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
   # No crew-wide cap (isaac-ximd): one busy session never gates another session's
   # delivery on the same crew; only the bound session's own turn does.
 
-  @wip
   Scenario: a busy session on the crew does not gate another session's delivery — no crew-wide cap (isaac-ximd)
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |

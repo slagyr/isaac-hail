@@ -125,23 +125,10 @@
     (not (.isAfter (Instant/parse next-attempt-at) now))
     true))
 
-(defn- crew-config [cfg crew-id]
-  (or (get-in cfg [:crew crew-id])
-      (get-in cfg [:crew (keyword crew-id)])))
-
-(defn- crew-max-in-flight [cfg crew-id]
-  (or (:max-in-flight (crew-config cfg crew-id)) 1))
-
-(defn- crew-available? [cfg session-store crew-id]
-  (< (store/in-flight-count session-store crew-id)
-     (crew-max-in-flight cfg crew-id)))
-
-(defn- session-available? [cfg session-store session-id]
+(defn- session-available? [_cfg session-store session-id]
   (when-let [session (store/get-session session-store session-id)]
-    (let [crew-id (normalize-id (:crew session))]
-      (and (not (store/in-flight? session-store session-id))
-           (crew-available? cfg session-store crew-id)
-           session))))
+    (and (not (store/in-flight? session-store session-id))
+         session)))
 
 ;; A routed delivery file IS the hail (flat — enriched in place by the router);
 ;; there is no :hail wrapper. A reach-:all child also carries :source-hail (it
@@ -210,10 +197,7 @@
     {:action :bind :session session}
     (if (seq (matching-spawn-sessions cfg session-store delivery))
       {:action :wait}
-      (let [crew-id (normalize-id (:crew delivery))]
-        (if (crew-available? cfg session-store crew-id)
-          {:action :spawn :crew-id crew-id}
-          {:action :wait})))))
+      {:action :spawn :crew-id (normalize-id (:crew delivery))})))
 
 (defn- spawn-runnable-delivery [cfg session-store delivery]
   (let [{:keys [action session crew-id]} (spawn-target cfg session-store delivery)]
@@ -313,20 +297,17 @@
 
         :else nil))))
 
-(defn- skip-reason [cfg session-store delivery]
+(defn- skip-reason [_cfg session-store delivery]
   (when-let [session-id (normalize-id (:bound-session delivery))]
-    (let [session (store/get-session session-store session-id)
-          crew-id (normalize-id (:crew session))]
-      (cond
-        (store/in-flight? session-store session-id) :session-in-flight
-        (and session (not (crew-available? cfg session-store crew-id))) :crew-at-capacity
-        (nil? session) :session-missing))))
+    (cond
+      (store/in-flight? session-store session-id) :session-in-flight
+      (nil? (store/get-session session-store session-id)) :session-missing)))
 
 (def ^:private expected-skip-reasons
   "Backpressure, not trouble: the hail simply waits and the worker retries.
    Logged at :debug so a busy pipeline does not bury real warnings — these ran
    357 times in a single log file before isaac-udlg."
-  #{:session-in-flight :crew-at-capacity})
+  #{:session-in-flight})
 
 ;; {delivery-id reason} — the last skip reason logged for each delivery. A
 ;; delivery waiting behind a busy session is skipped on every tick; saying so
@@ -378,6 +359,9 @@
 (defn- finish-failed! [root delivery]
   (hail-store/persist-record! (:id delivery) delivery)
   (write-record! (failed-path root (:id delivery)) delivery))
+
+(defn- retract-delivered! [root delivery]
+  (delete-record! (delivered-path root (:id delivery))))
 
 (defn- finish-cancelled! [root delivery]
   (hail-store/persist-record! (:id delivery) delivery)
@@ -556,7 +540,9 @@
                                 ;; before the suspend branch, or the delivery
                                 ;; stays claimed-and-deleted instead of parked.
                                 (:unavailable? result)
-                                (let [;; nqeq's suspended weather result carries no :provider,
+                                (do
+                                  (retract-delivered! root delivery)
+                                  (let [;; nqeq's suspended weather result carries no :provider,
                                       ;; but the session's weather marker records it under
                                       ;; :suspended-on. Read it before the marker clear below
                                       ;; so auth attention names the provider.
@@ -584,10 +570,11 @@
                                   ;; guard reads the kept marker (session no
                                   ;; longer in-flight) as a claim-crash stray
                                   ;; and deletes the parked delivery.
-                                  (store/clear-turn-marker! session-store session-id))
+                                  (store/clear-turn-marker! session-store session-id)))
 
                                 (suspend/suspended-response? result)
                                 (do
+                                  (retract-delivered! root delivery)
                                   (log/info :hail/turn-ended
                                             :id (:id delivery)
                                             :thread-id (:thread-id delivery)
@@ -602,6 +589,7 @@
                                 (or (cancellation/cancelled-response? result)
                                     (:cancelled? result))
                                 (do
+                                  (retract-delivered! root delivery)
                                   (finish-cancelled! root delivery)
                                   (log/info :hail/turn-ended
                                             :id (:id delivery)
@@ -612,6 +600,7 @@
 
                                 (:error result)
                                 (do
+                                  (retract-delivered! root delivery)
                                   (log/info :hail/turn-ended
                                             :id (:id delivery)
                                             :thread-id (:thread-id delivery)
@@ -622,6 +611,7 @@
 
                                 (= :cycle-limit (:ended-by result))
                                 (do
+                                  (retract-delivered! root delivery)
                                   (log/info :hail/turn-ended
                                             :id (:id delivery)
                                             :thread-id (:thread-id delivery)
@@ -632,7 +622,6 @@
 
                                 :else
                                 (do
-                                  (finish-delivered! root delivery)
                                   (log/info :hail/turn-ended
                                             :id (:id delivery)
                                             :thread-id (:thread-id delivery)
@@ -653,7 +642,7 @@
                               (store/clear-in-flight! session-store session-id)))))]
     (when (store/mark-in-flight! session-store session-id)
       (bridge/record-turn-marker! session-store session-id charge)
-      (hail-store/persist-record! (:id delivery) delivery)
+      (finish-delivered! root delivery)
       (delete-record! (delivery-path root (:id delivery)))
       (log/info :hail/bound
                 :id (:id delivery)

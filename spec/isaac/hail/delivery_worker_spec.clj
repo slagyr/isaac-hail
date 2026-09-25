@@ -113,6 +113,21 @@
                 :attempts 0}
                (read-edn "/test/isaac/hail/delivered/hail-1.edn"))))
 
+  (it "writes the delivered receipt before its turn completes"
+    (let [session-store (nexus/get-in [:sessions :store])
+          release       (promise)]
+      (store/open-session! session-store "engine-room" {:crew "bartholomew"})
+      (write-delivery! {:id       "hail-1"
+                        :prompt   "Seal the leak."
+                        :crew     :bartholomew
+                        :bound-session :engine-room
+                        :attempts 0})
+      (with-redefs [isaac.drive.turn/run-turn! (fn [_] @release)]
+        (let [future* (first (sut/tick! {:cfg test-config :session-store session-store}))]
+          (should= "hail-1" (:id (read-edn "/test/isaac/hail/delivered/hail-1.edn")))
+          (deliver release {})
+          @future*))))
+
   (it "stamps hail guidance on the dispatched charge"
     (let [session-store (nexus/get-in [:sessions :store])
           captured      (atom nil)]
@@ -233,24 +248,20 @@
                  :attempts 0}))
       (should-be-nil (store/get-session session-store "session-1"))))
 
-  (it "waits when the resolved processing crew is at capacity"
-    (let [session-store (nexus/get-in [:sessions :store])
-          cfg           (-> test-config
-                            (assoc-in [:crew "bartholomew" :max-in-flight] 1)
-                            loader/normalize-config)]
-      (config/dangerously-install-config! cfg "spec")
+  (it "spawns when another session on the resolved processing crew is in flight"
+    (let [session-store (nexus/get-in [:sessions :store])]
       (store/open-session! session-store "other-work" {:crew "bartholomew"})
       (store/mark-in-flight! session-store "other-work")
-      (should= {:action :wait}
+      (should= {:action :spawn :crew-id "bartholomew"}
                (#'sut/spawn-target
-                cfg
+                test-config
                 session-store
                 {:id       "hail-1"
                  :crew     :bartholomew
                  :prompt   "Resonance climbing."
                  :frequencies {:session-tags #{:project/warp-coil}
-                             :reach :one
-                             :create :if-missing}
+                               :reach :one
+                               :create :if-missing}
                  :attempts 0}))))
 
   (it "logs a bound delivery skipped by an in-flight session"
@@ -276,11 +287,8 @@
                (select-keys (last @log/captured-logs)
                             [:event :id :session :reason :unclaimed-ms]))))
 
-  (it "logs a bound delivery skipped by crew capacity"
-    (let [session-store (nexus/get-in [:sessions :store])
-          cfg           (assoc-in test-config [:crew "bartholomew" :max-in-flight] 1)
-          cfg           (loader/normalize-config cfg)]
-      (config/dangerously-install-config! cfg "spec")
+  (it "dispatches a bound delivery when another session on its crew is in flight"
+    (let [session-store (nexus/get-in [:sessions :store])]
       (store/open-session! session-store "engine-room" {:crew "bartholomew"})
       (store/open-session! session-store "warp-core" {:crew "bartholomew"})
       (store/mark-in-flight! session-store "warp-core")
@@ -289,15 +297,19 @@
                         :crew     :bartholomew
                         :bound-session :engine-room
                         :attempts 0})
-      (should= []
-               (sut/tick! {:cfg cfg :session-store session-store}))
       (should= {:id       "hail-1"
                 :prompt   "Check the core."
                 :crew     :bartholomew
                 :bound-session :engine-room
                 :attempts 0}
-               (read-edn "/test/isaac/hail/deliveries/hail-1.edn"))
-      (should= :crew-at-capacity (:reason (last @log/captured-logs)))))
+               (#'sut/runnable-delivery
+                test-config
+                session-store
+                {:id       "hail-1"
+                 :prompt   "Check the core."
+                 :crew     :bartholomew
+                 :bound-session :engine-room
+                 :attempts 0}))))
 
   (it "reschedules a failed turn with the next backoff and clears in-flight"
     (let [session-store (nexus/get-in [:sessions :store])]
