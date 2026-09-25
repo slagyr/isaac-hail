@@ -2,7 +2,8 @@ Feature: Hail delivery
   Hail is a mailman. The delivery worker ticks on the shared scheduler,
   reads routed delivery hails from hail/deliveries/ (each named by its own
   hail id), binds unbound (reach-one) deliveries to an idle candidate, and
-  gates on session in-flight + crew capacity. For each ready delivery it
+  gates on the bound session's own in-flight turn — there is no crew-wide
+  cap (isaac-ximd). For each ready delivery it
   starts a turn: the bridge records a durable turn marker (isaac-7li9), the
   receipt is written to hail/delivered/ and the deliveries/ file removed —
   at bind, before the turn ends (isaac-9azm). A delivery either started a
@@ -101,9 +102,8 @@ Feature: Hail delivery
 
   Scenario: a delivery to an in-flight session is left pending
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path          | value  | #comment                         |
-      | model         | grover |                                  |
-      | max-in-flight | 2      | capacity is not the blocker here |
+      | path  | value  |
+      | model | grover |
     And the following sessions exist:
       | name        | crew        |
       | engine-room | bartholomew |
@@ -122,35 +122,10 @@ Feature: Hail delivery
       | attempts | 0      | gating is not a failed attempt        |
     And the isaac file "hail/delivered/hail-1.edn" does not exist
 
-  Scenario: a delivery for an at-capacity crew is left pending
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path          | value  | #comment                         |
-      | model         | grover |                                  |
-      | max-in-flight | 1      | one turn at a time for this crew |
-    And the following sessions exist:
-      | name        | crew        |
-      | engine-room | bartholomew |
-      | warp-core   | bartholomew |
-    And session "warp-core" is in flight
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path     | value           |
-      | id       | hail-1          |
-      | prompt   | Check the core. |
-      | crew     | bartholomew     |
-      | bound-session | :engine-room  |
-      | attempts | 0               |
-    When the hail delivery worker ticks
-    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path     | value  | #comment                                |
-      | id       | hail-1 | still pending — bartholomew at capacity |
-      | attempts | 0      |                                         |
-    And the isaac file "hail/delivered/hail-1.edn" does not exist
-
   Scenario: the worker dispatches at most one turn per session, serializing across ticks
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path          | value  | #comment                      |
-      | model         | grover |                               |
-      | max-in-flight | 2      | crew capacity is not the gate |
+      | path  | value  |
+      | model | grover |
     And the following sessions exist:
       | name        | crew        |
       | engine-room | bartholomew |

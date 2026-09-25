@@ -140,10 +140,9 @@ Feature: Hail-driven session create (get-or-create)
 
   Scenario: a create delivery whose only matching session is in flight waits, no sibling
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path          | value             |
-      | model         | grover            |
-      | tags          | #{:role/engineer} |
-      | max-in-flight | 2                 |
+      | path  | value             |
+      | model | grover            |
+      | tags  | #{:role/engineer} |
     And the following sessions exist:
       | name      | crew        | tags                  |
       | coil-work | bartholomew | #{:project/warp-coil} |
@@ -163,29 +162,3 @@ Feature: Hail-driven session create (get-or-create)
       | path     | value  | #comment                                            |
       | id       | hail-1 | matching session busy — wait, don't spawn a sibling |
       | attempts | 0      |                                                     |
-
-  Scenario: a create delivery waits when the resolved processing crew is at capacity
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path          | value             |
-      | model         | grover            |
-      | tags          | #{:role/engineer} |
-      | max-in-flight | 1                 |
-    And the following sessions exist:
-      | name       | crew        |
-      | other-work | bartholomew |
-    And session "other-work" is in flight
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path                    | value                 |
-      | id                      | hail-1                |
-      | crew                    | :bartholomew          |
-      | frequencies.session-tags  | #{:project/warp-coil} |
-      | frequencies.reach         | :one                  |
-      | frequencies.create | :if-missing                  |
-      | prompt                  | Resonance climbing.   |
-      | attempts                | 0                     |
-    When the hail delivery worker ticks
-    Then session "session-1" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path     | value  | #comment                                 |
-      | id       | hail-1 | crew at capacity — can't create yet, wait |
-      | attempts | 0      |                                          |

@@ -2,7 +2,8 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
   A bound delivery in hail/deliveries/ is either claimed on a tick or the
   tick says loudly why it was skipped. A bound delivery that stays unclaimed
   past a threshold is recovered — re-checked against the real session state,
-  claimed if the session is actually idle, otherwise requeued unbound — and
+  claimed if the session is actually idle, otherwise left bound — a stale
+  bind is not requeued onto another session of the crew (isaac-ximd) — and
   an operator can drop it with `isaac hail drop <id>`. Observed 2026-08-29:
   hail 1164c784 sat bound to an idle isaac-work-1 at attempts 0 forever.
 
@@ -18,8 +19,9 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
 
 # isaac-udlg (2026-09-21, Micah): the skip is still logged on every tick with
 # its reason — at5m's "never silently" contract is intact — but at :debug rather
-# than :warn. Expected backpressure (:session-in-flight, :crew-at-capacity) ran
+# than :warn. Expected backpressure (:session-in-flight) ran
 # 357 warns in one log file and buried real errors. :session-missing still warns.
+# The crew-wide cap is gone (isaac-ximd); a busy crew is not a skip reason.
 
   Scenario: a gated bound delivery says why it is waiting once, not once per tick
     Given session "engine-room" is in flight
@@ -42,6 +44,7 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
   # No crew-wide cap (isaac-ximd): one busy session never gates another session's
   # delivery on the same crew; only the bound session's own turn does.
 
+  @wip
   Scenario: a busy session on the crew does not gate another session's delivery — no crew-wide cap (isaac-ximd)
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
@@ -97,16 +100,18 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
       | path | value  |
       | id   | hail-1 |
 
-  Scenario: a bound delivery unclaimed past the stale threshold while its session is genuinely busy is requeued unbound
+  @wip
+  Scenario: a bound delivery unclaimed past the stale threshold while its session is genuinely busy stays bound — no crew-wide rebound (isaac-ximd)
+    A stale bind used to requeue onto another idle session of the crew, because
+    the crew cap made that session the only place the delivery could run. With
+    no crew-wide cap the other session is not a substitute: the delivery stays
+    bound to the busy session and is claimed when that session is idle.
     Given config:
       | hail-settings.stale-bound-ms | 300000 |
     And the following sessions exist:
       | name        | crew        |
       | boiler-room | bartholomew |
     And session "engine-room" is in flight
-    And the following model responses are queued:
-      | type | content      | model  |
-      | text | Sealing now. | grover |
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
       | path          | value                |
       | id            | hail-1               |
@@ -116,13 +121,14 @@ Feature: Bound deliveries never sit unclaimed silently (isaac-at5m)
       | bound-at      | 2026-04-21T10:00:00Z |
       | attempts      | 0                    |
     When the hail delivery worker ticks at "2026-04-21T10:06:00Z"
-    Then the log has entries matching:
-      | level | event                    | id     | reason              |
-      | :warn | :hail/delivery-recovered | hail-1 | :rebound-stale      |
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path          | value       |
-      | bound-session | :boiler-room |
-      | attempts      | 0           |
+    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
+      | path          | value        |
+      | bound-session | :engine-room |
+      | attempts      | 0            |
+    And the isaac file "hail/delivered/hail-1.edn" does not exist
+    And the log has no entries matching:
+      | event                    | reason         |
+      | :hail/delivery-recovered | :rebound-stale |
 
   Scenario: the bind timestamp is recorded when the worker binds a delivery
     And the isaac EDN file hail/deliveries/hail-1.edn exists with:
