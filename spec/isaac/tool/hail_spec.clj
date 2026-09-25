@@ -153,6 +153,9 @@
           (should= "hail-1" (:result result))
           (should= "first-watch" (first (:session (:frequencies @sent*))))))))
 
+  (it "preserves runtime context when registered by the agent tool registry"
+    (should (:builtin? (sut/hail-send-tool-factory nil))))
+
   (it "exposes flat snake_case properties borrowed from the frequencies schema"
     (let [factory (:parameters (sut/hail-send-tool-factory nil))
           props   (:properties factory)]

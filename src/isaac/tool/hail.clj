@@ -193,4 +193,5 @@
                                      "params"    {:type "object" :description "Band template parameters as a JSON object"}
                                      "thread_id" {:type "string" :description "Optional thread id"}
                                      "reply_to"  {:type "string" :description "Optional hail id being replied to"}})}
-   :handler     #'hail-send-tool})
+   :handler     #'hail-send-tool
+   :builtin?    true})
