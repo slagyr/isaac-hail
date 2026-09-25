@@ -245,4 +245,39 @@
       (should= {:n 1} (:params record))
       (should= before-nexus (nexus/necho))
       (should= before-memo (config-api/process-memo-snapshot))))
+
+  (it "strips a leading colon from --session-tag values (isaac-k0xm)"
+    (doseq [tag [":project/foo" "project/foo"]]
+      (let [output (with-out-str
+                     (should= 0 (sut/run-fn {:_raw-args ["send" "--band" "x" "--session-tag" tag "--dry-run"]})))]
+        (should= #{:project/foo} (get-in (edn/read-string output) [:frequencies :session-tags])))))
+
+  (it "refuses a --session-tag that does not read back as a keyword (isaac-k0xm)"
+    (let [err* (java.io.StringWriter.)]
+      (binding [*err* err*]
+        (should= 1 (sut/run-fn {:_raw-args ["send" "--band" "x" "--session-tag" ":::x" "--dry-run"]})))
+      (should (.contains (str err*) "--session-tag"))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending"))))
+
+  (it "strips a leading colon from --crew and --session values (isaac-k0xm)"
+    (let [output (with-out-str
+                   (should= 0 (sut/run-fn {:_raw-args ["send" "--crew" ":yopp" "--session" ":abc" "--prompt" "go" "--dry-run"]})))
+          freqs  (:frequencies (edn/read-string output))]
+      (should= "yopp" (:crew freqs))
+      (should= [:abc] (:session freqs))))
+
+  (it "refuses unreadable --crew and --session values, naming the flag (isaac-k0xm)"
+    (doseq [[flag value] [["--crew" "::yopp"] ["--session" "::abc"]]]
+      (let [err* (java.io.StringWriter.)]
+        (binding [*err* err*]
+          (should= 1 (sut/run-fn {:_raw-args ["send" flag value "--prompt" "go" "--dry-run"]})))
+        (should (.contains (str err*) flag)))))
+
+  (it "dry-run refuses a record that does not read back as EDN (isaac-k0xm)"
+    (let [err* (java.io.StringWriter.)]
+      (binding [*err* err*]
+        (should= 1 (with-in-str "{\"frequencies\":{\"band\":\"b\"},\"params\":{\":a/b\":1}}"
+                     (sut/run-fn {:_raw-args ["send" "-" "--from-json" "--dry-run"]}))))
+      (should (.contains (str err*) "unreadable"))))
+
   )

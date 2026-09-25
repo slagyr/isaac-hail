@@ -74,11 +74,38 @@
 (defn- read-json [text]
   (json/parse-string text true))
 
+(defn- flag-name
+  "A flag value typed with its leading colon (:project/foo) names the same
+   keyword as the bare form (project/foo)."
+  [value]
+  (cond-> value (str/starts-with? value ":") (subs 1)))
+
+(defn- flag-keyword [value]
+  (keyword (flag-name value)))
+
+(defn- readable-keyword? [kw]
+  (try
+    (= kw (edn/read-string (pr-str kw)))
+    (catch Exception _ false)))
+
+(def ^:private keyword-flags
+  [[:crew "--crew"] [:session "--session"] [:session-tag "--session-tag"] [:reach "--reach"]])
+
+(defn- flag-values [value]
+  (cond (sequential? value) value
+        (some? value)       [value]))
+
+(defn- keyword-flag-errors [options]
+  (for [[option flag] keyword-flags
+        value         (flag-values (get options option))
+        :when         (not (readable-keyword? (flag-keyword value)))]
+    (str "Invalid " flag " value " (pr-str value) ": not a readable keyword")))
+
 (defn- keywordize* [values]
-  (mapv keyword values))
+  (mapv flag-keyword values))
 
 (defn- keyword-set* [values]
-  (into #{} (map keyword) values))
+  (into #{} (map flag-keyword) values))
 
 (defn- direct-addressing? [frequencies]
   (boolean (some #(contains? frequencies %)
@@ -91,10 +118,10 @@
 (defn- frequencies-from-options [options]
   (cond-> {}
     (:band options)        (assoc :band (:band options))
-    (:crew options)        (assoc :crew (:crew options))
+    (:crew options)        (assoc :crew (flag-name (:crew options)))
     (:session options)     (assoc :session (keywordize* (:session options)))
     (:session-tag options) (assoc :session-tags (keyword-set* (:session-tag options)))
-    (:reach options)       (assoc :reach (keyword (:reach options)))))
+    (:reach options)       (assoc :reach (flag-keyword (:reach options)))))
 
 (defn- parse-whole-hail [options]
   (let [text (or (slurp-stdin) "{}")]
@@ -108,7 +135,7 @@
         band?             (contains? frequencies :band)
         has-addressing?   (has-addressing? frequencies)
         template-band?    (and (:band options) (band-resolve/template-band? (:band options)))]
-    (cond-> []
+    (cond-> (vec (keyword-flag-errors options))
       template-band?
       (conj (str "Band " (:band options) " is a template and cannot be hailed"))
 
@@ -198,11 +225,16 @@
               (binding [*out* *err*]
                 (println error)))
             1)
-          (let [record (if (:dry-run options)
-                         record
-                         (queue/send! record))]
-            (print-record! record options)
-            0))))))
+          (try
+            (let [record (if (:dry-run options)
+                           (queue/check-readable! record)
+                           (queue/send! record))]
+              (print-record! record options)
+              0)
+            (catch clojure.lang.ExceptionInfo e
+              (if (= :hail/unreadable-record (:type (ex-data e)))
+                (do (binding [*out* *err*] (println (ex-message e))) 1)
+                (throw e)))))))))
 
 (defn run [args]
   (let [{:keys [arguments errors options]} (tools-cli/parse-opts args hail-option-spec :in-order true)]

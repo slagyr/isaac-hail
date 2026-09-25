@@ -87,3 +87,28 @@ Feature: Hail send — direct addressing flags
     When isaac is run with "hail send --session-tag wip"
     Then the stderr contains "prompt"
     And the exit code is 1
+
+  Scenario Outline: keyword flags accept a leading colon (isaac-k0xm)
+    When isaac is run with "hail send --band x --session-tag <tag> --dry-run"
+    Then the exit code is 0
+    And the stdout EDN contains:
+      | path        | value                                   |
+      | frequencies | {:band "x" :session-tags #{:project/foo}} |
+
+    Examples:
+      | tag          |
+      | :project/foo |
+      | project/foo  |
+
+  Scenario: a keyword flag value that cannot read back is refused naming the flag (isaac-k0xm)
+    When isaac is run with "hail send --band x --session-tag :::x --dry-run"
+    Then the stderr contains "--session-tag"
+    And the exit code is 1
+    And the isaac file "hail/pending" does not exist
+
+  Scenario: --crew and --session strip a leading colon too (isaac-k0xm)
+    When isaac is run with "hail send --crew :yopp --session :abc --prompt go --dry-run"
+    Then the exit code is 0
+    And the stdout EDN contains:
+      | path        | value                          |
+      | frequencies | {:crew "yopp" :session [:abc]} |

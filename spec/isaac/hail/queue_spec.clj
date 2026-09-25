@@ -38,6 +38,15 @@
                 :frequencies {:band "bean-pickup"} :from :cli}
                (select-keys sent [:event :id :thread-id :frequencies :from]))))
 
+  (it "refuses a record whose serialized form does not read back (isaac-k0xm)"
+    (let [error (try (sut/send! {:frequencies {:band "b" :session-tags #{(keyword ":project/isaac-mcp")}} :from :cli})
+                     nil
+                     (catch clojure.lang.ExceptionInfo e e))]
+      (should= :hail/unreadable-record (:type (ex-data error)))
+      (should (str/includes? (ex-message error) "Invalid token"))
+      (should-be-nil (fs/children (nexus/get :fs) "/test/isaac/hail/pending"))
+      (should-not (some #(= :hail/sent (:event %)) @log/captured-logs))))
+
   (it "writes a hail record under hail/pending"
     (binding [memory/*now* (java.time.Instant/parse "2026-05-23T12:00:00Z")]
       (let [record (sut/send! {:frequencies {:band "bean-pickup"}

@@ -3,7 +3,9 @@
     [clojure.edn :as edn]
     [clojure.pprint :as pprint]
     [clojure.set :as set]
+    [clojure.string :as str]
     [isaac.config.defaults :as defaults]
+    [isaac.hail.attention :as attention]
     [isaac.config.loader :as loader]
     [isaac.config.root :as root]
     [isaac.fs :as fs]
@@ -63,14 +65,44 @@
 (defn- temp-path [path]
   (str path ".tmp"))
 
-(defn- read-record [path]
+(defn- salvage-record
+  "Best-effort read of an unreadable record for attention routing only:
+   collapse auto-resolved keyword tokens (::a/b) to plain ones. nil when
+   even that fails."
+  [text]
+  (try
+    (let [record (edn/read-string (str/replace text #"(?<![:\w])::+" ":"))]
+      (when (map? record) record))
+    (catch Exception _ nil)))
+
+(defn- quarantine-unreadable!
+  "A pending record no reader can parse is poison, not weather: move it to
+   hail/undeliverable once, log once, and post dead-letter attention."
+  [cfg path text error]
+  (let [fs*      (filesystem)
+        id       (str/replace (fs/filename path) #"\.edn$" "")
+        salvaged (salvage-record text)]
+    (fs/mkdirs fs* (undeliverable-dir))
+    (fs/move fs* path (undeliverable-path id))
+    (log/error :hail/bad-record
+               :id id
+               :path path
+               :error (.getMessage error)
+               :quarantined true)
+    (attention/maybe-notify-dead-letter! cfg
+                                         (-> (select-keys salvaged [:data :params :thread-id])
+                                             (assoc :id id))
+                                         :unreadable-record)))
+
+(defn- read-pending-record [cfg path]
   (let [fs* (filesystem)]
     (when (fs/exists? fs* path)
-      (try
-        (edn/read-string (fs/slurp fs* path))
-        (catch Exception e
-          (log/error :hail/bad-record :path path :error (.getMessage e))
-          nil)))))
+      (let [text (fs/slurp fs* path)]
+        (try
+          (edn/read-string text)
+          (catch Exception e
+            (quarantine-unreadable! cfg path text e)
+            nil))))))
 
 (defn- write-record! [path record]
   (let [fs*  (filesystem)
@@ -82,14 +114,15 @@
 (defn- delete-pending! [id]
   (fs/delete (filesystem) (pending-path id)))
 
-(defn- list-pending []
+(defn- list-pending [cfg]
   (let [fs* (filesystem)
         dir (pending-dir)]
     (if-let [children (fs/children fs* dir)]
       (->> children
+           (filter #(str/ends-with? (str %) ".edn"))
            (map (fn [p]
                   (try
-                    (read-record (str dir "/" p))
+                    (read-pending-record cfg (str dir "/" p))
                     (catch Exception e
                       (log/error :hail/bad-pending-record :path p :error (.getMessage e))
                       nil))))
@@ -402,7 +435,7 @@
         session-store* (require-session-store opts)
         bands          (band-resolve/resolved-slice (:hail cfg))
         sessions       (session-store/list-sessions session-store*)]
-    (doseq [hail (list-pending)]
+    (doseq [hail (list-pending cfg)]
       (let [{:keys [delivery broadcast undeliverable]}
             (resolve-obligations cfg bands sessions hail)]
         (cond

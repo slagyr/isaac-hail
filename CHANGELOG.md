@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.22
+
+### Fixed
+
+- Unreadable hail records are refused at send and quarantined by the router (isaac-k0xm). CLI keyword flags (`--session-tag`, `--session`, `--crew`, `--reach`) strip one leading colon (`:project/foo` ≡ `project/foo`); a value that still does not read back as a keyword is a usage error naming the flag. `queue/send!` (and `--dry-run`, via `queue/check-readable!`) round-trips the serialized record through `edn/read-string` and throws `:hail/unreadable-record` before anything lands in pending; the hail-send tool returns it as a tool error, HTTP as a 400. The router moves an unreadable pending file to `hail/undeliverable` once, logs `:hail/bad-record` once with `:quarantined true`, and posts best-effort dead-letter attention — instead of re-logging it every tick forever.
+
 ## 0.1.20
 
 ### Fixed

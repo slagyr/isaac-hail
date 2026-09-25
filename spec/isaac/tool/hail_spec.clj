@@ -79,6 +79,13 @@
                   :from        :crew/main}
                  @sent*))))
 
+  (it "surfaces an unreadable-record refusal as a tool error (isaac-k0xm)"
+    (helper/create-session! "/test/isaac" "work-sess" {:crew "main"})
+    (with-redefs [queue/send! (fn [_] (throw (ex-info "hail record is unreadable: Invalid token: ::a/b"
+                                                      {:type :hail/unreadable-record})))]
+      (should= {:isError true :error "hail record is unreadable: Invalid token: ::a/b"}
+               (sut/hail-send-tool {"session_key" "work-sess" "band" "bean-pickup"}))))
+
   (it "errors when no addressing field is provided"
     (helper/create-session! "/test/isaac" "work-sess" {:crew "main"})
     (let [result (sut/hail-send-tool {"session_key" "work-sess"})]

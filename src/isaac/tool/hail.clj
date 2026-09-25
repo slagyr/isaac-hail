@@ -178,7 +178,12 @@
                          (contains? args "thread_id") (assoc :thread-id (get args "thread_id"))
                          (contains? args "reply_to")  (assoc :reply-to (get args "reply_to"))
                          (contains? args "submitter_session") (assoc :submitter-session (get args "submitter_session")))]
-            {:result (:id (queue/send! record))}))))))
+            (try
+              {:result (:id (queue/send! record))}
+              (catch clojure.lang.ExceptionInfo e
+                (if (= :hail/unreadable-record (:type (ex-data e)))
+                  {:isError true :error (ex-message e)}
+                  (throw e))))))))))
 
 (defn hail-send-tool-factory [_]
   {:description "Send a hail to a band or session target."

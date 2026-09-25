@@ -17,6 +17,28 @@
   (binding [*print-namespace-maps* false]
     (with-out-str (pprint/pprint value))))
 
+(defn- serialize-readable
+  "Serialize record and prove it reads back to the same value. A record no
+   reader can parse is poison for the router, so refuse it before it lands."
+  [record]
+  (let [text   (write-edn record)
+        result (try
+                 (edn/read-string text)
+                 (catch Exception e
+                   (throw (ex-info (str "hail record is unreadable: " (.getMessage e))
+                                   {:type :hail/unreadable-record :reader-message (.getMessage e)}))))]
+    (when-not (= record result)
+      (throw (ex-info "hail record is unreadable: serialized form does not read back to the same value"
+                      {:type :hail/unreadable-record})))
+    text))
+
+(defn check-readable!
+  "Throw :hail/unreadable-record unless record survives an EDN round trip.
+   Returns record."
+  [record]
+  (serialize-readable record)
+  record)
+
 (defn- runtime-root []
   (or (nexus/get :root)
       (loader/root)
@@ -97,10 +119,11 @@
                    (dissoc :id :sent-at)
                    (prepare/enrich cfg)
                    (finalize-record root fs*))
+        text   (serialize-readable record)
         path   (pending-path (:id record))
         temp   (temp-path (:id record))]
     (fs/mkdirs fs* (fs/parent path))
-    (fs/spit fs* temp (write-edn record))
+    (fs/spit fs* temp text)
     (fs/move fs* temp path)
     (store/persist-record! (:id record) record)
     (log/info :hail/sent

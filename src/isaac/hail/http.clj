@@ -227,8 +227,13 @@
           (do
             (when (band-prompt-override? record)
               (auth/require-scope! request :hail/prompt-override))
-            (let [record (queue/send! record)]
-              {:status  201
-               :headers {"Content-Type" (response-content-type format)
-                         "Location"     (str "/hail/" (:id record))}
-               :body    (render-body format record)})))))))
+            (try
+              (let [record (queue/send! record)]
+                {:status  201
+                 :headers {"Content-Type" (response-content-type format)
+                           "Location"     (str "/hail/" (:id record))}
+                 :body    (render-body format record)})
+              (catch clojure.lang.ExceptionInfo e
+                (if (= :hail/unreadable-record (:type (ex-data e)))
+                  (error-response 400 format (ex-message e))
+                  (throw e))))))))))

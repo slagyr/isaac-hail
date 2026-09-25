@@ -73,6 +73,14 @@
                   :sent-at     "2026-05-24T17:00:00Z"}
                  body))))
 
+  (it "returns 400 naming the reader error when the record does not read back (isaac-k0xm)"
+    (let [response (sut/handler (post-request "application/json"
+                                              "{\"frequencies\":{\"band\":\"b\"},\"params\":{\":a/b\":1}}"))
+          body     (json/parse-string (:body response) true)]
+      (should= 400 (:status response))
+      (should-contain "unreadable" (:error body))
+      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending"))))
+
   (it "returns 400 with a structured error when frequencies is missing"
     (let [response (sut/handler (post-request "application/json"
                                               "{\"params\":{\"n\":1}}"))

@@ -205,6 +205,24 @@
       (should= {:id "hail-1" :frequencies {:session-tags #{:role/command}} :from :cli :reason :no-recipients}
                (read-string (fs/slurp (nexus/get :fs) "/test/isaac/hail/undeliverable/hail-1.edn")))))
 
+  (it "quarantines an unreadable pending record once and keeps routing the rest (isaac-k0xm)"
+    (let [session-store (memory/create-store)
+          fs*           (nexus/get :fs)
+          tick          #(sut/tick! {:cfg {:crew {:bartholomew {:tags #{:role/engineer}}}}
+                                     :session-store session-store})]
+      (fs/mkdirs fs* "/test/isaac/hail/pending")
+      (fs/spit fs* "/test/isaac/hail/pending/bad-1.edn" "{:id \"bad-1\" :frequencies {:session-tags #{::a/b}}}")
+      (fs/spit fs* "/test/isaac/hail/pending/hail-1.edn"
+               (pr-str {:id "hail-1" :frequencies {:session-tags #{:role/command}} :from :cli}))
+      (tick) (tick) (tick)
+      (should-not (fs/exists? fs* "/test/isaac/hail/pending/bad-1.edn"))
+      (should (fs/exists? fs* "/test/isaac/hail/undeliverable/bad-1.edn"))
+      (should (fs/exists? fs* "/test/isaac/hail/undeliverable/hail-1.edn"))
+      (let [bad (filter #(= :hail/bad-record (:event %)) @log/captured-logs)]
+        (should= 1 (count bad))
+        (should= {:level :error :id "bad-1" :quarantined true}
+                 (select-keys (first bad) [:level :id :quarantined])))))
+
   (it "requires a registered session store when tick omits :session-store"
     (nexus/-with-nested-nexus {:sessions {}}
       (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/pending")

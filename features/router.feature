@@ -420,3 +420,30 @@ Feature: Hail router
       | crew    | navigator   | :with-crew override beats session's main |
       | bound-session | :engine-room | selected by :session, unchanged    |
 
+
+  Scenario: an unreadable pending record is quarantined once, not re-read every tick (isaac-k0xm)
+    Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
+      | path         | value             |
+      | session-tags | #{:role/engineer} |
+      | reach        | :one              |
+    And the isaac file "hail/pending/bad-1.edn" exists with:
+      """
+      {:id "bad-1" :frequencies {:session-tags #{::a/b}}}
+      """
+    And the isaac EDN file hail/pending/hail-1.edn exists with:
+      | path        | value                          |
+      | id          | hail-1                         |
+      | frequencies | {:band "engineering-intercom"} |
+      | from        | :cli                           |
+    When the hail router ticks
+    And the hail router ticks
+    And the hail router ticks
+    Then the isaac file "hail/pending/bad-1.edn" does not exist
+    And the isaac file "hail/undeliverable/bad-1.edn" exists
+    And the isaac file "hail/pending/hail-1.edn" does not exist
+    And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
+      | path   | value          |
+      | reason | :no-recipients |
+    And the log has exactly 1 entries matching:
+      | level  | event           | id    | quarantined |
+      | :error | :hail/bad-record | bad-1 | true        |
