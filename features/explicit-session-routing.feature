@@ -1,15 +1,19 @@
 Feature: Explicit session id trumps band session selectors
-  When a hail names :frequencies {:session ...}, that session id is the complete
-  recipient coordinate. Band session selectors must not filter it out; band
-  with-* overrides and prompt templates still apply.
+  When a hail names :frequencies {:session ...}, that session id is the
+  complete recipient coordinate. Band session-tags must not filter it out;
+  band with-* overrides and prompt templates still apply. Send checks the
+  address synchronously: an explicit session that does not exist is
+  refused, nothing queued.
 
   Background:
     Given an Isaac root at "target/test-state"
+    And default Grover setup
 
+  @wip
   Scenario: An explicit session routes despite band session-tags the session lacks
     Given the isaac EDN file "config/hail/ci-failure.edn" exists with:
-      | path         | value               |
-      | session-tags | #{:orchestration}   |
+      | path         | value             |
+      | session-tags | #{:orchestration} |
     And the isaac file "config/hail/ci-failure.md" exists with:
       """
       CI failure on the Marigold.
@@ -18,56 +22,56 @@ Feature: Explicit session id trumps band session selectors
       | path  | value  |
       | model | grover |
     And the following sessions exist:
-      | name               | crew | tags |
-      | glimmering-cardinal | main | #{}  |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path                | value                                              |
-      | id                  | hail-1                                             |
-      | frequencies.band    | ci-failure                                         |
-      | frequencies.session | [:glimmering-cardinal]                            |
-      | from                | :cli                                               |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path    | value               |
-      | bound-session | :glimmering-cardinal |
-      | crew    | main                |
+      | name                 | crew | tags |
+      | glimmering-cardinal  | main | #{}  |
+    When isaac is run with "hail send --band ci-failure --session glimmering-cardinal"
+    Then the exit code is 0
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path    | value                |
+      | id      | #turn-id             |
+      | session | :glimmering-cardinal |
+      | input   | CI failure on the Marigold. |
 
+  @wip
   Scenario: Band with-crew still applies when the hail names an explicit session
     Given the isaac EDN file "config/hail/gauge-check.edn" exists with:
-      | path         | value      |
-      | session-tags | #{:wip}    |
-      | with-crew    | navigator  |
+      | path         | value     |
+      | session-tags | #{:wip}   |
+      | with-crew    | navigator |
+    And the isaac file "config/hail/gauge-check.md" exists with:
+      """
+      Gauge check.
+      """
     And the isaac EDN file "config/crew/navigator.edn" exists with:
       | path  | value  |
       | model | grover |
     And the following sessions exist:
       | name        | crew |
       | engine-room | main |
-    When the config is loaded
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path                | value              |
-      | id                  | hail-1             |
-      | frequencies.band    | gauge-check        |
-      | frequencies.session | [:engine-room]     |
-      | from                | :cli               |
-    When the hail router ticks
-    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path | value     |
-      | crew | navigator |
+    When isaac is run with "hail send --band gauge-check --session engine-room"
+    Then the exit code is 0
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path                   | value        |
+      | id                     | #turn-id     |
+      | session                | :engine-room |
+      | frequencies.with-crew  | "navigator"  |
 
+  @wip
   Scenario: A missing explicit session does not trigger band create :if-missing
     Given the isaac EDN file "config/hail/spawn-band.edn" exists with:
-      | path         | value        |
-      | session-tags | #{:wip}      |
-      | create       | :if-missing  |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path                | value            |
-      | id                  | hail-1           |
-      | frequencies.band    | spawn-band       |
-      | frequencies.session | [:missing-room]  |
-      | from                | :cli             |
-    When the hail router ticks
-    Then the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
-      | path   | value          |
-      | reason | :no-recipients |
+      | path         | value       |
+      | session-tags | #{:wip}     |
+      | create       | :if-missing |
+    And the isaac file "config/hail/spawn-band.md" exists with:
+      """
+      Spawn check.
+      """
+    When isaac is run with "hail send --band spawn-band --session missing-room"
+    Then the stderr contains "no session: missing-room"
+    And the exit code is 1
+    When isaac is run with "turns list --all"
+    Then the stdout is empty

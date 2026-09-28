@@ -4,92 +4,56 @@ Feature: Hail-driven session create (get-or-create)
   frequencies' tags:
 
     :create :never (default) - tags are a read-only FILTER over existing
-                                    sessions. No match -> undeliverable. Nothing
-                                    is ever created.
+                                    sessions. No match -> undeliverable at
+                                    send, nothing queued.
     :create :if-missing            - MATCH-OR-CREATE. An existing matching
-                                    session -> deliver to it; none -> create one
-                                    under the resolved processing crew, apply the
-                                    hail's :session-tags, deliver. (One-line:
+                                    session -> submitted turn waits for it;
+                                    none -> the turn queue creates one under
+                                    the resolved processing crew, applies the
+                                    hail's :session-tags, and runs. (One-line:
                                     ":create :if-missing = create the addressed
                                     session if it doesn't exist.")
 
-  Two phases:
-  - Router (features/hail/router.feature): a create-enabled reach-one with no
-    matching session enriches the hail in place with the resolved processing
-    crew (:crew from hail -> band -> cfg-default/main) and an unbound session,
-    keeping its id as hail/deliveries/<hail-id>.edn.
-  - Delivery worker (features/hail/delivery.feature): treats a create-enabled
-    delivery as live get-or-create each tick. An existing matching session
-    that is idle -> bind; busy -> wait (never a sibling — preserves the
-    crew's context); none -> create under the delivery's resolved :crew,
-    tagging the session with the hail's :session-tags and marking
-    :origin {:kind :hail ...}.
+  Create is resolved by Agent's turn queue when it admits the turn, not by
+  Hail. A matching session that is idle runs the turn immediately; busy ->
+  the turn waits (never a sibling — preserves the crew's context); none ->
+  the queue creates a session under the resolved :crew, tagging it with the
+  hail's :session-tags and marking :origin {:kind :hail ...}.
 
   Default :create is :never.
 
   Background:
     Given an Isaac root at "target/test-state"
     And default Grover setup
-
-  Scenario: create-enabled reach-one with no matching session yields a create delivery
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value             |
       | model | grover            |
       | tags  | #{:role/engineer} |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path                    | value                 |
-      | id                      | hail-1                |
-      | frequencies.session-tags  | #{:project/warp-coil} |
-      | frequencies.create | :if-missing                  |
-      | prompt                  | Resonance climbing.   |
-      | from                    | :cli                  |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/undeliverable/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path                    | value  | #comment                              |
-      | id                      | hail-1 | same id, enriched in place            |
-      | frequencies.create | :if-missing   | create-eligible, unbound              |
-      | crew                    | main   | resolved at router time (cfg default) |
-      | bound-session           |        | nil                                   |
+    And the isaac EDN file "config/hail/warp-coil-callout.edn" exists with:
+      | path         | value                 |
+      | session-tags | #{:project/warp-coil} |
+      | create       | :if-missing           |
+      | with-crew    | bartholomew           |
+    And the isaac file "config/hail/warp-coil-callout.md" exists with:
+      """
+      Resonance climbing.
+      """
 
-  Scenario: without create, no matching session is undeliverable
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value             |
-      | model | grover            |
-      | tags  | #{:role/engineer} |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path                   | value                 |
-      | id                     | hail-1                |
-      | frequencies.session-tags | #{:project/warp-coil} |
-      | prompt                 | Resonance climbing.   |
-      | from                   | :cli                  |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" does not exist
-    And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
-      | path   | value          | #comment                        |
-      | id     | hail-1         |                                 |
-      | reason | :no-recipients | create off — no existing session |
-
-  Scenario: a create delivery with no existing session creates a tagged session and dispatches
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value             |
-      | model | grover            |
-      | tags  | #{:role/engineer} |
-    And the following model responses are queued:
+  @wip
+  Scenario: a create-enabled hail creates a tagged session and dispatches when none match
+    Given the following model responses are queued:
       | type | content      | model  |
       | text | On the coil. | grover |
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path                    | value                 |
-      | id                      | hail-1                |
-      | crew                    | :bartholomew          |
-      | frequencies.session-tags  | #{:project/warp-coil} |
-      | frequencies.create | :if-missing                  |
-      | prompt                  | Resonance climbing.   |
-      | attempts                | 0                     |
-    When the hail delivery worker ticks
-    And the turn ends on session "session-1"
+    When isaac is run with "hail send --band warp-coil-callout"
+    Then the exit code is 0
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path                     | value                 |
+      | id                       | #turn-id               |
+      | frequencies.create       | :if-missing            |
+      | frequencies.session-tags | #{:project/warp-coil}  |
+    When the turn queue ticks at "2026-03-01T18:00:00"
     Then the following sessions match:
       | id        | crew        | tags                  | origin.kind |
       | session-1 | bartholomew | #{:project/warp-coil} | hail        |
@@ -97,62 +61,59 @@ Feature: Hail-driven session create (get-or-create)
       | type    | message.role | message.content     |
       | message | user         | Resonance climbing. |
       | message | assistant    | On the coil.        |
-    And the isaac file "hail/deliveries/hail-1.edn" does not exist
-    And the isaac file "hail/delivered/hail-1.edn" EDN contains:
-      | path    | value       |
-      | crew    | bartholomew |
-      | bound-session | session-1 |
 
-  Scenario: a create delivery binds an existing matching session instead of spawning
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value             |
-      | model | grover            |
-      | tags  | #{:role/engineer} |
-    And the following sessions exist:
+  @wip
+  Scenario: without create, no matching session is refused at send
+    Given the isaac EDN file "config/hail/warp-coil-strict.edn" exists with:
+      | path         | value                 |
+      | session-tags | #{:project/warp-coil} |
+    And the isaac file "config/hail/warp-coil-strict.md" exists with:
+      """
+      Resonance climbing.
+      """
+    When isaac is run with "hail send --band warp-coil-strict"
+    Then the stderr contains "no session"
+    And the exit code is 1
+    When isaac is run with "turns list --all"
+    Then the stdout is empty
+
+  @wip
+  Scenario: an existing matching session is bound instead of spawning a new one
+    Given the following sessions exist:
       | name      | crew        | tags                  |
       | coil-work | bartholomew | #{:project/warp-coil} |
     And the following model responses are queued:
       | type | content      | model  |
       | text | On the coil. | grover |
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path                    | value                 |
-      | id                      | hail-1                |
-      | crew                    | :main                 |
-      | frequencies.session-tags  | #{:project/warp-coil} |
-      | frequencies.create | :if-missing                  |
-      | prompt                  | Resonance climbing.   |
-      | attempts                | 0                     |
-    When the hail delivery worker ticks
-    And the turn ends on session "coil-work"
+    When isaac is run with "hail send --band warp-coil-callout"
+    Then the exit code is 0
+    When the turn queue ticks at "2026-03-01T18:00:00"
     Then session "session-1" does not exist
     And session "coil-work" has transcript matching:
       | type    | message.role | message.content     |
       | message | user         | Resonance climbing. |
       | message | assistant    | On the coil.        |
-    And the isaac file "hail/delivered/hail-1.edn" EDN contains:
-      | path    | value     |
-      | bound-session | :coil-work |
 
-  Scenario: a create delivery whose only matching session is in flight waits, no sibling
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value             |
-      | model | grover            |
-      | tags  | #{:role/engineer} |
-    And the following sessions exist:
+  @wip
+  Scenario: a create-enabled hail whose only matching session is in flight waits, no sibling
+    Given the following sessions exist:
       | name      | crew        | tags                  |
       | coil-work | bartholomew | #{:project/warp-coil} |
     And session "coil-work" is in flight
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path                    | value                 |
-      | id                      | hail-1                |
-      | crew                    | :main                 |
-      | frequencies.session-tags  | #{:project/warp-coil} |
-      | frequencies.create | :if-missing                  |
-      | prompt                  | Resonance climbing.   |
-      | attempts                | 0                     |
-    When the hail delivery worker ticks
+    And the following model responses are queued:
+      | type | content      | model  |
+      | text | On the coil. | grover |
+    When isaac is run with "hail send --band warp-coil-callout"
+    Then the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    When the turn queue ticks at "2026-03-01T18:00:00"
+    Then the turn Hail submitted has:
+      | path  | value |
+      | state | :held |
+    When the turn ends on session "coil-work"
+    And the turn queue ticks at "2026-03-01T18:00:05"
     Then session "session-1" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path     | value  | #comment                                            |
-      | id       | hail-1 | matching session busy — wait, don't spawn a sibling |
-      | attempts | 0      |                                                     |
+    And session "coil-work" has transcript matching:
+      | type    | message.role | message.content     |
+      | message | user         | Resonance climbing. |
+      | message | assistant    | On the coil.        |

@@ -18,6 +18,7 @@ Feature: Hail band inheritance via base template bands
   Background:
     Given an Isaac root at "target/test-state"
 
+  @wip
   Scenario: A child band inherits session-tags and data from its base template
     Given default Grover setup
     And the isaac EDN file "config/hail/_engineering-template.edn" exists with:
@@ -45,21 +46,25 @@ Feature: Hail band inheritance via base template bands
     When the config is loaded
     When isaac is run with "hail send --band engineering-verify"
     Then the exit code is 0
-    When the hail router ticks
-    And the hail delivery worker ticks
-    And the turn ends on session "engine-room"
-    Then the hail turn on session "engine-room" has a system preamble matching:
-      | pattern                                |
-      | #"(?s).*bean-repo.*acme/warp\.git.*"   |
-      | #"(?s).*work-hail.*engineering-work.*" |
-    And session "engine-room" has transcript matching:
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path     | value                                                               |
+      | id       | #turn-id                                                            |
+      | input    | #"(?s).*Verify the coil work\..*"                                   |
+      | preamble | #"(?s).*bean-repo.*acme/warp\.git.*work-hail.*engineering-work.*"  |
+    When the turn queue ticks at "2026-03-01T18:00:00"
+    Then session "engine-room" has transcript matching:
       | message.role | message.content                    |
-      | user         | #"(?s).*Verify the coil work\..*" |
+      | user         | #"(?s).*Verify the coil work\..*"  |
+      | assistant    | On it.                              |
 
+  @wip
   Scenario: A child data key overrides the same key in the base, base-only keys survive
-    Given the isaac EDN file "config/hail/_engineering-template.edn" exists with:
-      | path         | value                                                     |
-      | session-tags | #{:project/warp-coil}                                     |
+    Given default Grover setup
+    And the isaac EDN file "config/hail/_engineering-template.edn" exists with:
+      | path         | value                                                           |
+      | session-tags | #{:project/warp-coil}                                           |
       | data         | {:notification-channel "shipwide", :bean-repo "git@x:a/b.git"} |
     And the isaac EDN file "config/hail/engineering-work.edn" exists with:
       | path | value                            |
@@ -69,15 +74,27 @@ Feature: Hail band inheritance via base template bands
       """
       Work the coil.
       """
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value                 |
+      | model | grover                |
+      | tags  | #{:project/warp-coil} |
+    And the following sessions exist:
+      | name        | crew        | tags                  |
+      | engine-room | bartholomew | #{:project/warp-coil} |
     When the config is loaded
     When isaac is run with "hail send --band engineering-work"
     Then the exit code is 0
-    And pending hail 1 EDN contains:
-      | path | value                                                        |
-      | data | {:notification-channel "engine", :bean-repo "git@x:a/b.git"} |
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path        | value                                                          |
+      | id          | #turn-id                                                       |
+      | origin.data | {:notification-channel "engine", :bean-repo "git@x:a/b.git"} |
 
+  @wip
   Scenario: A child without a body inherits the base band's body as its template
-    Given the isaac EDN file "config/hail/_engineering-template.edn" exists with:
+    Given default Grover setup
+    And the isaac EDN file "config/hail/_engineering-template.edn" exists with:
       | path         | value                 |
       | session-tags | #{:project/warp-coil} |
     And the isaac file "config/hail/_engineering-template.md" exists with:
@@ -87,15 +104,27 @@ Feature: Hail band inheritance via base template bands
     And the isaac EDN file "config/hail/engineering-work.edn" exists with:
       | path | value                 |
       | base | _engineering-template |
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value                 |
+      | model | grover                |
+      | tags  | #{:project/warp-coil} |
+    And the following sessions exist:
+      | name        | crew        | tags                  |
+      | engine-room | bartholomew | #{:project/warp-coil} |
     When the config is loaded
     When isaac is run with "hail send --band engineering-work --params '{:task \"the coil\"}'"
     Then the exit code is 0
-    And pending hail 1 EDN contains:
-      | path   | value                                    |
-      | prompt | Attend to the coil in the engine room.   |
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path  | value                                   |
+      | id    | #turn-id                                |
+      | input | Attend to the coil in the engine room.  |
 
+  @wip
   Scenario: Base chains resolve transitively
-    Given the isaac EDN file "config/hail/_fleet-template.edn" exists with:
+    Given default Grover setup
+    And the isaac EDN file "config/hail/_fleet-template.edn" exists with:
       | path | value                            |
       | data | {:fleet "seventh", :deck "one"}  |
     And the isaac EDN file "config/hail/_engineering-template.edn" exists with:
@@ -110,12 +139,22 @@ Feature: Hail band inheritance via base template bands
       """
       Work the coil.
       """
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value                 |
+      | model | grover                |
+      | tags  | #{:project/warp-coil} |
+    And the following sessions exist:
+      | name        | crew        | tags                  |
+      | engine-room | bartholomew | #{:project/warp-coil} |
     When the config is loaded
     When isaac is run with "hail send --band engineering-work"
     Then the exit code is 0
-    And pending hail 1 EDN contains:
-      | path | value                                |
-      | data | {:fleet "seventh", :deck "engineering"} |
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path        | value                                     |
+      | id          | #turn-id                                  |
+      | origin.data | {:fleet "seventh", :deck "engineering"}  |
 
   Scenario: A base cycle is a clear error, not a hang
     Given config file "hail/_alpha.edn" containing:

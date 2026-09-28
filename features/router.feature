@@ -1,42 +1,51 @@
-Feature: Hail router
-  The hail router ticks on the shared scheduler, reads raw hails from
-  hail/pending/, and resolves each :frequencies by enriching the hail IN
-  PLACE with the resolved processing crew + session — keeping its id and
-  filename. A hail moves to hail/deliveries/ named by its own hail id. A
-  pool of many is left unbound with a frozen :candidates list
-  for the delivery worker to bind. Routing is fail-fast: a hail that
-  cannot produce at least one delivery moves to hail/undeliverable/ with a
-  :reason. After a tick every processed hail has left pending/. The
-  delivery worker (separate bean) consumes hail/deliveries/.
+Feature: Hail addressing
+  `isaac hail send` resolves a hail's :frequencies to a target session
+  synchronously, before anything is queued. A band's session-tags,
+  explicit :crew, explicit :session, and combinations thereof narrow the
+  live session pool; :with-crew overrides the processing crew. Addressing
+  that cannot resolve to at least one existing session is refused at send
+  — nothing is queued, and (for band-declared selectors) a WARN
+  hail/undeliverable event is logged. Addressing that resolves submits
+  ONE turn to Agent's durable queue; that turn's admission (crew, bound
+  session) plays out when the turn queue ticks.
 
   Background:
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
+  @wip
   Scenario: a session activated via sessions set is routable by band session-tags
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
       | session-tags | #{:role/engineer} |
+    And the following model responses are queued:
+      | type | content | model  |
+      | text | Aye.    | grover |
     When isaac is run with "sessions set relay.tags.role/engineer"
     Then the exit code is 0
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path      | value                          |
-      | id        | hail-1                         |
-      | frequencies | {:band "engineering-intercom"} |
-      | params    | {:n 1}                         |
-      | from      | :cli                           |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path    | value  | #comment                 |
-      | id      | hail-1 |                          |
-      | crew    | :main  | activated session crew   |
-      | bound-session | :relay | visible via store SPI |
+    When isaac is run with "hail send --band engineering-intercom --prompt 'Engineering intercom check.'"
+    Then the exit code is 0
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path                     | value             |
+      | id                       | #turn-id          |
+      | frequencies.session-tags | #{:role/engineer} |
+    When the turn queue ticks at "2026-03-01T18:00:00"
+    Then session "relay" has transcript matching:
+      | type    | message.role | message.content             |
+      | message | user         | Engineering intercom check. |
+      | message | assistant    | Aye.                         |
 
+  @wip
   Scenario: a reach-one band matching exactly one session binds immediately
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
       | session-tags | #{:role/engineer} |
+    And the isaac file "config/hail/engineering-intercom.md" exists with:
+      """
+      Dilithium leak reported.
+      """
     And the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value             |
       | model | grover            |
@@ -44,69 +53,52 @@ Feature: Hail router
     And the following sessions exist:
       | name        | crew        | tags              |
       | engine-room | bartholomew | #{:role/engineer} |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path      | value                          |
-      | id        | hail-1                         |
-      | frequencies | {:band "engineering-intercom"} |
-      | params    | {:dilithium-leak true}         |
-      | from      | :cli                           |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path      | value                          | #comment                      |
-      | id        | hail-1                         | same id, enriched in place    |
-      | frequencies | {:band "engineering-intercom" :session-tags [:role/engineer]} | merged selector |
-      | params    | {:dilithium-leak true}         |                               |
-      | crew      | bartholomew                    | only one engineer → bound now |
-      | bound-session | :engine-room                |                               |
+    And the following model responses are queued:
+      | type | content | model  |
+      | text | On it.  | grover |
+    When isaac is run with "hail send --band engineering-intercom --params '{:dilithium-leak true}'"
+    Then the exit code is 0
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path                     | value                   |
+      | id                       | #turn-id                |
+      | frequencies.session-tags | #{:role/engineer}       |
+      | origin.params            | {:dilithium-leak true}  |
+    When the turn queue ticks at "2026-03-01T18:00:00"
+    Then session "engine-room" has transcript matching:
+      | type    | message.role | message.content          |
+      | message | user         | Dilithium leak reported. |
+      | message | assistant    | On it.                    |
 
-  Scenario: a reach-one tag pool of many is left unbound with frozen candidates
-    Given the isaac EDN file "config/crew/atticus.edn" exists with:
-      | path  | value            |
-      | model | grover           |
-      | tags  | #{:role/command} |
-    And the isaac EDN file "config/crew/cordelia.edn" exists with:
-      | path  | value            |
-      | model | grover           |
-      | tags  | #{:role/command} |
-    And the following sessions exist:
-      | name        | crew     | tags             |
-      | bridge      | atticus  | #{:role/command} |
-      | first-watch | cordelia | #{:role/command} |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path      | value                            |
-      | id        | hail-1                           |
-      | frequencies | {:session-tags #{:role/command}} |
-      | prompt    | Status report?                   |
-      | from      | :cli                             |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path       | value                                                                       | #comment             |
-      | id         | hail-1                                                                      |                      |
-      | crew       |                                                                             | unbound — nil        |
-      | bound-session |                                                                          | unbound — nil        |
-      | candidates | [{:crew :atticus :session :bridge} {:crew :cordelia :session :first-watch}] | frozen pool snapshot |
-
+  @wip
   Scenario: a frequency :crew selects sessions of that crew
-    Given the following sessions exist:
-      | name         | crew    |
-      | agile-voyage | main    |
-      | side-job     | marvin  |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path      | value              |
-      | id        | hail-1             |
-      | frequencies | {:crew "main"}     |
-      | prompt    | Work the backlog.  |
-      | from      | :cli               |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path    | value        | #comment                         |
-      | id      | hail-1       |                                  |
-      | crew    | main         | processing crew = session :crew |
-      | bound-session | :agile-voyage | only main-crew session matched |
+    Given the isaac EDN file "config/crew/marvin.edn" exists with:
+      | path  | value  |
+      | model | grover |
+    And the following sessions exist:
+      | name         | crew   |
+      | agile-voyage | main   |
+      | side-job     | marvin |
+    And the following model responses are queued:
+      | type | content     | model  |
+      | text | Backlogged. | grover |
+    When isaac is run with "hail send --crew main --prompt 'Work the backlog.'"
+    Then the exit code is 0
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path             | value              |
+      | id               | #turn-id           |
+      | frequencies.crew | "main"             |
+      | input            | Work the backlog.  |
+    When the turn queue ticks at "2026-03-01T18:00:00"
+    Then session "agile-voyage" has transcript matching:
+      | type    | message.role | message.content   |
+      | message | user         | Work the backlog. |
+      | message | assistant    | Backlogged.        |
 
+  @wip
   Scenario: a direct session frequency binds to that exact session only
     Given the isaac EDN file "config/crew/mavis.edn" exists with:
       | path  | value              |
@@ -116,25 +108,33 @@ Feature: Hail router
       | name           | crew  |
       | charted-course | mavis |
       | side-quest     | mavis |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path      | value                        |
-      | id        | hail-1                       |
-      | frequencies | {:session [:charted-course]} |
-      | prompt    | Adjust bearing 12 degrees.   |
-      | from      | :cli                         |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path    | value          | #comment             |
-      | id      | hail-1         |                      |
-      | crew    | mavis          |                      |
-      | bound-session | :charted-course | the targeted session |
-    And the isaac file "hail/broadcasts/hail-1.edn" does not exist
+    And the following model responses are queued:
+      | type | content      | model  |
+      | text | Bearing set. | grover |
+    When isaac is run with "hail send --session charted-course --prompt 'Adjust bearing 12 degrees.'"
+    Then the exit code is 0
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path    | value                       |
+      | id      | #turn-id                    |
+      | session | :charted-course             |
+      | input   | Adjust bearing 12 degrees.  |
+    When the turn queue ticks at "2026-03-01T18:00:00"
+    Then session "charted-course" has transcript matching:
+      | type    | message.role | message.content            |
+      | message | user         | Adjust bearing 12 degrees. |
+      | message | assistant    | Bearing set.                |
 
+  @wip
   Scenario: combined band and session-tag intersect to one bound delivery
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
       | session-tags | #{:role/engineer} |
+    And the isaac file "config/hail/engineering-intercom.md" exists with:
+      """
+      Resonance drift check.
+      """
     And the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value             |
       | model | grover            |
@@ -143,24 +143,32 @@ Feature: Hail router
       | name           | crew        | tags                                 |
       | engine-room    | bartholomew | #{:role/engineer}                    |
       | coil-tinkering | bartholomew | #{:role/engineer :project/warp-coil} |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path      | value                                                              |
-      | id        | hail-1                                                             |
-      | frequencies | {:band "engineering-intercom" :session-tags #{:project/warp-coil}} |
-      | params    | {:resonance-drift 0.03}                                            |
-      | from      | :cli                                                               |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path    | value          | #comment                                   |
-      | id      | hail-1         |                                            |
-      | crew    | bartholomew    |                                            |
-      | bound-session | :coil-tinkering | warp-coil session matched, engine-room not |
+    And the following model responses are queued:
+      | type | content | model  |
+      | text | On it.  | grover |
+    When isaac is run with "hail send --band engineering-intercom --session-tag project/warp-coil --params '{:resonance-drift 0.03}'"
+    Then the exit code is 0
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path                     | value                  |
+      | id                       | #turn-id               |
+      | frequencies.session-tags | #{:project/warp-coil}  |
+    When the turn queue ticks at "2026-03-01T18:00:00"
+    Then session "coil-tinkering" has transcript matching:
+      | type    | message.role | message.content        |
+      | message | user         | Resonance drift check. |
+      | message | assistant    | On it.                 |
 
+  @wip
   Scenario: a band :crew selects sessions whose crew matches
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
-      | path | value        |
+      | path | value         |
       | crew | "bartholomew" |
+    And the isaac file "config/hail/engineering-intercom.md" exists with:
+      """
+      Status check.
+      """
     And the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
       | model | grover |
@@ -170,72 +178,56 @@ Feature: Hail router
     And the following sessions exist:
       | name        | crew        |
       | engine-room | bartholomew |
-      | greenhouse  | hieronymus  |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path      | value                          |
-      | id        | hail-1                         |
-      | frequencies | {:band "engineering-intercom"} |
-      | params    | {:n 1}                         |
-      | from      | :cli                           |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path    | value       | #comment                    |
-      | id      | hail-1      |                             |
-      | crew    | bartholomew | band :crew session selector |
-      | bound-session | :engine-room | hieronymus not selected |
+      | galley  | hieronymus  |
+    And the following model responses are queued:
+      | type | content | model  |
+      | text | On it.  | grover |
+    When isaac is run with "hail send --band engineering-intercom --params '{:n 1}'"
+    Then the exit code is 0
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    When the turn queue ticks at "2026-03-01T18:00:00"
+    Then session "engine-room" has transcript matching:
+      | type    | message.role | message.content |
+      | message | user         | Status check.    |
+      | message | assistant    | On it.           |
 
-  Scenario: a frequency with no session selector moves the hail to undeliverable
+  @wip
+  Scenario: a frequency with no session selector is refused at send
+    When isaac is run with "hail send --prompt 'Orphan reach.'"
+    Then the stderr contains "addressing"
+    And the exit code is 1
+    When isaac is run with "turns list --all"
+    Then the stdout is empty
+
+  @wip
+  Scenario: processing crew comes from the matched session
     Given the following sessions exist:
       | name        | crew |
       | engine-room | main |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path      | value           |
-      | id        | hail-1          |
-      | frequencies | {}   |
-      | prompt    | Orphan reach.   |
-      | from      | :cli            |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
-      | path   | value          | #comment                          |
-      | id     | hail-1         |                                   |
-      | reason | :no-recipients | absent selectors must not match-all |
+    And the following model responses are queued:
+      | type | content  | model  |
+      | text | Nominal. | grover |
+    When isaac is run with "hail send --session engine-room --prompt 'Check the gauges.'"
+    Then the exit code is 0
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    When the turn queue ticks at "2026-03-01T18:00:00"
+    Then session "engine-room" has transcript matching:
+      | type    | message.role | message.content    |
+      | message | user         | Check the gauges. |
+      | message | assistant    | Nominal.            |
 
-  Scenario: processing crew comes from the matched session
-    And the following sessions exist:
-      | name        | crew |
-      | engine-room | main |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path      | value                      |
-      | id        | hail-1                     |
-      | frequencies | {:session [:engine-room]}  |
-      | prompt    | Check the gauges.          |
-      | from      | :cli                       |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path    | value       | #comment                       |
-      | id      | hail-1      |                                |
-      | crew    | main        | session :crew, else cfg default  |
-      | bound-session | :engine-room |                          |
+  @wip
+  Scenario: an unknown band is refused at send
+    When isaac is run with "hail send --band phantom-band --params '{:n 1}'"
+    Then the stderr contains "unknown band: phantom-band"
+    And the exit code is 1
+    When isaac is run with "turns list --all"
+    Then the stdout is empty
 
-  Scenario: an unknown band moves the hail to undeliverable
-    Given the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path      | value                  | #comment                               |
-      | id        | hail-1                 |                                        |
-      | frequencies | {:band "phantom-band"} | no config/hail/phantom-band.edn exists |
-      | params    | {:n 1}                 |                                        |
-      | from      | :cli                   |                                        |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
-      | path      | value                  | #comment                  |
-      | id        | hail-1                 | same id, :reason added    |
-      | frequencies | {:band "phantom-band"} |                           |
-      | reason    | :unknown-band          | why it couldn't be routed |
-
-  Scenario: a reach-one band with no matching session moves the hail to undeliverable
+  @wip
+  Scenario: a reach-one band with no matching session is refused at send
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
       | session-tags | #{:role/engineer} |
@@ -245,21 +237,15 @@ Feature: Hail router
       | tags  | #{:role/botanist} | no engineer-tagged session |
     And the following sessions exist:
       | name       | crew       |
-      | greenhouse | hieronymus |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path      | value                          |
-      | id        | hail-1                         |
-      | frequencies | {:band "engineering-intercom"} |
-      | params    | {:n 1}                         |
-      | from      | :cli                           |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
-      | path   | value          | #comment                         |
-      | id     | hail-1         |                                  |
-      | reason | :no-recipients | band exists, no engineer matched |
+      | galley | hieronymus |
+    When isaac is run with "hail send --band engineering-intercom --params '{:n 1}'"
+    Then the stderr contains "no session"
+    And the exit code is 1
+    When isaac is run with "turns list --all"
+    Then the stdout is empty
 
-  Scenario: an undeliverable hail logs a WARN hail/undeliverable event (isaac-axzg)
+  @wip
+  Scenario: an undeliverable hail logs a WARN hail/undeliverable event at send (isaac-axzg)
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
       | session-tags | #{:role/engineer} |
@@ -269,60 +255,19 @@ Feature: Hail router
       | tags  | #{:role/botanist} | no engineer-tagged session |
     And the following sessions exist:
       | name       | crew       |
-      | greenhouse | hieronymus |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path        | value                          |
-      | id          | hail-1                         |
-      | thread-id   | thread-9                       |
-      | frequencies | {:band "engineering-intercom"} |
-      | params      | {:n 1}                         |
-      | from        | :cli                           |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
-      | path   | value          | #comment                         |
-      | id     | hail-1         |                                  |
-      | reason | :no-recipients | band exists, no engineer matched |
+      | galley | hieronymus |
+    When isaac is run with "hail send --band engineering-intercom --params '{:n 1}'"
+    Then the stderr contains "no session"
+    And the exit code is 1
     And the log has entries matching:
-      | level | event                 | id     | thread-id | band                  | reason         |
-      | :warn | :hail/undeliverable   | hail-1 | thread-9  | engineering-intercom  | :no-recipients |
-
-  Scenario: the hail router tick is registered with the shared scheduler
-    When the Isaac system is started
-    Then the scheduled tasks include:
-      | id         | trigger.kind | trigger.ms |
-      | hail/route | interval     | 1000       |
+      | level | event               | band                  | reason         |
+      | :warn | :hail/undeliverable | engineering-intercom  | :no-recipients |
 
   # --- Conform :frequencies onto the shared session selector (isaac-c58s) ---
   # :frequencies holds the same flat map the prompt command builds (select keys
-  # + :with-* override keys). --prefer orders the frozen reach-one candidates;
-  # --with-crew overrides the processing crew.
+  # + :with-* override keys). --with-crew overrides the processing crew.
 
-  Scenario: --prefer orders the frozen candidates for a reach-one multi-match
-    Given the isaac EDN file "config/crew/atticus.edn" exists with:
-      | path  | value            |
-      | model | grover           |
-      | tags  | #{:role/command} |
-    And the isaac EDN file "config/crew/cordelia.edn" exists with:
-      | path  | value            |
-      | model | grover           |
-      | tags  | #{:role/command} |
-    And the following sessions exist:
-      | name        | crew     | tags             | updated-at          |
-      | bridge      | atticus  | #{:role/command} | 2026-04-12T15:00:00 |
-      | first-watch | cordelia | #{:role/command} | 2026-04-10T10:00:00 |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path                     | value            |
-      | id                       | hail-1           |
-      | frequencies.session-tags | #{:role/command} |
-      | frequencies.prefer       | :oldest          |
-      | prompt                   | Status report?   |
-      | from                     | :cli             |
-    When the hail router ticks
-    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path       | value                                                                       | #comment                |
-      | candidates | [{:crew :cordelia :session :first-watch} {:crew :atticus :session :bridge}] | oldest-first by :prefer |
-
+  @wip
   Scenario: --with-crew overrides the processing crew
     Given the following sessions exist:
       | name        | crew |
@@ -330,43 +275,14 @@ Feature: Hail router
     And the isaac EDN file "config/crew/navigator.edn" exists with:
       | path  | value  |
       | model | grover |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path                  | value             |
-      | id                    | hail-1            |
-      | frequencies.session   | [:engine-room]    |
-      | frequencies.with-crew | :navigator        |
-      | prompt                | Check the gauges. |
-      | from                  | :cli              |
-    When the hail router ticks
-    Then the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path    | value       | #comment                                 |
-      | id      | hail-1      |                                          |
-      | crew    | navigator   | :with-crew override beats session's main |
-      | bound-session | :engine-room | selected by :session, unchanged    |
-
-
-  Scenario: an unreadable pending record is quarantined once, not re-read every tick (isaac-k0xm)
-    Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
-      | path         | value             |
-      | session-tags | #{:role/engineer} |
-    And the isaac file "hail/pending/bad-1.edn" exists with:
+    Given stdin is:
       """
-      {:id "bad-1" :frequencies {:session-tags #{::a/b}}}
+      {:frequencies {:session [:engine-room] :with-crew :navigator}
+       :prompt      "Check the gauges."}
       """
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path        | value                          |
-      | id          | hail-1                         |
-      | frequencies | {:band "engineering-intercom"} |
-      | from        | :cli                           |
-    When the hail router ticks
-    And the hail router ticks
-    And the hail router ticks
-    Then the isaac file "hail/pending/bad-1.edn" does not exist
-    And the isaac file "hail/undeliverable/bad-1.edn" exists
-    And the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/undeliverable/hail-1.edn" EDN contains:
-      | path   | value          |
-      | reason | :no-recipients |
-    And the log has exactly 1 entries matching:
-      | level  | event           | id    | quarantined |
-      | :error | :hail/bad-record | bad-1 | true        |
+    When isaac is run with "hail send - --dry-run"
+    Then the exit code is 0
+    And the stdout EDN contains:
+      | path        | value                                            |
+      | frequencies | {:session [:engine-room] :with-crew :navigator}  |
+      | input       | Check the gauges.                                |

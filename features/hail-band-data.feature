@@ -1,18 +1,20 @@
-Feature: Hail band data survives prompt override and appears in delivery metadata
+Feature: Hail band data survives prompt override and appears in the turn's preamble
   Band frontmatter may declare a :data map — coordinates and context the recipient
   needs regardless of which prompt was delivered. Effective data merges band
   defaults with per-hail :params (params win) and interpolates {{var}} placeholders
-  in string values.
+  in string values. The merged data rides the submitted turn as :origin.data and
+  the metadata preamble.
 
   Background:
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
+  @wip
   Scenario: Band data appears in the metadata preamble when the body renders the prompt
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
-      | path         | value                                                  |
-      | session-tags | #{:project/warp-coil}                                  |
-      | data         | {:bean-repo "isaac", :bean-id "{{bean-id}}"}           |
+      | path         | value                                         |
+      | session-tags | #{:project/warp-coil}                         |
+      | data         | {:bean-repo "isaac", :bean-id "{{bean-id}}"}  |
     And the isaac file "config/hail/engineering-intercom.md" exists with:
       """
       Resonance climbing on {{coil}}, drift {{drift}}.
@@ -30,26 +32,26 @@ Feature: Hail band data survives prompt override and appears in delivery metadat
     When the config is loaded
     When isaac is run with "hail send --band engineering-intercom --params '{:coil \"primary\", :drift 0.03, :bean-id \"isaac-iz3a\"}'"
     Then the exit code is 0
-    And the sole pending hail EDN contains:
-      | path   | value                                              |
-      | prompt | Resonance climbing on primary, drift 0.03.         |
-      | data   | {:bean-repo "isaac", :bean-id "isaac-iz3a", :coil "primary", :drift 0.03} |
-    When the hail router ticks
-    And the hail delivery worker ticks
-    And the turn ends on session "engine-room"
-    Then the hail turn on session "engine-room" has a system preamble matching:
-      | pattern                                         |
-      | #"(?s).*Data:.*bean-repo.*isaac.*"             |
-      | #"(?s).*bean-id.*isaac-iz3a.*"                  |
-    And session "engine-room" has transcript matching:
-      | message.role | message.content                              |
-      | user         | #"(?s).*Resonance climbing on primary.*"    |
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path        | value                                                                     |
+      | id          | #turn-id                                                                  |
+      | input       | Resonance climbing on primary, drift 0.03.                               |
+      | origin.data | {:bean-repo "isaac", :bean-id "isaac-iz3a", :coil "primary", :drift 0.03} |
+      | preamble    | #"(?s).*Data:.*bean-repo.*isaac.*bean-id.*isaac-iz3a.*"                  |
+    When the turn queue ticks at "2026-03-01T18:00:00"
+    Then session "engine-room" has transcript matching:
+      | message.role | message.content                           |
+      | user         | #"(?s).*Resonance climbing on primary.*"  |
+      | assistant    | On it.                                     |
 
+  @wip
   Scenario: Band data survives an explicit prompt override
     Given the isaac EDN file "config/hail/bean-pickup.edn" exists with:
-      | path         | value                                        |
-      | session-tags | #{:project/chess}                            |
-      | data         | {:bean-repo "isaac", :notification-comm "longwave"} |
+      | path         | value                                                |
+      | session-tags | #{:project/chess}                                    |
+      | data         | {:bean-repo "isaac", :notification-comm "longwave"}  |
     And the isaac file "config/hail/bean-pickup.md" exists with:
       """
       Pick up the beans in the galley.
@@ -62,31 +64,41 @@ Feature: Hail band data survives prompt override and appears in delivery metadat
       | name        | crew        | tags              |
       | engine-room | bartholomew | #{:project/chess} |
     And the following model responses are queued:
-      | type | content      | model  |
-      | text | Acknowledged.| grover |
+      | type | content       | model  |
+      | text | Acknowledged. | grover |
     When the config is loaded
     When isaac is run with "hail send --band bean-pickup --prompt 'Verifier needs help on iz3a.'"
     Then the exit code is 0
-    When the hail router ticks
-    And the hail delivery worker ticks
-    And the turn ends on session "engine-room"
-    Then the hail turn on session "engine-room" has a system preamble matching:
-      | pattern                                         |
-      | #"(?s).*Data:.*bean-repo.*isaac.*"             |
-      | #"(?s).*notification-comm.*longwave.*"          |
-    And session "engine-room" has transcript matching:
-      | message.role | message.content                        |
-      | user         | #"(?s).*Verifier needs help on iz3a.*" |
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path     | value                                                             |
+      | id       | #turn-id                                                          |
+      | input    | Verifier needs help on iz3a.                                      |
+      | preamble | #"(?s).*Data:.*bean-repo.*isaac.*notification-comm.*longwave.*"  |
+    When the turn queue ticks at "2026-03-01T18:00:00"
+    Then session "engine-room" has transcript matching:
+      | message.role | message.content                         |
+      | user         | #"(?s).*Verifier needs help on iz3a.*"  |
+      | assistant    | Acknowledged.                            |
 
+  @wip
   Scenario: Per-hail params override band data keys and pass through extras
     Given the isaac EDN file "config/hail/bean-pickup.edn" exists with:
-      | path         | value                                                     |
-      | session-tags | #{:project/chess}                                         |
-      | data         | {:bean-repo "isaac", :sector "alpha"}                    |
+      | path         | value                                  |
+      | session-tags | #{:project/chess}                      |
+      | data         | {:bean-repo "isaac", :sector "alpha"}  |
     And the isaac file "config/hail/bean-pickup.md" exists with:
       """
       Sector check.
       """
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value             |
+      | model | grover            |
+      | tags  | #{:project/chess} |
+    And the following sessions exist:
+      | name        | crew        | tags              |
+      | engine-room | bartholomew | #{:project/chess} |
     When the config is loaded
     When isaac is run with "hail send --band bean-pickup --params '{:sector \"gamma\", :coil \"port\"}' --edn"
     Then the exit code is 0
@@ -95,6 +107,7 @@ Feature: Hail band data survives prompt override and appears in delivery metadat
     And the stdout contains "coil"
     And the stdout contains "port"
 
+  @wip
   Scenario: A param overrides the same-named band data key in the delivered preamble
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                                    |
@@ -111,20 +124,17 @@ Feature: Hail band data survives prompt override and appears in delivery metadat
     And the following sessions exist:
       | name        | crew        | tags                  |
       | engine-room | bartholomew | #{:project/warp-coil} |
-    And the following model responses are queued:
-      | type | content | model  |
-      | text | On it.  | grover |
     When the config is loaded
     When isaac is run with "hail send --band engineering-intercom --params '{:coil \"starboard\"}'"
     Then the exit code is 0
-    When the hail router ticks
-    And the hail delivery worker ticks
-    And the turn ends on session "engine-room"
-    Then the hail turn on session "engine-room" has a system preamble matching:
-      | pattern                            |
-      | #"(?s).*coil.*starboard.*"         |
-      | #"(?s).*plan-hail.*engine-plan.*"  |
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path     | value                                               |
+      | id       | #turn-id                                            |
+      | preamble | #"(?s).*coil.*starboard.*plan-hail.*engine-plan.*" |
 
+  @wip
   Scenario: Band data values interpolate params
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                 |
@@ -134,13 +144,24 @@ Feature: Hail band data survives prompt override and appears in delivery metadat
       """
       Work the bean.
       """
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value                 |
+      | model | grover                |
+      | tags  | #{:project/warp-coil} |
+    And the following sessions exist:
+      | name        | crew        | tags                  |
+      | engine-room | bartholomew | #{:project/warp-coil} |
     When the config is loaded
     When isaac is run with "hail send --band engineering-intercom --params '{:bean-id \"isaac-42\"}'"
     Then the exit code is 0
-    And pending hail 1 EDN contains:
-      | path | value                                  |
-      | data | {:bean "isaac-42", :bean-id "isaac-42"} |
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path        | value                                    |
+      | id          | #turn-id                                 |
+      | origin.data | {:bean "isaac-42", :bean-id "isaac-42"}  |
 
+  @wip
   Scenario: A band without declared data does not persist params as data
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                 |
@@ -149,16 +170,24 @@ Feature: Hail band data survives prompt override and appears in delivery metadat
       """
       Resonance climbing on {{coil}}.
       """
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value                 |
+      | model | grover                |
+      | tags  | #{:project/warp-coil} |
+    And the following sessions exist:
+      | name        | crew        | tags                  |
+      | engine-room | bartholomew | #{:project/warp-coil} |
     When the config is loaded
     When isaac is run with "hail send --band engineering-intercom --params '{:coil \"primary\"}'"
     Then the exit code is 0
-    And pending hail 1 EDN contains:
-      | path   | value                                        |
-      | prompt | Resonance climbing on primary.               |
-      | params | {:coil "primary"}                            |
-    And pending hail 1 EDN does not contain:
-      | path |
-      | data |
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path          | value                           |
+      | id            | #turn-id                        |
+      | input         | Resonance climbing on primary.  |
+      | origin.params | {:coil "primary"}               |
+      | origin.data   |                                  |
 
   Scenario: config validate accepts a band with a data map and rejects a non-map data
     Given an Isaac root at "isaac-state"

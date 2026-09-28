@@ -1,65 +1,67 @@
 Feature: Hail send — direct addressing flags
   Beyond `--band`, `isaac hail send` accepts `--crew` (session selector in
   :frequencies), `--session`, `--session-tag`, and `--from-json`. Routing
-  selectors live in `:frequencies`.
+  selectors live in `:frequencies`. `--dry-run` expands and prints the
+  submission without queuing a turn.
 
   Background:
     Given an Isaac root at "target/test-state"
 
+  @wip
   Scenario: --crew populates :crew in the frequency address map
-    When isaac is run with "hail send --crew marvin --prompt 'Heads up' --session-tag wip"
+    When isaac is run with "hail send --crew marvin --prompt 'Heads up' --session-tag wip --dry-run"
     Then the exit code is 0
-    And the sole pending hail EDN contains:
+    And the stdout EDN contains:
       | path        | value                                  |
-      | id          | <short-uuid>                           |
       | frequencies | {:crew "marvin" :session-tags #{:wip}} |
-      | prompt      | Heads up                               |
-      | from        | :cli                                   |
+      | input       | Heads up                               |
+      | origin.from | :cli                                   |
 
+  @wip
   Scenario: --session populates :session in the address map
-    When isaac is run with "hail send --session tidy-cavern --prompt 'wake up'"
+    When isaac is run with "hail send --session tidy-cavern --prompt 'wake up' --dry-run"
     Then the exit code is 0
-    And the sole pending hail EDN contains:
+    And the stdout EDN contains:
       | path        | value                     |
-      | id          | <short-uuid>              |
       | frequencies | {:session [:tidy-cavern]} |
-      | prompt      | wake up                   |
-      | from        | :cli                      |
+      | input       | wake up                   |
+      | origin.from | :cli                      |
 
+  @wip
   Scenario: --session-tag populates :session-tags (repeatable AND-set)
-    When isaac is run with "hail send --session-tag project/chess --session-tag wip --prompt 'go'"
+    When isaac is run with "hail send --session-tag project/chess --session-tag wip --prompt 'go' --dry-run"
     Then the exit code is 0
-    And the sole pending hail EDN contains:
+    And the stdout EDN contains:
       | path        | value                                  |
-      | id          | <short-uuid>                           |
       | frequencies | {:session-tags #{:project/chess :wip}} |
-      | prompt      | go                                     |
-      | from        | :cli                                   |
+      | input       | go                                     |
+      | origin.from | :cli                                   |
 
+  @wip
   Scenario: combining --crew with --session-tag sets both selectors in :frequencies
-    When isaac is run with "hail send --crew marvin --session-tag project/chess --prompt 'go'"
+    When isaac is run with "hail send --crew marvin --session-tag project/chess --prompt 'go' --dry-run"
     Then the exit code is 0
-    And the sole pending hail EDN contains:
+    And the stdout EDN contains:
       | path        | value                                            |
-      | id          | <short-uuid>                                     |
       | frequencies | {:crew "marvin" :session-tags #{:project/chess}} |
-      | prompt      | go                                               |
-      | from        | :cli                                             |
+      | input       | go                                               |
+      | origin.from | :cli                                             |
 
+  @wip
   Scenario: --from-json reads the whole hail from stdin as JSON
     Given stdin is:
       """
       {"frequencies": {"band": "bean-pickup"}, "params": {"n": 1}}
       """
-    When isaac is run with "hail send - --from-json"
+    When isaac is run with "hail send - --from-json --dry-run"
     Then the exit code is 0
-    And the sole pending hail EDN contains:
-      | path        | value                 |
-      | id          | <short-uuid>          |
-      | frequencies | {:band "bean-pickup"} |
-      | params      | {:n 1}                |
-      | from        | :cli                  |
+    And the stdout EDN contains:
+      | path          | value                 |
+      | frequencies   | {:band "bean-pickup"} |
+      | origin.params | {:n 1}                |
+      | origin.from   | :cli                  |
 
+  @wip
   Scenario: bare - reads the whole hail from stdin as EDN
     Given stdin is:
       """
@@ -68,15 +70,14 @@ Feature: Hail send — direct addressing flags
        :prompt      "go"
        :params      {:n 1}}
       """
-    When isaac is run with "hail send -"
+    When isaac is run with "hail send - --dry-run"
     Then the exit code is 0
-    And the sole pending hail EDN contains:
-      | path        | value                                            |
-      | id          | <short-uuid>                                     |
-      | frequencies | {:crew :marvin :session-tags #{:project/chess}}  |
-      | prompt      | go                                               |
-      | params      | {:n 1}                                           |
-      | from        | :cli                                             |
+    And the stdout EDN contains:
+      | path          | value                                            |
+      | frequencies   | {:crew :marvin :session-tags #{:project/chess}}  |
+      | input         | go                                               |
+      | origin.params | {:n 1}                                           |
+      | origin.from   | :cli                                             |
 
   Scenario: send rejects a frequency with no session selector
     When isaac is run with "hail send --prompt 'orphan'"
@@ -88,23 +89,26 @@ Feature: Hail send — direct addressing flags
     Then the stderr contains "prompt"
     And the exit code is 1
 
+  @wip
   Scenario Outline: keyword flags accept a leading colon (isaac-k0xm)
-    When isaac is run with "hail send --band x --session-tag <tag> --dry-run"
+    When isaac is run with "hail send --session-tag <tag> --prompt 'hi' --dry-run"
     Then the exit code is 0
     And the stdout EDN contains:
-      | path        | value                                   |
-      | frequencies | {:band "x" :session-tags #{:project/foo}} |
+      | path                     | value           |
+      | frequencies.session-tags | #{:project/foo} |
 
     Examples:
       | tag          |
       | :project/foo |
       | project/foo  |
 
+  @wip
   Scenario: a keyword flag value that cannot read back is refused naming the flag (isaac-k0xm)
-    When isaac is run with "hail send --band x --session-tag :::x --dry-run"
+    When isaac is run with "hail send --session-tag :::x --prompt 'hi' --dry-run"
     Then the stderr contains "--session-tag"
     And the exit code is 1
-    And the isaac file "hail/pending" does not exist
+    When isaac is run with "turns list --all"
+    Then the stdout is empty
 
   Scenario: --crew and --session strip a leading colon too (isaac-k0xm)
     When isaac is run with "hail send --crew :yopp --session :abc --prompt go --dry-run"

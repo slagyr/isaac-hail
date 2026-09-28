@@ -1,84 +1,114 @@
 Feature: Hail send
-  `isaac hail send [addressing flags] [--params <edn>]` produces a
-  hail by atomically writing an EDN record to <root>/hail/pending/.
-  The record carries an auto-generated bare 8-hex short-uuid id, the
-  address, the params (if any), sender identity, and a sent-at
-  timestamp. This bean covers the substrate (`hail.queue/send!` library
-  function) and the `isaac hail send` CLI surface. v1 supports `--band`
-  addressing only; other addressing flags (`--crew`, `--session`,
-  `--crew-tag`, `--session-tag`) are follow-up.
+  `isaac hail send [addressing flags] [--params <edn>]` expands the band
+  (template, params, data, metadata preamble), checks the address, and
+  submits ONE turn to Agent's durable queue. Hail keeps no record of its
+  own; the turn id it prints is Agent's. This bean covers the substrate
+  (`hail.queue/send!` library function) and the `isaac hail send` CLI
+  surface. v1 supports `--band` addressing only; other addressing flags
+  (`--crew`, `--session`, `--crew-tag`, `--session-tag`) are follow-up.
 
   Background:
     Given an Isaac root at "target/test-state"
+    And default Grover setup
+    And the isaac EDN file "config/hail/bean-pickup.edn" exists with:
+      | path         | value                |
+      | session-tags | #{:project/galley}  |
+    And the isaac file "config/hail/bean-pickup.md" exists with:
+      """
+      Pick up the beans.
+      """
+    And the isaac EDN file "config/crew/wormwood.edn" exists with:
+      | path  | value                |
+      | model | grover               |
+      | tags  | #{:project/galley}  |
+    And the following sessions exist:
+      | name       | crew        | tags                 |
+      | galley | wormwood | #{:project/galley}  |
 
-  Scenario: isaac hail send writes a hail record to pending/
+  @wip
+  Scenario: isaac hail send submits a turn to Agent's queue
     When isaac is run with "hail send --band bean-pickup --params '{:n 1}'"
     Then the exit code is 0
-    And the sole pending hail EDN contains:
-      | path        | value                 |
-      | id          | <short-uuid>          |
-      | frequencies | {:band "bean-pickup"} |
-      | params      | {:n 1}                |
-      | from        | :cli                  |
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path                     | value                |
+      | id                       | #turn-id              |
+      | frequencies.session-tags | #{:project/galley}  |
+      | origin.params            | {:n 1}                |
+      | origin.from              | :cli                  |
 
-  Scenario: each isaac hail send mints a unique short-uuid id
+  @wip
+  Scenario: each isaac hail send returns a distinct turn id
     When isaac is run with "hail send --band bean-pickup --params '{:n 1}'"
     Then the exit code is 0
+    And the stdout matches:
+      | #"[a-z0-9]+":first-id |
     When isaac is run with "hail send --band bean-pickup --params '{:n 2}'"
     Then the exit code is 0
-    And pending hail ids are distinct
-    And pending hail 1 EDN contains:
-      | path   | value  |
-      | params | {:n 1} |
-    And pending hail 2 EDN contains:
-      | path   | value  |
-      | params | {:n 2} |
+    And the stdout matches:
+      | #"[a-z0-9]+":second-id |
+    When isaac is run with "turns show #first-id"
+    Then the stdout matches:
+      | #"(?s).*:n 1.*" |
 
-  Scenario: hail records carry a sent-at timestamp
+  @wip
+  Scenario: the submitted turn carries a created-at timestamp
     Given the clock is fixed at "2026-05-23T12:00:00Z"
     When isaac is run with "hail send --band bean-pickup --params '{:n 1}'"
     Then the exit code is 0
-    And the sole pending hail EDN contains:
-      | path    | value                |
-      | sent-at | 2026-05-23T12:00:00Z |
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path       | value                 |
+      | id         | #turn-id              |
+      | created-at | 2026-05-23T12:00:00Z  |
 
-  Scenario: isaac hail send prints the hail id to stdout
+  @wip
+  Scenario: isaac hail send prints the turn id to stdout
     When isaac is run with "hail send --band bean-pickup --params '{:n 1}'"
-    Then the stdout is a bare hail id
+    Then the stdout matches:
+      | #"[a-z0-9]+" |
     And the exit code is 0
 
-  Scenario: isaac hail send --json prints the full hail record
+  @wip
+  Scenario: isaac hail send --json prints the turn id and what was submitted
     Given the clock is fixed at "2026-05-23T12:00:00Z"
     When isaac is run with "hail send --band bean-pickup --params '{:n 1}' --json"
     Then the exit code is 0
-    And the stdout JSON hail id is a bare short-uuid
     And the stdout JSON contains:
       | path             | value                  |
-      | frequencies.band | "bean-pickup"          |
-      | params          | {"n": 1}               |
-      | from            | "cli"                  |
-      | sent-at         | "2026-05-23T12:00:00Z" |
+      | id               | #"[a-z0-9]+"           |
+      | origin.band      | "bean-pickup"          |
+      | params.n         | 1                      |
+      | from             | "cli"                  |
+      | created-at       | "2026-05-23T12:00:00Z" |
 
-  Scenario: isaac hail send --edn prints the full hail record
+  @wip
+  Scenario: isaac hail send --edn prints the turn id and what was submitted
     Given the clock is fixed at "2026-05-23T12:00:00Z"
     When isaac is run with "hail send --band bean-pickup --params '{:n 1}' --edn"
     Then the exit code is 0
-    And the stdout EDN hail id is a bare short-uuid
     And the stdout EDN contains:
-      | path             | value                |
-      | frequencies.band | "bean-pickup"        |
-      | params          | {:n 1}               |
-      | sent-at         | 2026-05-23T12:00:00Z |
+      | path             | value                 |
+      | id               | #"[a-z0-9]+"          |
+      | origin.band      | "bean-pickup"         |
+      | params           | {:n 1}                |
+      | created-at       | 2026-05-23T12:00:00Z  |
 
-  Scenario: isaac hail send works without params
+  @wip
+  Scenario: isaac hail send submits a turn without params
     When isaac is run with "hail send --band bean-pickup"
     Then the exit code is 0
-    And the sole pending hail EDN contains:
-      | path        | value                |
-      | id          | <short-uuid>         |
-      | frequencies | {:band "bean-pickup"} |
-      | from        | :cli                 |
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path             | value          |
+      | id               | #turn-id       |
+      | origin.band      | "bean-pickup"  |
+      | origin.from      | :cli           |
 
+  @wip
   Scenario: isaac hail send accepts a whole hail record from stdin
     Given stdin is:
       """
@@ -86,9 +116,11 @@ Feature: Hail send
       """
     When isaac is run with "hail send -"
     Then the exit code is 0
-    And the sole pending hail EDN contains:
-      | path        | value                 |
-      | id          | <short-uuid>          |
-      | frequencies | {:band "bean-pickup"} |
-      | params      | {:n 1}                |
-      | from        | :cli                  |
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path             | value          |
+      | id               | #turn-id       |
+      | origin.band      | "bean-pickup"  |
+      | origin.params    | {:n 1}         |
+      | origin.from      | :cli           |

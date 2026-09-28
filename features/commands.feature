@@ -1,34 +1,34 @@
 Feature: Hail-delivered slash-like commands
-  Delivery does not reject hail content that looks like a slash
-  command. The delivered hail becomes normal turn input for the
-  receiving session.
+  The turn queue does not reject hail-delivered input that looks like a
+  slash command. A hail's expanded prompt becomes normal turn input for
+  the receiving session.
 
   Background:
-    Given default Grover setup
+    Given an Isaac root at "target/test-state"
+    And default Grover setup
 
+  @wip
   Scenario: a hail carrying an unknown command is delivered, not rejected
-    Given the isaac EDN file "config/crew/hieronymus.edn" exists with:
+    Given the isaac EDN file "config/hail/prune-request.edn" exists with:
+      | path         | value        |
+      | session-tags | #{:wip}      |
+    And the isaac file "config/hail/prune-request.md" exists with:
+      """
+      /prune dilithium-orchid
+      """
+    And the isaac EDN file "config/crew/hieronymus.edn" exists with:
       | path  | value  |
       | model | grover |
     And the following sessions exist:
-      | name       | crew       |
-      | greenhouse | hieronymus |
+      | name       | crew       | tags    |
+      | galley | hieronymus | #{:wip} |
     And the following model responses are queued:
       | type | content                | model  |
       | text | Acknowledged, Captain. | grover |
-    And the isaac EDN file hail/deliveries/hail-1.edn exists with:
-      | path     | value                   |
-      | id       | hail-1                  |
-      | prompt   | /prune dilithium-orchid |
-      | crew     | hieronymus              |
-      | bound-session | :greenhouse           |
-      | attempts | 0                       |
-    When the hail delivery worker ticks
-    And the turn ends on session "greenhouse"
-    Then session "greenhouse" has transcript matching:
+    When isaac is run with "hail send --band prune-request"
+    Then the exit code is 0
+    When the turn queue ticks at "2026-03-01T18:00:00"
+    Then session "galley" has transcript matching:
       | type    | message.role | message.content         |
       | message | user         | /prune dilithium-orchid |
-    And the isaac file "hail/deliveries/hail-1.edn" does not exist
-    And the isaac file "hail/delivered/hail-1.edn" EDN contains:
-      | path | value  |
-      | id   | hail-1 |
+      | message | assistant    | Acknowledged, Captain.  |

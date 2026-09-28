@@ -2,128 +2,134 @@ Feature: Hail threading and reply-to
 
   Background:
     Given an Isaac root at "target/test-state"
-
-  Scenario: New hail without thread or reply gets its own id as thread-id
-    When a crew calls hail-send with:
-      | band         | engineering-intercom        |
-      | session_tags | #{:project/warp-coil}       |
-      | params       | {:dilithium-leak true}      |
-    Then the assigned hail id is a bare short-uuid
-    And the created hail record has:
-      | id        | <short-uuid> |
-      | thread-id | <short-uuid> |
-      | reply-to  | absent       |
-
-  Scenario: Reply inherits thread-id from the replied-to hail
-    Given an existing hail:
-      | id        | hail-42            |
-      | thread-id | dilithium-thread-7 |
-    When a crew sends a hail with:
-      | band         | engineering-intercom        |
-      | session_tags | #{:project/warp-coil}       |
-      | params       | {:report "fracture confirmed"} |
-      | reply_to     | hail-42                     |
-      | (no thread-id)                              |
-    Then the new hail record has:
-      | thread-id | dilithium-thread-7 |
-      | reply-to  | hail-42            |
-
-  Scenario: The rendered prompt and params from a band hail (plus thread/reply info) are preserved in the delivered record
-    Given an Isaac root at "target/test-state"
     And default Grover setup
-    Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
+    And the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                  |
       | session-tags | #{:project/warp-coil} |
     And the isaac file "config/hail/engineering-intercom.md" exists with:
       """
       Resonance climbing on {{coil}}, drift {{drift}}.
       """
-    Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
-      | path  | value                  |
-      | model | grover                 |
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value                 |
+      | model | grover                |
       | tags  | #{:project/warp-coil} |
     And the following sessions exist:
       | name        | crew        | tags                  |
       | engine-room | bartholomew | #{:project/warp-coil} |
-    And the following model responses are queued:
+
+  @wip
+  Scenario: New hail without thread or reply gets its own id as thread-id
+    When isaac is run with "hail send --band engineering-intercom --params '{:dilithium-leak true}'"
+    Then the exit code is 0
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path             | value    |
+      | id                | #turn-id |
+      | origin.thread-id  | #turn-id |
+      | origin.reply-to   |          |
+
+  @wip
+  Scenario: Reply inherits thread-id from the replied-to hail
+    Given the isaac EDN file "turns/hail-42.edn" exists with:
+      | path   | value                                             |
+      | id     | hail-42                                           |
+      | state  | :finished                                         |
+      | origin | {:source :hail :thread-id "dilithium-thread-7"}  |
+    When isaac is run with "hail send --band engineering-intercom --params '{:report \"fracture confirmed\"}' --reply-to hail-42"
+    Then the exit code is 0
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path             | value               |
+      | id                | #turn-id            |
+      | origin.thread-id  | dilithium-thread-7  |
+      | origin.reply-to   | hail-42             |
+
+  @wip
+  Scenario: The rendered prompt and params from a band hail (plus thread/reply info) are preserved on the submitted turn
+    Given the following model responses are queued:
       | type | content      | model  |
       | text | Acknowledged | grover |
-    And the EDN isaac file "hail/pending/hail-1.edn" exists with:
-      | path      | value                                        |
-      | id        | hail-1                                       |
-      | frequencies | {:band "engineering-intercom"}               |
-      | prompt    | Resonance climbing on primary, drift 0.03.   |
-      | params    | {:dilithium-leak true}                       |
-      | thread-id | dilithium-thread-7                           |
-      | reply-to  | hail-42                                      |
-    When the hail router ticks
-    When the hail delivery worker ticks
-    And the turn ends on session "engine-room"
-    Then the EDN isaac file "hail/delivered/hail-1.edn" contains:
-      | path      | value                                        |
-      | id        | hail-1                                       |
-      | prompt    | Resonance climbing on primary, drift 0.03.   |
-      | params    | {:dilithium-leak true}                       |
-      | thread-id | dilithium-thread-7                           |
-      | reply-to  | hail-42                                      |
+    And the isaac EDN file "turns/hail-42.edn" exists with:
+      | path   | value                                             |
+      | id     | hail-42                                           |
+      | state  | :finished                                         |
+      | origin | {:source :hail :thread-id "dilithium-thread-7"}  |
+    When isaac is run with "hail send --band engineering-intercom --params '{:coil \"primary\", :drift 0.03, :dilithium-leak true}' --reply-to hail-42"
+    Then the exit code is 0
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path             | value                                                 |
+      | id                | #turn-id                                             |
+      | input             | Resonance climbing on primary, drift 0.03.           |
+      | origin.params     | {:coil "primary", :drift 0.03, :dilithium-leak true} |
+      | origin.thread-id  | dilithium-thread-7                                   |
+      | origin.reply-to   | hail-42                                               |
+    When the turn queue ticks at "2026-03-01T18:00:00"
+    Then session "engine-room" has transcript matching:
+      | type    | message.role | message.content                            |
+      | message | user         | Resonance climbing on primary, drift 0.03. |
+      | message | assistant    | Acknowledged                                |
 
+  @wip
   Scenario: Thread and reply-to are carried and usable by agents (with templated context)
-    Given a hail in a conversation carries :thread-id and :reply-to
-    When the hail is delivered
-    Then the receiving agent's context (params or via hail_get) contains the thread-id and reply-to
-    And the agent can use them when constructing follow-up hails
+    Given the isaac EDN file "turns/hail-42.edn" exists with:
+      | path   | value                                             |
+      | id     | hail-42                                           |
+      | state  | :finished                                         |
+      | origin | {:source :hail :thread-id "dilithium-thread-7"}  |
+    When isaac is run with "hail send --band engineering-intercom --params '{:coil \"primary\", :drift 0.03}' --reply-to hail-42"
+    Then the exit code is 0
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path             | value                                   |
+      | id                | #turn-id                               |
+      | origin.thread-id  | dilithium-thread-7                     |
+      | origin.reply-to   | hail-42                                |
+      | preamble          | #"(?s).*dilithium-thread-7.*hail-42.*" |
 
+  @wip
   Scenario: Follow-up hails on the same thread use their own band params to render the prompt while carrying thread-id and reply-to
-    Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
-      | path         | value                  |
-      | session-tags | #{:project/warp-coil} |
-    And the isaac file "config/hail/engineering-intercom.md" exists with:
-      """
-      Resonance climbing on {{coil}}, drift {{drift}}.
-      """
-    Given an existing hail:
-      | id        | hail-42            |
-      | thread-id | dilithium-thread-7 |
-    When a crew sends a hail with:
-      | band         | engineering-intercom        |
-      | session_tags | #{:project/warp-coil}       |
-      | params       | {:coil "secondary", :drift 0.07} |
-      | reply_to     | hail-42                     |
-      | (no thread-id)                              |
-    Then the new hail record has:
-      | prompt    | Resonance climbing on secondary, drift 0.07. |
-      | params    | {:coil "secondary", :drift 0.07}             |
-      | thread-id | dilithium-thread-7                           |
-      | reply-to  | hail-42                                      |
+    Given the isaac EDN file "turns/hail-42.edn" exists with:
+      | path   | value                                             |
+      | id     | hail-42                                           |
+      | state  | :finished                                         |
+      | origin | {:source :hail :thread-id "dilithium-thread-7"}  |
+    When isaac is run with "hail send --band engineering-intercom --params '{:coil \"secondary\", :drift 0.07}' --reply-to hail-42"
+    Then the exit code is 0
+    And the stdout matches:
+      | #"[a-z0-9]+":turn-id |
+    And the turn Hail submitted has:
+      | path             | value                                        |
+      | id                | #turn-id                                    |
+      | input             | Resonance climbing on secondary, drift 0.07. |
+      | origin.params     | {:coil "secondary", :drift 0.07}            |
+      | origin.thread-id  | dilithium-thread-7                          |
+      | origin.reply-to   | hail-42                                      |
 
-  Scenario: An agent can use hail_get to retrieve a prior templated hail's rendered prompt and params, then send a follow-up on the thread using new params
-    Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
-      | path         | value                  |
-      | session-tags | #{:project/warp-coil} |
-    And the isaac file "config/hail/engineering-intercom.md" exists with:
-      """
-      Resonance climbing on {{coil}}, drift {{drift}}.
-      """
-    And the EDN isaac file "hail/delivered/hail-1.edn" exists with:
-      | path      | value                                        |
-      | id        | hail-1                                       |
-      | prompt    | Resonance climbing on secondary, drift 0.07. |
-      | params    | {:coil "secondary", :drift 0.07}             |
-      | thread-id | dilithium-thread-7                           |
-      | reply-to  | hail-42                                      |
-    When an agent calls the hail_get tool with id "hail-1"
-    Then it returns the hail record containing:
-      | path      | value                                        |
-      | prompt    | Resonance climbing on secondary, drift 0.07. |
-      | params    | {:coil "secondary", :drift 0.07}             |
-      | thread-id | dilithium-thread-7                           |
-      | reply-to  | hail-42                                      |
-    When the config is loaded
+  @wip
+  Scenario: An agent can use turn__get to retrieve a prior hail turn's rendered prompt and params, then send a follow-up on the thread using new params
+    Given the isaac EDN file "turns/hail-1.edn" exists with:
+      | path   | value                                                                                                        |
+      | id     | hail-1                                                                                                      |
+      | state  | :finished                                                                                                   |
+      | input  | Resonance climbing on secondary, drift 0.07.                                                               |
+      | origin | {:source :hail :thread-id "dilithium-thread-7" :params {:coil "secondary" :drift 0.07} :reply-to "hail-42"} |
+    When isaac is run with "turns show hail-1"
+    Then the stdout matches:
+      | #"(?s).*Resonance climbing on secondary, drift 0.07\..*dilithium-thread-7.*hail-42.*" |
     When isaac is run with "hail send --band engineering-intercom --params '{:coil \"tertiary\", :drift 0.11}' --reply-to hail-1"
     Then the exit code is 0
-    And the sole pending hail EDN contains:
-      | path      | value                                        |
-      | prompt    | Resonance climbing on tertiary, drift 0.11.  |
-      | params    | {:coil "tertiary", :drift 0.11}              |
-      | thread-id | dilithium-thread-7                           |
-      | reply-to  | hail-1                                       |
+    And the stdout matches:
+      | #"[a-z0-9]+":new-turn-id |
+    And the turn Hail submitted has:
+      | path             | value                                        |
+      | id                | #new-turn-id                                |
+      | input             | Resonance climbing on tertiary, drift 0.11. |
+      | origin.params     | {:coil "tertiary", :drift 0.11}             |
+      | origin.thread-id  | dilithium-thread-7                          |
+      | origin.reply-to   | hail-1                                       |
