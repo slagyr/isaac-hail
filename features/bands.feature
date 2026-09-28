@@ -112,12 +112,12 @@ Feature: Hail bands declared in config
       ---
       session-tags:
         - :project/chess
-      prefer: 5
+      create: 5
       ---
-      Bad prefer type.
+      Bad create type.
       """
     When isaac is run with "config validate"
-    Then the stderr contains "prefer"
+    Then the stderr contains "create"
     And the exit code is 1
 
   Scenario: a body-only .md still works as the prompt companion for an .edn band
