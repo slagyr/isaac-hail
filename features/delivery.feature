@@ -11,7 +11,6 @@ Feature: Hail-dispatched turn overrides
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
-  @wip
   Scenario: --with-model overrides the model on the dispatched turn
     Given the isaac EDN file "config/models/grover2.edn" exists with:
       | path           | value    |
@@ -49,7 +48,6 @@ Feature: Hail-dispatched turn overrides
       | message | user         |               | Resonance climbing. |
       | message | assistant    | echo-alt      | On it.              |
 
-  @wip
   Scenario: a band's cycle.limit overrides the crew's on the dispatched turn (isaac-ntt6, isaac-9azm)
     The band's cycle map rides the dispatched turn, as before; what the
     turn queue does at the limit (wrap-up, continuation) is no longer
@@ -90,7 +88,6 @@ Feature: Hail-dispatched turn overrides
       | level | event       | session     | ended-by     | cycle-limit |
       | :info | :turn/ended | engine-room | :cycle-limit | 1           |
 
-  @wip
   Scenario: a band's cycle map overrides the crew on the charge (isaac-tic5)
     The crew sets no checkpoint; the band does. The dispatched turn carries
     the band's :cycle map over the crew's, the same path the cycle limit

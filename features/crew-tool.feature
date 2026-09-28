@@ -23,7 +23,6 @@ Feature: Hail crew tool
       | name       | crew        | tags                 |
       | galley | wormwood | #{:project/galley}  |
 
-  @wip
   Scenario: crew with hail-send allowed dispatches a hail from a turn
     Given the crew "main" allows tools: "hail-send"
     And the following sessions exist:
@@ -50,7 +49,6 @@ Feature: Hail crew tool
       | name      |
       | hail-send |
 
-  @wip
   Scenario: hail-send with an explicit session equal to a band name is rejected (isaac-8lhv)
     A band name is a selector, not a session. Passing it as an explicit session
     targets a session that never exists -> silent dead-letter. The tool rejects
@@ -74,7 +72,6 @@ Feature: Hail crew tool
     When the user sends "hand off" on session "engine-room"
     Then the last hail-send tool result is an error matching #"(?i).*engineering-intercom.*band.*not a session.*"
 
-  @wip
   Scenario: hail-send with an explicit session that names nothing is rejected (isaac-8lhv)
     Given the crew "bartholomew" allows tools: "hail-send"
     And the isaac EDN file "config/crew/bartholomew.edn" exists with:
@@ -91,7 +88,6 @@ Feature: Hail crew tool
     When the user sends "hand off" on session "engine-room"
     Then the last hail-send tool result is an error matching #"(?i).*no session .first-watch.*"
 
-  @wip
   Scenario: hail-send with a real explicit session still dispatches (isaac-8lhv)
     Given the crew "bartholomew" allows tools: "hail-send"
     And the isaac EDN file "config/crew/bartholomew.edn" exists with:

@@ -39,7 +39,6 @@ Feature: Hail-driven session create (get-or-create)
       Resonance climbing.
       """
 
-  @wip
   Scenario: a create-enabled hail creates a tagged session and dispatches when none match
     Given the following model responses are queued:
       | type | content      | model  |
@@ -62,7 +61,6 @@ Feature: Hail-driven session create (get-or-create)
       | message | user         | Resonance climbing. |
       | message | assistant    | On the coil.        |
 
-  @wip
   Scenario: without create, no matching session is refused at send
     Given the isaac EDN file "config/hail/warp-coil-strict.edn" exists with:
       | path         | value                 |
@@ -77,7 +75,6 @@ Feature: Hail-driven session create (get-or-create)
     When isaac is run with "turns list --all"
     Then the stdout is empty
 
-  @wip
   Scenario: an existing matching session is bound instead of spawning a new one
     Given the following sessions exist:
       | name      | crew        | tags                  |
@@ -94,7 +91,6 @@ Feature: Hail-driven session create (get-or-create)
       | message | user         | Resonance climbing. |
       | message | assistant    | On the coil.        |
 
-  @wip
   Scenario: a create-enabled hail whose only matching session is in flight waits, no sibling
     Given the following sessions exist:
       | name      | crew        | tags                  |

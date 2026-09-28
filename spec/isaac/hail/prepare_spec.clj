@@ -2,7 +2,6 @@
   (:require
     [isaac.fs :as fs]
     [isaac.hail.prepare :as sut]
-    [isaac.hail.store :as store]
     [isaac.nexus :as nexus]
     [speclj.core :refer :all]))
 
@@ -25,17 +24,6 @@
                   :params    {:name "Marigold"}
                   :prompt    "Override."}]
       (should= "Override." (:prompt (sut/render-band-prompt record cfg)))))
-
-  (it "inherits thread-id from the reply-to hail"
-    (let [fs* (nexus/get :fs)]
-      (fs/mkdirs fs* "/test/isaac/hail/pending")
-      (fs/spit fs* "/test/isaac/hail/pending/hail-42.edn"
-               (pr-str {:id "hail-42" :thread-id "thread-9"}))
-      (should= "thread-9"
-               (:thread-id (sut/inherit-thread-id {:reply-to "hail-42"})))))
-
-  (it "defaults thread-id to the hail id"
-    (should= "hail-1" (:thread-id (sut/default-thread-id {:id "hail-1"}))))
 
   (it "merges band data with params and interpolates string values"
     (let [cfg {:hail {"bean-pickup" {:data {:bean-repo "isaac"

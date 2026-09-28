@@ -7,12 +7,8 @@
     [isaac.cli.api :as cli-api]
     [isaac.cli.common :as cli-common]
     [isaac.cli.host :as host]
-    [isaac.config.loader :as loader]
     [isaac.hail.band-resolve :as band-resolve]
-    [isaac.hail.delivery-worker :as delivery-worker]
-    [isaac.hail.queue :as queue]
-    [isaac.hail.store :as store]
-    [isaac.nexus :as nexus]))
+    [isaac.hail.queue :as queue]))
 
 (def hail-option-spec
   [["-h" "--help" "Show help"]])
@@ -27,7 +23,8 @@
     :assoc-fn (fn [m k v] (update m k (fnil conj []) v))]
    [nil "--prompt TEXT" "Prompt override (band hails may omit when the band has a template)"]
    [nil "--params EDN" "Band template parameters (EDN map)"]
-   [nil "--reply-to ID" "Hail id this message replies to"]
+   [nil "--reply-to ID" "Turn id this message replies to"]
+   [nil "--idempotency-key KEY" "Reuse an accepted turn for a retried send"]
    [nil "--thread-id ID" "Thread id (defaults to hail id or inherited from reply-to)"]
    [nil "--from-json" "Read whole-hail stdin input as JSON"]
    [nil "--json" "Print the full hail record as JSON"]
@@ -36,16 +33,14 @@
 
 (defn hail-help []
   (str "Usage: isaac hail <subcommand> [options]\n\n"
-       "Send and inspect hail records.\n\n"
+       "Submit hails to Agent turn queue.\n\n"
        "Subcommands:\n"
-       "  send    Persist a hail record to hail/pending (--dry-run to validate only)\n"
-       "  show    Print a hail record by id\n"
-       "  drop    Move a bound-unclaimed delivery to hail/undeliverable\n"))
+       "  send    Submit a turn to Agent (--dry-run to validate only)\n"))
 
 (defn- send-help []
   (str "Usage: isaac hail send [addressing flags] [--prompt <text>] [--params <edn>] [--json|--edn] [--dry-run]\n"
        "       isaac hail send - [--from-json]\n\n"
-       "Persist a hail record to hail/pending (--dry-run to validate only).\n\n"
+       "Submit a turn to Agent (--dry-run to validate only).\n\n"
        "Options:\n"
        "  -h, --help                 Show help\n"
        "      --band NAME            Band name\n"
@@ -54,7 +49,8 @@
        "      --session-tag TAG      Session tag (repeatable)\n"
        "      --prompt TEXT          Prompt for direct/tag-addressed hails\n"
        "      --params EDN           Band template parameters (EDN map)\n"
-       "      --reply-to ID          Hail id this message replies to\n"
+       "      --reply-to ID          Turn id this message replies to\n"
+       "      --idempotency-key KEY Reuse an accepted turn for a retried send\n"
        "      --thread-id ID         Thread id (defaults to hail id or inherited from reply-to)\n"
        "      --from-json            Read whole-hail stdin input as JSON\n"
        "      --json                 Print the full hail record as JSON\n"
@@ -186,12 +182,13 @@
       (:prompt options)   (assoc :prompt (:prompt options))
       (:params options)   (assoc :params (read-edn (:params options)))
       (:reply-to options) (assoc :reply-to (:reply-to options))
-      (:thread-id options) (assoc :thread-id (:thread-id options)))))
+      (:thread-id options) (assoc :thread-id (:thread-id options))
+      (:idempotency-key options) (assoc :idempotency-key (:idempotency-key options)))))
 
 (defn- print-record! [record options]
   (cond
-    (:json options) (cli-common/print-json! record)
-    (:edn options)  (cli-common/print-edn! record)
+    (:json options) (cli-common/print-json! (merge record (select-keys (:origin record) [:from :params])))
+    (:edn options)  (cli-common/print-edn! (merge record (select-keys (:origin record) [:from :params])))
     (:dry-run options) (cli-common/print-edn! record)
     :else           (println (:id record))))
 
@@ -219,14 +216,15 @@
             1)
           (try
             (let [record (if (:dry-run options)
-                           (queue/check-readable! record)
+                           (queue/check-readable!
+                             {:frequencies (:frequencies record)
+                              :input (:prompt record)
+                              :origin (select-keys (assoc record :from :cli) [:from :params])})
                            (queue/send! record))]
               (print-record! record options)
               0)
             (catch clojure.lang.ExceptionInfo e
-              (if (= :hail/unreadable-record (:type (ex-data e)))
-                (do (binding [*out* *err*] (println (ex-message e))) 1)
-                (throw e)))))))))
+              (do (binding [*out* *err*] (println (ex-message e))) 1))))))))
 
 (defn run [args]
   (let [{:keys [arguments errors options]} (tools-cli/parse-opts args hail-option-spec :in-order true)]
@@ -244,39 +242,6 @@
       (= "send" (first arguments))
       (run-send (rest arguments))
 
-      (= "show" (first arguments))
-      (let [id (second arguments)]
-        (if (str/blank? id)
-          (do (binding [*out* *err*] (println "Usage: isaac hail show <id>")) 1)
-          (if-let [record (store/find-by-id id)]
-            (do (cli-common/print-edn! record) 0)
-            (do (binding [*out* *err*] (println (str "hail not found: " id))) 1))))
-
-      (= "drop" (first arguments))
-      (let [id (second arguments)]
-        (if (str/blank? id)
-          (do (binding [*out* *err*] (println "Usage: isaac hail drop <id>")) 1)
-          (try
-            (delivery-worker/drop! (or (nexus/get :root) (loader/root)) id)
-            (println id)
-            0
-            (catch Exception e
-              (binding [*out* *err*]
-                (println (or (.getMessage e) id)))
-              1))))
-
-      (= "requeue" (first arguments))
-      (let [id (second arguments)]
-        (if (str/blank? id)
-          (do (binding [*out* *err*] (println "Usage: isaac hail requeue <id>")) 1)
-          (try
-            (delivery-worker/requeue! (loader/root) id)
-            0
-            (catch Exception e
-              (binding [*out* *err*]
-                (println (or (.getMessage e) id)))
-              1))))
-
       :else
       (do
         (binding [*out* *err*]
@@ -286,8 +251,6 @@
 (defn run-fn [{:keys [_raw-args]}]
   (run (or _raw-args [])))
 
-(defn read-pending [id]
-  (queue/read-pending id))
 
 ;; ----- :isaac/cli berth implementation -----
 
@@ -301,6 +264,4 @@
   (hail-help))
 
 (defmethod cli-api/subcommands :hail [_id]
-  [{:name "send" :summary "Persist a hail record to hail/pending"}
-   {:name "show" :summary "Print a hail record by id"}
-   {:name "drop" :summary "Move a bound-unclaimed delivery to hail/undeliverable"}])
+  [{:name "send" :summary "Submit a turn to Agent"}])

@@ -18,7 +18,7 @@
               :crew))))
 
 (def ^:private non-frequency-tool-keys
-  #{"session_key" "prompt" "params" "thread_id" "reply_to"})
+  #{"session_key" "prompt" "params" "thread_id" "reply_to" "idempotency_key"})
 
 (def ^:private address-keys
   (conj frequencies/frequencies-keys :band))
@@ -127,10 +127,10 @@
   (if (contains? band-names session-id)
     (str "no session \"" session-id "\" exists — \"" session-id "\" is a band name, not a session. "
          "To route by band, pass band: \"" session-id "\". "
-         "For an exact session, use a real session id (e.g. from hail_get on the thread).")
+         "For an exact session, use a real session id (e.g. from turn__get on the thread).")
     (str "no session \"" session-id "\" exists. "
          "If you meant to route by band, pass band: \"" session-id "\". "
-         "For an exact session use a real id (from hail_get on the thread).")))
+         "For an exact session use a real id (from turn__get on the thread).")))
 
 (defn- validate-explicit-sessions [args session-store frequencies]
   (when (and (seq (:session frequencies))
@@ -176,13 +176,12 @@
                          (contains? args "params")    (assoc :params (parse-params (get args "params")))
                          (contains? args "thread_id") (assoc :thread-id (get args "thread_id"))
                          (contains? args "reply_to")  (assoc :reply-to (get args "reply_to"))
+                         (contains? args "idempotency_key") (assoc :idempotency-key (get args "idempotency_key"))
                          (contains? args "submitter_session") (assoc :submitter-session (get args "submitter_session")))]
             (try
               {:result (:id (queue/send! record))}
               (catch clojure.lang.ExceptionInfo e
-                (if (= :hail/unreadable-record (:type (ex-data e)))
-                  {:isError true :error (ex-message e)}
-                  (throw e))))))))))
+                {:isError true :error (ex-message e)}))))))))
 
 (defn hail-send-tool-factory [_]
   {:description "Send a hail to a band or session target."
@@ -191,6 +190,7 @@
                                     {"prompt"    {:type "string" :description "Optional prompt override"}
                                      "params"    {:type "object" :description "Band template parameters as a JSON object"}
                                      "thread_id" {:type "string" :description "Optional thread id"}
-                                     "reply_to"  {:type "string" :description "Optional hail id being replied to"}})}
+                                     "reply_to"  {:type "string" :description "Optional turn id being replied to"}
+                                     "idempotency_key" {:type "string" :description "Reuse the accepted turn for a retried send"}})}
    :handler     #'hail-send-tool
    :builtin?    true})

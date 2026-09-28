@@ -1,137 +1,98 @@
 (ns isaac.hail.queue
+  "Stateless hail ingress: expand a band, submit a durable Agent turn, return its id."
   (:require
     [clojure.edn :as edn]
     [clojure.pprint :as pprint]
     [clojure.string :as str]
     [isaac.config.loader :as loader]
-    [isaac.config.root :as root]
-    [isaac.fs :as fs]
-    [isaac.logger :as log]
-    [isaac.nexus :as nexus]
+    [isaac.hail.band-resolve :as bands]
     [isaac.hail.prepare :as prepare]
-    [isaac.hail.store :as store]
-    [isaac.naming :as naming]
-    [isaac.tool.memory :as memory]))
-
-(defn- write-edn [value]
-  (binding [*print-namespace-maps* false]
-    (with-out-str (pprint/pprint value))))
-
-(defn- serialize-readable
-  "Serialize record and prove it reads back to the same value. A record no
-   reader can parse is poison for the router, so refuse it before it lands."
-  [record]
-  (let [text   (write-edn record)
-        result (try
-                 (edn/read-string text)
-                 (catch Exception e
-                   (throw (ex-info (str "hail record is unreadable: " (.getMessage e))
-                                   {:type :hail/unreadable-record :reader-message (.getMessage e)}))))]
-    (when-not (= record result)
-      (throw (ex-info "hail record is unreadable: serialized form does not read back to the same value"
-                      {:type :hail/unreadable-record})))
-    text))
+    [isaac.logger :as log]
+    [isaac.fs :as fs]
+    [isaac.nexus :as nexus]
+    [isaac.turn.queue :as turns]
+    [isaac.turn.submit :as submit])
+  (:import (java.util UUID)))
 
 (defn check-readable!
-  "Throw :hail/unreadable-record unless record survives an EDN round trip.
-   Returns record."
+  "Validate that submitted values survive Agent's EDN persistence."
   [record]
-  (serialize-readable record)
-  record)
-
-(defn- runtime-root []
-  (or (nexus/get :root)
-      (loader/root)
-      (root/current-root)
-      (throw (ex-info "hail queue requires :root" {}))))
-
-(defn- filesystem []
-  (or (fs/instance) (throw (ex-info "hail.queue requires :fs in system" {}))))
-
-(defn- pending-dir []
-  (str (runtime-root) "/hail/pending"))
-
-(defn- pending-path [id]
-  (str (pending-dir) "/" id ".edn"))
-
-(defn- temp-path [id]
-  (str (pending-dir) "/" id ".tmp"))
-
-(defn- naming-strategy-kw [cfg]
-  (let [value (get-in cfg [:hail-settings :naming-strategy])]
-    (cond (keyword? value) value
-          (string? value)  (keyword value)
-          :else            :short-uuid)))
-
-(defn- make-naming-strategy [cfg root fs*]
-  (case (naming-strategy-kw cfg)
-    :sequential (naming/->SequentialStrategy root "hail" "hail-" fs*)
-    :uuid       (naming/->UuidStrategy nil)
-    (naming/->ShortUuidStrategy nil)))
-
-(defn- sync-hail-counter! [root fs*]
-  (let [counter-file (str root "/hail/.counter")
-        max-seq      (store/max-hail-seq root fs*)
-        current      (or (when (fs/exists? fs* counter-file)
-                           (some-> (fs/slurp fs* counter-file) str/trim parse-long))
-                         0)]
-    (when (< current max-seq)
-      (fs/mkdirs fs* (str root "/hail"))
-      (fs/spit fs* counter-file (str max-seq)))))
-
-(defn- snapshot-config []
-  (or (loader/snapshot "hail queue send")
-      (when-let [root (or (loader/root) (root/current-root))]
-        (some-> (loader/load-config-result {:root root :fs (filesystem)})
-                :config))
-      {}))
-
-(defn next-id
-  "Mint a hail id using the configured naming strategy. Shared by send! and
-   the router's delivery records."
-  [root fs*]
-  (let [cfg (snapshot-config)]
-    (when (= :sequential (naming-strategy-kw cfg))
-      (sync-hail-counter! root fs*))
-    (naming/generate (make-naming-strategy cfg root fs*))))
-
-(defn- read-record [path]
-  (let [fs* (filesystem)]
-    (when (fs/exists? fs* path)
-      (let [record (edn/read-string (fs/slurp fs* path))]
-        (if (map? record)
-          (into {} (map (fn [[k v]] [(if (keyword? k) k (keyword k)) v]) record))
-          record)))))
-
-(defn- finalize-record [record root fs*]
-  (let [id (-> record
-               (dissoc :id :sent-at)
-               (assoc :id (next-id root fs*))
-               prepare/default-thread-id
-               (assoc :sent-at (str (memory/now))))]
-    id))
-
-(defn send! [record]
-  (let [fs*    (filesystem)
-        root   (runtime-root)
-        cfg    (snapshot-config)
-        record (-> record
-                   (dissoc :id :sent-at)
-                   (prepare/enrich cfg)
-                   (finalize-record root fs*))
-        text   (serialize-readable record)
-        path   (pending-path (:id record))
-        temp   (temp-path (:id record))]
-    (fs/mkdirs fs* (fs/parent path))
-    (fs/spit fs* temp text)
-    (fs/move fs* temp path)
-    (store/persist-record! (:id record) record)
-    (log/info :hail/sent
-              :id (:id record)
-              :thread-id (:thread-id record)
-              :frequencies (:frequencies record)
-              :from (:from record))
+  (let [encoded (binding [*print-namespace-maps* false] (with-out-str (pprint/pprint record)))]
+    (try
+      (when-not (= record (edn/read-string encoded))
+        (throw (ex-info "serialized form does not read back to the same value" {})))
+      (catch Exception e
+        (throw (ex-info (str "hail record is unreadable: " (ex-message e))
+                        {:type :hail/unreadable-record}))))
     record))
 
-(defn read-pending [id]
-  (read-record (pending-path id)))
+(defn- band-entry [cfg band-name]
+  (let [resolved (bands/resolved-slice (:hail cfg))]
+    (or (get resolved band-name) (get resolved (keyword band-name)))))
+
+(defn- effective-frequencies [record band]
+  (let [submitted (:frequencies record)
+        band-freqs (select-keys band [:session :session-tags :crew :prefer :create
+                                      :with-crew :with-model :with-effort :with-context-mode])
+        direct? (seq (:session submitted))
+        freqs (merge (if direct? (select-keys band-freqs [:with-crew :with-model :with-effort :with-context-mode]) band-freqs) (dissoc submitted :band))]
+    (cond-> (assoc freqs :create (or (:create freqs) :never))
+      (:session freqs) (update :session #(mapv (fn [id] (if (keyword? id) (name id) (str id))) %))
+      (:session-tags freqs) (update :session-tags set))))
+
+(defn- thread-id [record]
+  (or (:thread-id record)
+      (when-let [reply-to (:reply-to record)]
+        (let [parent (turns/read-held (str reply-to))]
+          (when-not parent
+            (throw (ex-info (str "turn not found: " reply-to) {:reason :turn-not-found})))
+          (or (get-in parent [:origin :thread-id]) (:id parent))))))
+
+(defn- metadata-preamble [record id]
+  (str/join "\n" (remove nil?
+                          ["Autonomous hail; the user may not see your reply."
+                           "--- Hail metadata ---"
+                           (str "Hail id: " id)
+                           (str "Thread: " (or (:thread-id record) id))
+                           (when-let [v (:submitter-session record)] (str "Submitter session: " v))
+                           (when-let [v (:reply-to record)] (str "Reply-to: " v))
+                           (when-let [v (:from record)] (str "From crew: " v))
+                           (when (seq (:data record)) (str "Data: " (pr-str (:data record))))
+                           (when (seq (:params record)) (str "Params: " (pr-str (:params record))))])))
+
+(defn send!
+  "Submit a hail directly into the Agent waiting room. No Hail state is written."
+  [record]
+  (let [snapshot  (loader/snapshot "hail send")
+        cfg       (if (seq (:hail snapshot)) snapshot
+                      (or (:config (loader/load-config-result
+                                     {:root (nexus/get :root) :fs (or (nexus/get :fs) (fs/instance))}))
+                          snapshot {}))
+        band-name (get-in record [:frequencies :band])
+        band      (when band-name (band-entry cfg band-name))
+        _         (when (and band-name (nil? band))
+                    (throw (ex-info (str "unknown band: " band-name) {:reason :unknown-band})))
+        record    (-> record (prepare/render-band-prompt cfg) (prepare/enrich-band-data cfg))
+        _         (check-readable! record)
+        thread    (thread-id record)
+        freqs     (effective-frequencies record band)
+        cycle     (:cycle band)
+        id        (subs (str/replace (str (UUID/randomUUID)) "-" "") 0 8)
+        origin    (cond-> {:source :hail :from (:from record) :params (:params record) :data (:data record)
+                           :thread-id (or thread id)}
+                    band-name (assoc :band band-name)
+                    (:principal record) (assoc :principal (:principal record))
+                    (:reply-to record) (assoc :reply-to (:reply-to record))
+                    (:submitter-session record) (assoc :submitter-session (:submitter-session record)))
+        preamble  (metadata-preamble (assoc record :thread-id (:thread-id origin)) id)
+        accepted  (try
+                    (submit/submit! {:root (nexus/get :root) :config cfg :frequencies freqs
+                                     :id id :prompt (:prompt record) :key (:idempotency-key record)
+                                     :origin origin :preamble preamble :cycle cycle})
+                    (catch clojure.lang.ExceptionInfo e
+                      (when (and band-name (= :no-match (:reason (ex-data e))))
+                        (log/warn :hail/undeliverable :band band-name :reason :no-recipients))
+                      (throw e)))]
+    (log/info :hail/sent :id (:id accepted) :thread-id (get-in accepted [:origin :thread-id])
+              :frequencies freqs :from (:from record))
+    accepted))

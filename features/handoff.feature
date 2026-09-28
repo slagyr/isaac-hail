@@ -1,4 +1,3 @@
-@wip
 Feature: Hail hands a message to Agent's turn queue
   Hail is stateless. A send expands the band (template, params, data,
   metadata preamble), checks the address, submits ONE turn to Agent's

@@ -18,7 +18,6 @@ Feature: Hail threading and reply-to
       | name        | crew        | tags                  |
       | engine-room | bartholomew | #{:project/warp-coil} |
 
-  @wip
   Scenario: New hail without thread or reply gets its own id as thread-id
     When isaac is run with "hail send --band engineering-intercom --params '{:dilithium-leak true}'"
     Then the exit code is 0
@@ -30,7 +29,6 @@ Feature: Hail threading and reply-to
       | origin.thread-id  | #turn-id |
       | origin.reply-to   |          |
 
-  @wip
   Scenario: Reply inherits thread-id from the replied-to hail
     Given the isaac EDN file "turns/hail-42.edn" exists with:
       | path   | value                                             |
@@ -47,7 +45,6 @@ Feature: Hail threading and reply-to
       | origin.thread-id  | dilithium-thread-7  |
       | origin.reply-to   | hail-42             |
 
-  @wip
   Scenario: The rendered prompt and params from a band hail (plus thread/reply info) are preserved on the submitted turn
     Given the following model responses are queued:
       | type | content      | model  |
@@ -74,7 +71,6 @@ Feature: Hail threading and reply-to
       | message | user         | Resonance climbing on primary, drift 0.03. |
       | message | assistant    | Acknowledged                                |
 
-  @wip
   Scenario: Thread and reply-to are carried and usable by agents (with templated context)
     Given the isaac EDN file "turns/hail-42.edn" exists with:
       | path   | value                                             |
@@ -92,7 +88,6 @@ Feature: Hail threading and reply-to
       | origin.reply-to   | hail-42                                |
       | preamble          | #"(?s).*dilithium-thread-7.*hail-42.*" |
 
-  @wip
   Scenario: Follow-up hails on the same thread use their own band params to render the prompt while carrying thread-id and reply-to
     Given the isaac EDN file "turns/hail-42.edn" exists with:
       | path   | value                                             |
@@ -111,7 +106,6 @@ Feature: Hail threading and reply-to
       | origin.thread-id  | dilithium-thread-7                          |
       | origin.reply-to   | hail-42                                      |
 
-  @wip
   Scenario: An agent can use turn__get to retrieve a prior hail turn's rendered prompt and params, then send a follow-up on the thread using new params
     Given the isaac EDN file "turns/hail-1.edn" exists with:
       | path   | value                                                                                                        |

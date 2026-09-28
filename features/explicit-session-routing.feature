@@ -9,7 +9,6 @@ Feature: Explicit session id trumps band session selectors
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
-  @wip
   Scenario: An explicit session routes despite band session-tags the session lacks
     Given the isaac EDN file "config/hail/ci-failure.edn" exists with:
       | path         | value             |
@@ -34,7 +33,6 @@ Feature: Explicit session id trumps band session selectors
       | session | :glimmering-cardinal |
       | input   | CI failure on the Marigold. |
 
-  @wip
   Scenario: Band with-crew still applies when the hail names an explicit session
     Given the isaac EDN file "config/hail/gauge-check.edn" exists with:
       | path         | value     |
@@ -60,7 +58,6 @@ Feature: Explicit session id trumps band session selectors
       | session                | :engine-room |
       | frequencies.with-crew  | "navigator"  |
 
-  @wip
   Scenario: A missing explicit session does not trigger band create :if-missing
     Given the isaac EDN file "config/hail/spawn-band.edn" exists with:
       | path         | value       |

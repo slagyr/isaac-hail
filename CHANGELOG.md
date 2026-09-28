@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Hail is stateless: send expands bands, submits one durable Agent turn, returns that turn id and its metadata; retired Hail router, worker, store, attention, hail_get/show/drop/requeue. Agent owns admission, busy waiting, and retry. Drain in-flight hails before deployment (isaac-ex4q).
+
 ## 0.1.22
 
 ### Fixed

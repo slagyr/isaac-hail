@@ -24,7 +24,6 @@ Feature: Hail HTTP route POST /hail/send
       | name       | crew        | tags                 |
       | galley | wormwood | #{:project/galley}  |
 
-  @wip
   Scenario: POST with JSON body and valid auth submits a turn
     When a POST request is made to "/hail/send":
       | key                  | value                                                        |
@@ -39,7 +38,6 @@ Feature: Hail HTTP route POST /hail/send
       | origin.params    | {:n 1}        |
       | origin.from      | :http         |
 
-  @wip
   Scenario: POST with EDN body and valid auth submits a turn
     When a POST request is made to "/hail/send":
       | key                  | value                                               |
@@ -72,7 +70,6 @@ Feature: Hail HTTP route POST /hail/send
     Then the response status is 400
     And the response body has a "error" key
 
-  @wip
   Scenario: POST with a string session is routed to that session
     Given the isaac EDN file "config/crew/main.edn" exists with:
       | path  | value  |
@@ -98,7 +95,6 @@ Feature: Hail HTTP route POST /hail/send
   # is the dangerous field: the handler additionally requires
   # :hail/prompt-override via isaac.http.auth/require-scope!.
 
-  @wip
   Scenario: a principal scoped hail/send can send a band hail (isaac-4o6r)
     Given principal "ci" is configured with secret "ci-secret" and scopes "hail/send"
     When a POST request is made to "/hail/send":
@@ -111,7 +107,6 @@ Feature: Hail HTTP route POST /hail/send
       | path             | value |
       | origin.principal | ci    |
 
-  @wip
   Scenario: a principal without hail/send is refused with 403 and nothing is persisted (isaac-4o6r)
     Given principal "viewer" is configured with secret "viewer-secret" and scopes "cli/read"
     When a POST request is made to "/hail/send":
@@ -123,7 +118,6 @@ Feature: Hail HTTP route POST /hail/send
     When isaac is run with "turns list --all"
     Then the stdout is empty
 
-  @wip
   Scenario: overriding a band's prompt requires hail/prompt-override (isaac-4o6r)
     Given principal "ci" is configured with secret "ci-secret" and scopes "hail/send"
     When a POST request is made to "/hail/send":
@@ -135,7 +129,6 @@ Feature: Hail HTTP route POST /hail/send
     When isaac is run with "turns list --all"
     Then the stdout is empty
 
-  @wip
   Scenario: a principal holding hail/prompt-override may override the prompt (isaac-4o6r)
     Given principal "ops" is configured with secret "ops-secret" and scopes "hail/send,hail/prompt-override"
     When a POST request is made to "/hail/send":
@@ -166,7 +159,6 @@ Feature: Hail HTTP route POST /hail/send
       | body                 | {"frequencies": {"session": "watch-room"}, "prompt": "wake the watch"} |
     Then the response status is 201
 
-  @wip
   Scenario: the legacy admin token still sends hails with a prompt override (isaac-4o6r)
     When a POST request is made to "/hail/send":
       | key                  | value                                                                 |
@@ -180,7 +172,6 @@ Feature: Hail HTTP route POST /hail/send
 
   # --- isaac-2a2x: hail records carry the sending principal --------------------
 
-  @wip
   Scenario: a submitted turn carries the sending principal (isaac-2a2x)
     Given the isaac EDN file "config/crew/main.edn" exists with:
       | path  | value  |

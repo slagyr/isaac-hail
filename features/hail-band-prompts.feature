@@ -4,7 +4,6 @@ Feature: Hail band prompt templating with params
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
-  @wip
   Scenario: Band body is a template rendered with the hail's params to produce the prompt; explicit prompt overrides
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                  |
@@ -40,7 +39,6 @@ Feature: Hail band prompt templating with params
       | input         | Status report?                  |
       | origin.params | {:coil "primary", :drift 0.03}  |
 
-  @wip
   Scenario: The rendered prompt from a templated band hail becomes the input to the receiving turn
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                  |
@@ -68,7 +66,6 @@ Feature: Hail band prompt templating with params
       | message | user         | Resonance climbing on secondary, drift 0.07. |
       | message | assistant    | On the coil.                                  |
 
-  @wip
   Scenario: Sending a hail to a templated band returns the turn id and submits a turn with the rendered prompt, params, and auto thread-id
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                  |
@@ -96,7 +93,6 @@ Feature: Hail band prompt templating with params
       | origin.params    | {:coil "primary", :drift 0.03}              |
       | origin.thread-id | #turn-id                                    |
 
-  @wip
   Scenario: An agent can retrieve a prior hail turn's rendered input via turns show, then send a follow-up on the thread using new params
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                  |
@@ -134,7 +130,6 @@ Feature: Hail band prompt templating with params
       | origin.thread-id | dilithium-thread-7                           |
       | origin.reply-to  | turn-1                                       |
 
-  @wip
   Scenario: The turn context for the receiving agent includes the full hail record with rendered prompt and params
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                  |

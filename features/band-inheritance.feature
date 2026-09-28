@@ -18,7 +18,6 @@ Feature: Hail band inheritance via base template bands
   Background:
     Given an Isaac root at "target/test-state"
 
-  @wip
   Scenario: A child band inherits session-tags and data from its base template
     Given default Grover setup
     And the isaac EDN file "config/hail/_engineering-template.edn" exists with:
@@ -59,7 +58,6 @@ Feature: Hail band inheritance via base template bands
       | user         | #"(?s).*Verify the coil work\..*"  |
       | assistant    | On it.                              |
 
-  @wip
   Scenario: A child data key overrides the same key in the base, base-only keys survive
     Given default Grover setup
     And the isaac EDN file "config/hail/_engineering-template.edn" exists with:
@@ -91,7 +89,6 @@ Feature: Hail band inheritance via base template bands
       | id          | #turn-id                                                       |
       | origin.data | {:notification-channel "engine", :bean-repo "git@x:a/b.git"} |
 
-  @wip
   Scenario: A child without a body inherits the base band's body as its template
     Given default Grover setup
     And the isaac EDN file "config/hail/_engineering-template.edn" exists with:
@@ -121,7 +118,6 @@ Feature: Hail band inheritance via base template bands
       | id    | #turn-id                                |
       | input | Attend to the coil in the engine room.  |
 
-  @wip
   Scenario: Base chains resolve transitively
     Given default Grover setup
     And the isaac EDN file "config/hail/_fleet-template.edn" exists with:

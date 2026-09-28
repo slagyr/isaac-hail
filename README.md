@@ -2,7 +2,7 @@
 
 <img align="left" width="200" src="https://raw.githubusercontent.com/slagyr/isaac-hail/main/isaac-hail.png" alt="isaac-hail" style="margin-right: 20px; margin-bottom: 10px;">
 
-Hail queue, router, delivery worker, HTTP route, and `hail-send` crew tool for out-of-band interrupt delivery.
+Stateless out-of-band turn submission through Agent: band expansion, CLI, HTTP `/hail/send`, and the `hail-send` crew tool.
 
 Depends on [isaac-foundation](https://github.com/slagyr/isaac-foundation) and
 [isaac-agent](https://github.com/slagyr/isaac-agent). Integration acceptance
@@ -21,11 +21,10 @@ spec trees (see `:features` in `deps.edn`).
 
 ## What's here
 
-- Hail queue, router, and delivery worker for out-of-band messages.
-- HTTP route for receiving hails (`/hail`).
-- `hail-send` crew tool for sending interrupts.
-- Band resolution and attention mechanisms.
-- Integration with sessions and comm delivery.
+- Hail send expands band templates and submits a durable Agent turn; Agent owns session selection, admission, execution, and retry.
+- HTTP route `POST /hail/send`, `hail send` CLI, and `hail-send` crew tool.
+- Reply-to turns inherit a thread; optional idempotency keys deduplicate retries.
+- Drain in-flight legacy hails on zanebot before deploying this cutover.
 
 ## Development
 

@@ -9,7 +9,6 @@ Feature: Hail band data survives prompt override and appears in the turn's pream
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
-  @wip
   Scenario: Band data appears in the metadata preamble when the body renders the prompt
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                                         |
@@ -46,7 +45,6 @@ Feature: Hail band data survives prompt override and appears in the turn's pream
       | user         | #"(?s).*Resonance climbing on primary.*"  |
       | assistant    | On it.                                     |
 
-  @wip
   Scenario: Band data survives an explicit prompt override
     Given the isaac EDN file "config/hail/bean-pickup.edn" exists with:
       | path         | value                                                |
@@ -82,7 +80,6 @@ Feature: Hail band data survives prompt override and appears in the turn's pream
       | user         | #"(?s).*Verifier needs help on iz3a.*"  |
       | assistant    | Acknowledged.                            |
 
-  @wip
   Scenario: Per-hail params override band data keys and pass through extras
     Given the isaac EDN file "config/hail/bean-pickup.edn" exists with:
       | path         | value                                  |
@@ -107,7 +104,6 @@ Feature: Hail band data survives prompt override and appears in the turn's pream
     And the stdout contains "coil"
     And the stdout contains "port"
 
-  @wip
   Scenario: A param overrides the same-named band data key in the delivered preamble
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                                    |
@@ -134,7 +130,6 @@ Feature: Hail band data survives prompt override and appears in the turn's pream
       | id       | #turn-id                                            |
       | preamble | #"(?s).*coil.*starboard.*plan-hail.*engine-plan.*" |
 
-  @wip
   Scenario: Band data values interpolate params
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                 |
@@ -161,7 +156,6 @@ Feature: Hail band data survives prompt override and appears in the turn's pream
       | id          | #turn-id                                 |
       | origin.data | {:bean "isaac-42", :bean-id "isaac-42"}  |
 
-  @wip
   Scenario: A band without declared data does not persist params as data
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                 |

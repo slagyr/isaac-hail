@@ -7,7 +7,6 @@ Feature: Hail-delivered slash-like commands
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
-  @wip
   Scenario: a hail carrying an unknown command is delivered, not rejected
     Given the isaac EDN file "config/hail/prune-request.edn" exists with:
       | path         | value        |

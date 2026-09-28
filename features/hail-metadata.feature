@@ -17,7 +17,6 @@ Feature: Hail submission embeds metadata and params in the turn's system preambl
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
-  @wip
   Scenario: A submitted hail's system preamble carries the metadata and params
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
@@ -42,7 +41,6 @@ Feature: Hail submission embeds metadata and params in the turn's system preambl
       | user         | #"(?s).*Recalibrate the port warp coil\..*" |
       | assistant    | On it.                                       |
 
-  @wip
   Scenario: A band hail renders the template into the instruction and echoes the params in the preamble
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                 |
@@ -72,7 +70,6 @@ Feature: Hail submission embeds metadata and params in the turn's system preambl
       | input    | Resonance climbing on primary, drift 0.03.   |
       | preamble | #"(?s).*coil.*primary.*drift.*0\.03.*"       |
 
-  @wip
   Scenario: An exact-session handback surfaces the reply-to as the return address
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
@@ -99,7 +96,6 @@ Feature: Hail submission embeds metadata and params in the turn's system preambl
       | origin.thread-id  | dilithium-thread-7                            |
       | preamble          | #"(?s).*[Rr]eply.?to:\s*hail-1.*coil.*port.*" |
 
-  @wip
   Scenario: A hail with a prompt and no params is delivered as-is, with metadata and no params section
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
@@ -125,7 +121,6 @@ Feature: Hail submission embeds metadata and params in the turn's system preambl
       | user         | #"(?s).*All stop\..*" |
       | assistant    | Answering all stop.     |
 
-  @wip
   Scenario: the turn's preamble carries per-hail facts only — identity is ambient (isaac-sx4g)
     Given the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |

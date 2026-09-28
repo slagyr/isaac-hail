@@ -183,7 +183,8 @@
     (contains? payload :prompt)    (assoc :prompt (:prompt payload))
     (contains? payload :params)    (assoc :params (parse-params (:params payload)))
     (contains? payload :thread-id) (assoc :thread-id (:thread-id payload))
-    (contains? payload :reply-to)  (assoc :reply-to (:reply-to payload))))
+    (contains? payload :reply-to)  (assoc :reply-to (:reply-to payload))
+    (contains? payload :idempotency-key) (assoc :idempotency-key (:idempotency-key payload))))
 
 (defn- request-principal [request]
   (or (:isaac/principal request)
@@ -229,6 +230,4 @@
                            "Location"     (str "/hail/" (:id record))}
                  :body    (render-body format record)})
               (catch clojure.lang.ExceptionInfo e
-                (if (= :hail/unreadable-record (:type (ex-data e)))
-                  (error-response 400 format (ex-message e))
-                  (throw e))))))))))
+                (error-response 400 format (ex-message e))))))))))

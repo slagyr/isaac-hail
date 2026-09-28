@@ -13,10 +13,10 @@
                                                         :git/sha "9ab25271aedb97c2e2e8abbc6a58955cdff8f274"
                                                         :deps/root "spec-support"}
         io.github.slagyr/isaac-agent {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                      :git/sha "b1de8dc554ff9eefac90ea34e6e1902c642d2aaf"}
+                                           :git/sha "65b25efca7d74395851536e65c1fcd1727354cb6"}
         io.github.slagyr/isaac-agent-spec {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                           :git/sha "b1de8dc554ff9eefac90ea34e6e1902c642d2aaf"
-                                           :deps/root "spec"}
+                                                :git/sha "65b25efca7d74395851536e65c1fcd1727354cb6"
+                                                :deps/root "spec"}
         io.github.slagyr/isaac-http {:git/url "https://github.com/slagyr/isaac-http.git"
                                        :git/sha "32603e6999f95e0dfea6ca0cf36926c493991773"}
         io.github.slagyr/isaac-http-spec {:git/url "https://github.com/slagyr/isaac-http.git"
@@ -60,8 +60,7 @@
                              "isaac.comm.comm-steps"
                              "isaac.tool.tools-steps"
                              "isaac.http.server-steps"
-                             "isaac.hail-steps"
-                             "isaac.hail-hlt1-steps"]]
+                             "isaac.hail-handoff-steps"]]
                     (apply tests/run-features! *command-line-args*))}
 
   jvm-features {:doc  "Run gherclj via clojure -M:features (JVM fallback)"

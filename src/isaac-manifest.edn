@@ -1,19 +1,17 @@
 {:id :isaac.hail,
- :version "0.1.23",
+ :version "0.1.24",
  :builtin? true,
  :factory isaac.hail.module/create-module,
  :isaac.config/component
  {:hail-bands {:path [:hail] :impl "hail-bands" :factory isaac.hail.bands/make}},
 
- :isaac/component
- {:hail-runtime {:namespace isaac.hail.component}},
  :isaac.agent/tools
  {:hail-send {:factory isaac.tool.hail/hail-send-tool-factory}
-  :hail-get  {:factory isaac.tool.hail-get/hail-get-tool-factory}},
+},
  :isaac/cli
  {:hail
   {:usage "hail <subcommand> [options]",
-   :summary "Produce hail records",
+   :summary "Submit turns to Agent",
    :namespace isaac.hail.cli,
    :hosted true}},
  :isaac.http/route
@@ -22,20 +20,7 @@
    :handler isaac.hail.http/handler,
    :scope :hail/send}],
  :isaac.config/schema
- {:hail-settings
-  {:schema
-   {:name :hail-settings,
-    :type :map,
-    :description "Hail queue settings",
-    :schema
-    {:naming-strategy
-     {:type :keyword,
-      :description "Hail id naming strategy: :short-uuid (default), :uuid, or :sequential",
-      :validations [[:one-of? :short-uuid :uuid :sequential]]}
-      :stale-bound-ms
-      {:type :int,
-       :description "Milliseconds a bound-unclaimed delivery may sit before recovery. Default 300000."}}}}
-  :hail
+ {:hail
   {:entity-dir "hail",
    :frontmatter? true,
    :merge-root-entity? true,

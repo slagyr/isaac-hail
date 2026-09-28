@@ -7,7 +7,6 @@ Feature: Hail send — direct addressing flags
   Background:
     Given an Isaac root at "target/test-state"
 
-  @wip
   Scenario: --crew populates :crew in the frequency address map
     When isaac is run with "hail send --crew marvin --prompt 'Heads up' --session-tag wip --dry-run"
     Then the exit code is 0
@@ -17,7 +16,6 @@ Feature: Hail send — direct addressing flags
       | input       | Heads up                               |
       | origin.from | :cli                                   |
 
-  @wip
   Scenario: --session populates :session in the address map
     When isaac is run with "hail send --session tidy-cavern --prompt 'wake up' --dry-run"
     Then the exit code is 0
@@ -27,7 +25,6 @@ Feature: Hail send — direct addressing flags
       | input       | wake up                   |
       | origin.from | :cli                      |
 
-  @wip
   Scenario: --session-tag populates :session-tags (repeatable AND-set)
     When isaac is run with "hail send --session-tag project/chess --session-tag wip --prompt 'go' --dry-run"
     Then the exit code is 0
@@ -37,7 +34,6 @@ Feature: Hail send — direct addressing flags
       | input       | go                                     |
       | origin.from | :cli                                   |
 
-  @wip
   Scenario: combining --crew with --session-tag sets both selectors in :frequencies
     When isaac is run with "hail send --crew marvin --session-tag project/chess --prompt 'go' --dry-run"
     Then the exit code is 0
@@ -47,7 +43,6 @@ Feature: Hail send — direct addressing flags
       | input       | go                                               |
       | origin.from | :cli                                             |
 
-  @wip
   Scenario: --from-json reads the whole hail from stdin as JSON
     Given stdin is:
       """
@@ -61,7 +56,6 @@ Feature: Hail send — direct addressing flags
       | origin.params | {:n 1}                |
       | origin.from   | :cli                  |
 
-  @wip
   Scenario: bare - reads the whole hail from stdin as EDN
     Given stdin is:
       """
@@ -89,7 +83,6 @@ Feature: Hail send — direct addressing flags
     Then the stderr contains "prompt"
     And the exit code is 1
 
-  @wip
   Scenario Outline: keyword flags accept a leading colon (isaac-k0xm)
     When isaac is run with "hail send --session-tag <tag> --prompt 'hi' --dry-run"
     Then the exit code is 0
@@ -102,7 +95,6 @@ Feature: Hail send — direct addressing flags
       | :project/foo |
       | project/foo  |
 
-  @wip
   Scenario: a keyword flag value that cannot read back is refused naming the flag (isaac-k0xm)
     When isaac is run with "hail send --session-tag :::x --prompt 'hi' --dry-run"
     Then the stderr contains "--session-tag"

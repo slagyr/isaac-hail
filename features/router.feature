@@ -13,7 +13,6 @@ Feature: Hail addressing
     Given an Isaac root at "target/test-state"
     And default Grover setup
 
-  @wip
   Scenario: a session activated via sessions set is routable by band session-tags
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
@@ -37,7 +36,6 @@ Feature: Hail addressing
       | message | user         | Engineering intercom check. |
       | message | assistant    | Aye.                         |
 
-  @wip
   Scenario: a reach-one band matching exactly one session binds immediately
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
@@ -71,7 +69,6 @@ Feature: Hail addressing
       | message | user         | Dilithium leak reported. |
       | message | assistant    | On it.                    |
 
-  @wip
   Scenario: a frequency :crew selects sessions of that crew
     Given the isaac EDN file "config/crew/marvin.edn" exists with:
       | path  | value  |
@@ -98,7 +95,6 @@ Feature: Hail addressing
       | message | user         | Work the backlog. |
       | message | assistant    | Backlogged.        |
 
-  @wip
   Scenario: a direct session frequency binds to that exact session only
     Given the isaac EDN file "config/crew/mavis.edn" exists with:
       | path  | value              |
@@ -126,7 +122,6 @@ Feature: Hail addressing
       | message | user         | Adjust bearing 12 degrees. |
       | message | assistant    | Bearing set.                |
 
-  @wip
   Scenario: combined band and session-tag intersect to one bound delivery
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
@@ -160,7 +155,6 @@ Feature: Hail addressing
       | message | user         | Resonance drift check. |
       | message | assistant    | On it.                 |
 
-  @wip
   Scenario: a band :crew selects sessions whose crew matches
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path | value         |
@@ -192,7 +186,6 @@ Feature: Hail addressing
       | message | user         | Status check.    |
       | message | assistant    | On it.           |
 
-  @wip
   Scenario: a frequency with no session selector is refused at send
     When isaac is run with "hail send --prompt 'Orphan reach.'"
     Then the stderr contains "addressing"
@@ -200,7 +193,6 @@ Feature: Hail addressing
     When isaac is run with "turns list --all"
     Then the stdout is empty
 
-  @wip
   Scenario: processing crew comes from the matched session
     Given the following sessions exist:
       | name        | crew |
@@ -218,7 +210,6 @@ Feature: Hail addressing
       | message | user         | Check the gauges. |
       | message | assistant    | Nominal.            |
 
-  @wip
   Scenario: an unknown band is refused at send
     When isaac is run with "hail send --band phantom-band --params '{:n 1}'"
     Then the stderr contains "unknown band: phantom-band"
@@ -226,7 +217,6 @@ Feature: Hail addressing
     When isaac is run with "turns list --all"
     Then the stdout is empty
 
-  @wip
   Scenario: a reach-one band with no matching session is refused at send
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
@@ -244,7 +234,6 @@ Feature: Hail addressing
     When isaac is run with "turns list --all"
     Then the stdout is empty
 
-  @wip
   Scenario: an undeliverable hail logs a WARN hail/undeliverable event at send (isaac-axzg)
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value             |
@@ -267,7 +256,6 @@ Feature: Hail addressing
   # :frequencies holds the same flat map the prompt command builds (select keys
   # + :with-* override keys). --with-crew overrides the processing crew.
 
-  @wip
   Scenario: --with-crew overrides the processing crew
     Given the following sessions exist:
       | name        | crew |
