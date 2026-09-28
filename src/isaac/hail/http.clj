@@ -137,7 +137,6 @@
             (some? session)      (assoc :session session)
             (some? session-tags) (assoc :session-tags session-tags)
             (some? crew)         (assoc :crew crew)
-            (:reach frequencies) (update :reach ->keyword)
             (:create frequencies) (update :create ->keyword)
             (:prefer frequencies) (update :prefer ->keyword)))))))
 
@@ -169,11 +168,7 @@
            (not (contains? frequencies :band))
            (str/blank? (:prompt record)))
       {:error "missing prompt"
-       :hint  "include :prompt for non-band hails"}
-
-      (and (:reach frequencies) (not (direct-addressing? frequencies)))
-      {:error "invalid reach"
-       :hint  "include direct addressing when using :reach"})))
+       :hint  "include :prompt for non-band hails"})))
 
 (defn- parse-params [value]
   (cond

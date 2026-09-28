@@ -25,7 +25,6 @@
     :assoc-fn (fn [m k v] (update m k (fnil conj []) v))]
    [nil "--session-tag TAG" "Session tag (repeatable)"
     :assoc-fn (fn [m k v] (update m k (fnil conj []) v))]
-   [nil "--reach MODE" "Reach mode (:one or :all) for direct/tag addressing"]
    [nil "--prompt TEXT" "Prompt override (band hails may omit when the band has a template)"]
    [nil "--params EDN" "Band template parameters (EDN map)"]
    [nil "--reply-to ID" "Hail id this message replies to"]
@@ -53,7 +52,6 @@
        "      --crew ID              Crew session frequencies\n"
        "      --session ID           Session id (repeatable)\n"
        "      --session-tag TAG      Session tag (repeatable)\n"
-       "      --reach MODE           Reach mode (:one or :all) for direct/tag addressing\n"
        "      --prompt TEXT          Prompt for direct/tag-addressed hails\n"
        "      --params EDN           Band template parameters (EDN map)\n"
        "      --reply-to ID          Hail id this message replies to\n"
@@ -89,7 +87,7 @@
     (catch Exception _ false)))
 
 (def ^:private keyword-flags
-  [[:crew "--crew"] [:session "--session"] [:session-tag "--session-tag"] [:reach "--reach"]])
+  [[:crew "--crew"] [:session "--session"] [:session-tag "--session-tag"]])
 
 (defn- flag-values [value]
   (cond (sequential? value) value
@@ -120,8 +118,7 @@
     (:band options)        (assoc :band (:band options))
     (:crew options)        (assoc :crew (flag-name (:crew options)))
     (:session options)     (assoc :session (keywordize* (:session options)))
-    (:session-tag options) (assoc :session-tags (keyword-set* (:session-tag options)))
-    (:reach options)       (assoc :reach (flag-keyword (:reach options)))))
+    (:session-tag options) (assoc :session-tags (keyword-set* (:session-tag options)))))
 
 (defn- parse-whole-hail [options]
   (let [text (or (slurp-stdin) "{}")]
@@ -145,8 +142,6 @@
       (and (not whole-hail?) direct? (not band?) (str/blank? (:prompt options)))
       (conj "Missing required option --prompt for direct/tag addressing")
 
-      (and (not whole-hail?) (:reach options) (not direct?))
-      (conj "Option --reach requires direct/tag addressing")
 
       (and (:json options) (:edn options))
       (conj "Choose either --json or --edn, not both"))))
@@ -167,10 +162,7 @@
       (conj "Hail must include at least one addressing field (:band, :session, :session-tags, or :crew)")
 
       (and direct? (not band?) (str/blank? (:prompt record)))
-      (conj "Direct/tag-addressed hails require :prompt")
-
-      (and (:reach frequencies) (not direct?))
-      (conj "Hails with :reach require direct/tag addressing"))))
+      (conj "Direct/tag-addressed hails require :prompt"))))
 
 (defn- parse-send-opts [args]
   (let [whole-hail?                        (= "-" (first args))

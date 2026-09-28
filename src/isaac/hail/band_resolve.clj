@@ -69,7 +69,9 @@
                              [nil nil])]
         (if-not (map? band)
           {:bands bands :errors errors}
-          (try
+          (if (contains? band :reach)
+            {:bands bands :errors (conj errors (error-row band-id "unknown key :reach"))}
+            (try
             (let [resolved (resolve-band band-id band raw-slice #{})]
               (if (template-band? band-id)
                 {:bands bands :errors errors}
@@ -89,7 +91,7 @@
                    :errors (conj errors (error-row band-id
                                                     (str "missing base band: " (:base data))))}
 
-                  (throw e))))))))
+                  (throw e)))))))))
     {:bands {} :errors []}
     raw-slice))
 
@@ -115,8 +117,8 @@
 
 (defn check-config
   "isaac.config/check contribution — surface inheritance errors at validate time."
-  [{:keys [config effective-schema]}]
-  (let [raw-hail (:hail config)]
+  [{:keys [config result effective-schema]}]
+  (let [raw-hail (merge (:hail config) (get-in result [:raw :hail]))]
     (if (empty? raw-hail)
       {:errors [] :warnings []}
       {:errors (:errors (resolution-errors effective-schema raw-hail))
@@ -125,11 +127,11 @@
 (defn apply-to-load-result!
   "Post-process a config load result: resolve hail band inheritance."
   [root-schema {:keys [config] :as result}]
-  (let [raw-hail (:hail config)]
+  (let [raw-hail (merge (:hail config) (get-in result [:raw :hail]))]
     (if (empty? raw-hail)
       result
       (let [{:keys [bands errors]} (resolution-errors root-schema raw-hail)
-            settings (into {} (remove (fn [[_ v]] (map? v)) raw-hail))]
+            settings (into {} (remove (fn [[_ v]] (map? v)) (:hail config)))]
         (cond-> result
           true (assoc-in [:config :hail] (merge settings bands))
           true (update :errors into errors))))))

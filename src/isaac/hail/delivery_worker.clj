@@ -131,8 +131,7 @@
          session)))
 
 ;; A routed delivery file IS the hail (flat — enriched in place by the router);
-;; there is no :hail wrapper. A reach-:all child also carries :source-hail (it
-;; rides along; the worker treats the child like any other delivery).
+;; there is no :hail wrapper.
 (defn- band-name [delivery]
   (when-let [raw (or (get-in delivery [:frequencies :band])
                      (:band delivery))]
@@ -168,8 +167,7 @@
 
 (defn- create-delivery? [cfg delivery]
   (let [band (delivery-band cfg delivery)]
-    (and (= :one (router/effective-reach band delivery))
-         (= :if-missing (router/effective-create band delivery)))))
+    (= :if-missing (router/effective-create band delivery))))
 
 (defn- matching-spawn-sessions [cfg session-store delivery]
   (let [band     (delivery-band cfg delivery)

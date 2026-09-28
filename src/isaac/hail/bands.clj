@@ -11,7 +11,6 @@
 
 (defn with-band-defaults [band]
   (cond-> band
-    (and band (nil? (:reach band))) (assoc :reach :one)
     (and band (nil? (:continuations band))) (assoc :continuations default-continuations)))
 
 (defn- load-slice [slice]

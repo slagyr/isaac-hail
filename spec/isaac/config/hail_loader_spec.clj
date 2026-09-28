@@ -17,11 +17,11 @@
   (it "conforms hail band declarations"
     (let [result (schema/conform (hail-band-schema)
                                  {:session-tags  [:project/chess]
-                                  :reach         :one
+                                  
                                   :create :if-missing})]
       (should-not (schema/error? result))
       (should= {:session-tags  [:project/chess]
-                :reach         :one
+                
                 :create :if-missing}
                result)))
 
@@ -29,22 +29,22 @@
     (let [result (schema/conform (hail-band-schema)
                                  {:session-tags [:bean/ready]
                                   :prompt       "Pick up the bean."
-                                  :reach        :all})]
+                                  })]
       (should-not (schema/error? result))
       (should= {:session-tags [:bean/ready]
                 :prompt       "Pick up the bean."
-                :reach        :all}
+                }
                result)))
 
   (it "conforms optional band :data maps"
     (let [result (schema/conform (hail-band-schema)
                                  {:session-tags [:bean/ready]
-                                  :reach        :one
+                                  
                                   :data         {:bean-repo "isaac"
                                                  :bean-id   "{{bean-id}}"}})]
       (should-not (schema/error? result))
       (should= {:session-tags [:bean/ready]
-                :reach        :one
+                
                 :data         {:bean-repo "isaac"
                                :bean-id   "{{bean-id}}"}}
                result)))
@@ -52,7 +52,7 @@
   (it "rejects band :data that is not a map"
     (let [result (schema/conform (hail-band-schema)
                                  {:session-tags [:bean/ready]
-                                  :reach        :one
+                                  
                                   :data         "not-a-map"})]
       (should (schema/error? result))
       (should (.contains (pr-str (schema/message-map result)) "data"))))
@@ -61,7 +61,7 @@
     (let [result (schema/conform (hail-band-schema)
                                  {:crew         [:ops]
                                   :session-tags [:project/chess]
-                                  :reach        :one})]
+                                  })]
       (should (schema/error? result))
       (should (.contains (pr-str (schema/message-map result)) "crew"))))
 
@@ -76,7 +76,7 @@
 
   (it "rejects hail bands without any addressing fields or :base"
     (let [result (schema/conform (hail-band-schema)
-                                 {:reach :one})]
+                                 {})]
       (should (schema/error? result))
       (should= {:addressing "must include at least one of :session, :session-tags, :crew, :base"}
                (schema/message-map result))))

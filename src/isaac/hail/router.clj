@@ -47,9 +47,6 @@
 (defn- undeliverable-dir []
   (str (runtime-root) "/hail/undeliverable"))
 
-(defn- broadcasts-dir []
-  (str (runtime-root) "/hail/broadcasts"))
-
 (defn- pending-path [id]
   (str (pending-dir) "/" id ".edn"))
 
@@ -58,9 +55,6 @@
 
 (defn- undeliverable-path [id]
   (str (undeliverable-dir) "/" id ".edn"))
-
-(defn- broadcast-path [id]
-  (str (broadcasts-dir) "/" id ".edn"))
 
 (defn- temp-path [path]
   (str path ".tmp"))
@@ -175,7 +169,7 @@
 
 (defn- band-frequencies [band]
   (when band
-    (select-keys band [:session :session-tags :crew :reach :prefer :create
+    (select-keys band [:session :session-tags :crew :prefer :create
                        :with-crew :with-model :with-effort :with-context-mode])))
 
 (defn- frequency-crew-set [value]
@@ -228,8 +222,7 @@
 
 (defn- explicit-session-frequencies [band hail]
   (let [hail* (hail-frequencies hail)]
-    (cond-> (merge {:session (vec (frequencies-ids (:session hail*)))
-                    :reach   :one}
+    (cond-> (merge {:session (vec (frequencies-ids (:session hail*)))}
                    (merge-with-overrides band hail))
       (:create hail*) (assoc :create (:create hail*)))))
 
@@ -247,9 +240,6 @@
         (merge-crew band* hail*)
         (assoc :crew (merge-crew band* hail*))
 
-        (or (:reach hail*) (:reach hail) (:reach band*))
-        (assoc :reach (or (:reach hail*) (:reach hail) (:reach band*) :one))
-
         (or (:prefer hail*) (:prefer band*))
         (assoc :prefer (or (:prefer hail*) (:prefer band*)))
 
@@ -265,14 +255,6 @@
   (if (explicit-session-hail? hail)
     (explicit-session-frequencies band hail)
     (merged-band-hail-frequencies band hail)))
-
-(defn effective-reach [band hail]
-  (if (explicit-session-hail? hail)
-    :one
-    (or (:reach hail)
-        (get-in hail [:frequencies :reach])
-        (:reach band)
-        :one)))
 
 (defn effective-create [band hail]
   (if (explicit-session-hail? hail)
@@ -331,9 +313,7 @@
 ;;
 ;; An id is identity: a routed hail keeps its id and filename. resolve-obligations
 ;; enriches the hail IN PLACE (flat — no :hail wrapper) and returns one of:
-;;   {:delivery flat-hail}              reach :one bound / unbound pool / create
-;;   {:broadcast {:parent hail
-;;                :children [{:crew :session} ...]}}  reach :all (child ids minted at write)
+;;   {:delivery flat-hail}              bound / unbound pool / create
 ;;   {:undeliverable flat-hail}         routing failure, carries :reason
 
 (defn- bound-delivery [cfg band hail session]
@@ -371,7 +351,6 @@
 (defn resolve-obligations [cfg bands sessions hail]
   (let [band-name    (get-in hail [:frequencies :band])
         band         (when band-name (get bands band-name))
-        reach        (effective-reach band hail)
         create       (effective-create band hail)
         frequencies  (effective-frequencies band hail)
         prefer       (:prefer frequencies)
@@ -382,14 +361,9 @@
       {:undeliverable (assoc hail :reason (:reason match-result))}
 
       (empty? matches)
-      (if (and (= :if-missing create) (= :one reach))
+      (if (= :if-missing create)
         {:delivery (create-delivery cfg band hail)}
         {:undeliverable (assoc hail :reason :no-recipients)})
-
-      (= :all reach)
-      {:broadcast {:parent   hail
-                   :children (mapv #(candidate-entry cfg band hail %)
-                                   (sort-by :id matches))}}
 
       (= 1 (count matches))
       {:delivery (bound-delivery cfg band hail (first matches))}
@@ -409,34 +383,14 @@
   (hail-store/persist-record! (:id hail) hail)
   (delete-pending! (:id hail)))
 
-(defn- write-broadcast! [root fs* parent child-addrs]
-  (let [parent-id (:id parent)
-        children  (mapv (fn [addr]
-                          (assoc parent
-                                 :id          (queue/next-id root fs*)
-                                 :source-hail parent-id
-                                 :crew        (:crew addr)
-                                 :bound-session (:session addr)
-                                 :attempts    0))
-                        child-addrs)]
-    (doseq [child children]
-      (write-record! (delivery-path (:id child)) child)
-      (hail-store/persist-record! (:id child) child))
-    (let [parent* (assoc parent :children (mapv :id children))]
-      (write-record! (broadcast-path parent-id) parent*)
-      (hail-store/persist-record! parent-id parent*))
-    (delete-pending! parent-id)))
-
 (defn tick!
-  [{:keys [cfg root] :as opts}]
+  [{:keys [cfg] :as opts}]
   (let [cfg            (or cfg (loader/snapshot "hail router tick wake boundary — config may have changed") {})
-        root           (or root (runtime-root))
-        fs*            (filesystem)
         session-store* (require-session-store opts)
         bands          (band-resolve/resolved-slice (:hail cfg))
         sessions       (session-store/list-sessions session-store*)]
     (doseq [hail (list-pending cfg)]
-      (let [{:keys [delivery broadcast undeliverable]}
+      (let [{:keys [delivery undeliverable]}
             (resolve-obligations cfg bands sessions hail)]
         (cond
           delivery
@@ -448,16 +402,6 @@
                         :outcome :delivery
                         :session (:bound-session delivery)
                         :candidates (count (:candidates delivery))))
-
-          broadcast
-          (let [parent (:parent broadcast) children (:children broadcast)]
-            (write-broadcast! root fs* parent children)
-            (log/info :hail/routed
-                      :id (:id parent)
-                      :thread-id (:thread-id parent)
-                      :band (get-in parent [:frequencies :band])
-                      :outcome :broadcast
-                      :children (count children)))
 
           undeliverable
           (do (write-undeliverable! undeliverable)

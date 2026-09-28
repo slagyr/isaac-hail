@@ -88,7 +88,7 @@
 
 (defn next-id
   "Mint a hail id using the configured naming strategy. Shared by send! and
-   the router's reach-:all child fan-out."
+   the router's delivery records."
   [root fs*]
   (let [cfg (snapshot-config)]
     (when (= :sequential (naming-strategy-kw cfg))

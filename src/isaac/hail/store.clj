@@ -11,7 +11,7 @@
 (def hail-subdirs
   "Subdirectories under <root>/hail/ scanned by find-by-id.
    Lifecycle dirs first; records/ is the durable ledger fallback (isaac-u7ug)."
-  ["pending" "deliveries" "delivered" "failed" "undeliverable" "cancelled" "broadcasts" "records"])
+  ["pending" "deliveries" "delivered" "failed" "undeliverable" "cancelled" "records"])
 
 (def ^:private subdir->lifecycle
   {"pending"        :pending
@@ -20,7 +20,6 @@
    "failed"         :failed
    "undeliverable"  :undeliverable
    "cancelled"      :cancelled
-   "broadcasts"     :broadcast
    "records"        :delivered})
 
 (defn- runtime-root []

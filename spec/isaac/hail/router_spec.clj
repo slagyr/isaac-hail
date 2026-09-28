@@ -30,13 +30,13 @@
 
   (it "binds a reach-one band to the only matching session, enriching the hail in place"
     (let [result (sut/resolve-obligations test-cfg
-                                          {"engineering-intercom" {:session-tags #{:role/engineer} :reach :one}}
+                                          {"engineering-intercom" {:session-tags #{:role/engineer} }}
                                           [{:id "engine-room" :crew "bartholomew" :tags #{:role/engineer}}]
                                           {:id "hail-1" :frequencies {:band "engineering-intercom"}})]
       (should= {:delivery {:id          "hail-1"
                            :frequencies {:band         "engineering-intercom"
                                          :session-tags [:role/engineer]
-                                         :reach        :one}
+                                         }
                            :crew        :bartholomew
                            :bound-session :engine-room
                            :attempts    0}}
@@ -49,11 +49,11 @@
                                            {:id "bridge" :crew "atticus" :tags #{:role/command}}]
                                           {:id        "hail-1"
                                            :frequencies {:session-tags #{:role/command}}
-                                           :reach     :one})]
+                                           })]
       (should= {:delivery {:id          "hail-1"
                            :frequencies {:session-tags [:role/command]
-                                         :reach        :one}
-                           :reach       :one
+                                         }
+                           
                            :crew        nil
                            :bound-session nil
                            :candidates  [{:crew :atticus :session :bridge}
@@ -68,12 +68,12 @@
                                            {:id "side-job" :crew "marvin"}]
                                           {:id        "hail-1"
                                            :frequencies {:crew "main"}
-                                           :reach     :one
+                                           
                                            :prompt    "Work"})]
       (should= {:delivery {:id          "hail-1"
                            :frequencies {:crew  :main
-                                         :reach :one}
-                           :reach       :one
+                                         }
+                           
                            :prompt      "Work"
                            :crew        :main
                            :bound-session :agile-voyage
@@ -84,19 +84,19 @@
     (let [result (sut/resolve-obligations test-cfg
                                           {}
                                           [{:id "engine-room" :crew "bartholomew"}]
-                                          {:id "hail-1" :frequencies {:reach :one}})]
-      (should= {:undeliverable {:id "hail-1" :frequencies {:reach :one} :reason :no-recipients}}
+                                          {:id "hail-1" :frequencies {}})]
+      (should= {:undeliverable {:id "hail-1" :frequencies {} :reason :no-recipients}}
                result)))
 
   (it "emits a spawn delivery with resolved crew when no session matches"
     (let [hail   {:id "hail-1"
                   :frequencies {:session-tags #{:project/warp-coil}
-                              :reach :one
+                              
                               :create :if-missing}}
           result (sut/resolve-obligations test-cfg {} [] hail)]
       (should= {:delivery (assoc hail
                                  :frequencies {:session-tags [:project/warp-coil]
-                                               :reach        :one
+                                               
                                                :create       :if-missing}
                                  :crew        :main
                                  :bound-session nil
@@ -111,19 +111,6 @@
       (should= {:undeliverable {:id "hail-1" :frequencies {:band "phantom-band"} :reason :unknown-band}}
                result)))
 
-  (it "fans reach-all into a broadcast parent plus per-session children in session order"
-    (let [result (sut/resolve-obligations test-cfg
-                                          {}
-                                          [{:id "first-watch" :crew "cordelia" :tags #{:role/command}}
-                                           {:id "bridge" :crew "atticus" :tags #{:role/command}}]
-                                          {:id        "hail-1"
-                                           :frequencies {:session-tags #{:role/command}}
-                                           :reach     :all})]
-      (should= {:broadcast {:parent   {:id "hail-1" :frequencies {:session-tags #{:role/command}} :reach :all}
-                            :children [{:crew :atticus :session :bridge}
-                                       {:crew :cordelia :session :first-watch}]}}
-               result)))
-
   (it "writes a flat delivery keeping the hail id and removes the pending hail on tick"
     (let [session-store (memory/create-store)]
       (store/open-session! session-store "engine-room" {:crew "bartholomew"})
@@ -136,7 +123,7 @@
       (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"))
       (should= {:id          "hail-1"
                 :frequencies {:session [:engine-room]
-                              :reach   :one}
+                              }
                 :from        :cli
                 :crew        :bartholomew
                 :bound-session :engine-room
@@ -167,32 +154,6 @@
       (let [undeliverable (some #(when (= :hail/undeliverable (:event %)) %) @log/captured-logs)]
         (should= {:level :warn :event :hail/undeliverable :id "hail-1" :thread-id "thread-9" :reason :no-recipients}
                  (select-keys undeliverable [:level :event :id :thread-id :reason])))))
-
-  (it "writes a broadcast parent plus child delivery hails on tick for reach :all"
-    (let [session-store (memory/create-store)]
-      (store/open-session! session-store "bridge" {:crew "atticus" :tags #{:role/command}})
-      (store/open-session! session-store "first-watch" {:crew "cordelia" :tags #{:role/command}})
-      (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/pending")
-      (fs/spit (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"
-               (pr-str {:id "hail-1" :frequencies {:session-tags #{:role/command}} :reach :all :from :cli}))
-      (sut/tick! {:cfg           {:crew {:atticus {:tags #{:role/command}}
-                                         :cordelia {:tags #{:role/command}}}}
-                  :session-store session-store})
-      (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail/pending/hail-1.edn"))
-      (let [parent    (read-string (fs/slurp (nexus/get :fs) "/test/isaac/hail/broadcasts/hail-1.edn"))
-            child-ids (:children parent)
-            children  (mapv #(read-string (fs/slurp (nexus/get :fs)
-                                                      (str "/test/isaac/hail/deliveries/" % ".edn")))
-                            child-ids)
-            bridge    (first (filter #(= :bridge (:bound-session %)) children))]
-        (should= "hail-1" (:id parent))
-        (should= 2 (count child-ids))
-        (should= 2 (count (set child-ids)))
-        (doseq [id child-ids]
-          (should (short-uuid? id)))
-        (should= "hail-1" (:source-hail bridge))
-        (should= :atticus (:crew bridge))
-        (should= :bridge (:bound-session bridge)))))
 
   (it "moves no-recipient hails to undeliverable on tick, enriched in place"
     (let [session-store (memory/create-store)]
@@ -236,37 +197,23 @@
 
   (it "routes an explicit session id without band session-tag filtering"
     (let [result (sut/resolve-obligations test-cfg
-                                          {"ci-failure" {:session-tags #{:orchestration} :reach :one}}
+                                          {"ci-failure" {:session-tags #{:orchestration} }}
                                           [{:id "glimmering-cardinal" :crew "main" :tags #{}}]
                                           {:id          "hail-1"
                                            :frequencies {:band "ci-failure" :session ["glimmering-cardinal"]}})]
       (should= {:delivery {:id          "hail-1"
                            :frequencies {:band    "ci-failure"
                                          :session [:glimmering-cardinal]
-                                         :reach   :one}
+                                         }
                            :crew        :main
                            :bound-session :glimmering-cardinal
-                           :attempts    0}}
-               result)))
-
-  (it "does not fan out when the hail names an explicit session despite band reach :all"
-    (let [result (sut/resolve-obligations test-cfg
-                                          {"alert" {:session-tags #{:role/command} :reach :all}}
-                                          [{:id "bridge" :crew "atticus" :tags #{:role/command}}
-                                           {:id "first-watch" :crew "cordelia" :tags #{:role/command}}]
-                                          {:id          "hail-1"
-                                           :frequencies {:band "alert" :session ["bridge"]}})]
-      (should= {:delivery {:id          "hail-1"
-                           :frequencies {:band "alert" :session [:bridge] :reach :one}
-                           :crew        :atticus
-                           :bound-session :bridge
                            :attempts    0}}
                result)))
 
   (it "does not spawn when an explicit session is missing despite band create :if-missing"
     (let [result (sut/resolve-obligations test-cfg
                                           {"spawn-band" {:session-tags #{:wip}
-                                                         :reach        :one
+                                                         
                                                          :create       :if-missing}}
                                           []
                                           {:id          "hail-1"

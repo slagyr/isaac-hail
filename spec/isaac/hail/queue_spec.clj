@@ -156,7 +156,7 @@
   (it "persists effective band data on the hail record"
     (config/dangerously-install-config!
      {:hail {"bean-pickup" {:session-tags [:project/chess]
-                            :reach        :one
+                            
                             :data         {:bean-repo "isaac"
                                            :bean-id   "{{bean-id}}"}}}}
      "spec")

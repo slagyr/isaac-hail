@@ -179,7 +179,7 @@
                         :crew     :bartholomew
                         :prompt   "Resonance climbing."
                         :frequencies {:session-tags #{:project/warp-coil}
-                                    :reach :one
+                                    
                                     :create :if-missing}
                         :attempts 0})
       (with-redefs [isaac.drive.turn/run-turn! (fn [_] {})]
@@ -205,7 +205,7 @@
                               :crew     :main
                               :prompt   "Resonance climbing."
                               :frequencies {:session-tags #{:project/warp-coil}
-                                          :reach :one
+                                          
                                           :create :if-missing}
                               :attempts 0})
                             [:crew :bound-session]))
@@ -223,7 +223,7 @@
                  :crew     :bartholomew
                  :prompt   "Resonance climbing."
                  :frequencies {:session-tags #{:project/warp-coil}
-                             :reach :one
+                             
                              :create :if-missing}
                  :attempts 0}))))
 
@@ -243,7 +243,7 @@
                  :crew     :main
                  :prompt   "Resonance climbing."
                  :frequencies {:session-tags #{:project/warp-coil}
-                             :reach :one
+                             
                              :create :if-missing}
                  :attempts 0}))
       (should-be-nil (store/get-session session-store "session-1"))))
@@ -260,7 +260,7 @@
                  :crew     :bartholomew
                  :prompt   "Resonance climbing."
                  :frequencies {:session-tags #{:project/warp-coil}
-                               :reach :one
+                               
                                :create :if-missing}
                  :attempts 0}))))
 

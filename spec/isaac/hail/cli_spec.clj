@@ -98,14 +98,6 @@
         (should= {:crew "marvin" :session-tags #{:project/chess}}
                  (:frequencies (sut/read-pending id))))))
 
-  (it "accepts --reach for direct/tag addressing"
-    (let [output (with-out-str
-                   (should= 0 (sut/run-fn {:_raw-args ["send" "--session-tag" "wip" "--reach" "all" "--prompt" "go"]})))]
-      (let [id (hail-id-from-output output)]
-        (should (short-uuid? id))
-        (should= {:session-tags #{:wip} :reach :all}
-                 (:frequencies (sut/read-pending id))))))
-
   (it "reads a whole hail record from stdin as JSON when --from-json is given"
     (let [output (with-in-str "{\"frequencies\":{\"band\":\"bean-pickup\"},\"params\":{\"n\":1}}"
                    (with-out-str
@@ -121,13 +113,6 @@
         (should= 1 (sut/run-fn {:_raw-args ["send" "--session-tag" "wip"]})))
       (let [err (str err*)]
         (should (.contains err "--prompt")))))
-
-  (it "rejects --reach without direct or tag addressing"
-    (let [err* (java.io.StringWriter.)]
-      (binding [*err* err*]
-        (should= 1 (sut/run-fn {:_raw-args ["send" "--band" "bean-pickup" "--reach" "all"]})))
-      (let [err (str err*)]
-        (should (.contains err "--reach")))))
 
   (it "requeue moves failed delivery back to deliveries"
     (fs/mkdirs (nexus/get :fs) "/test/isaac/hail/failed")

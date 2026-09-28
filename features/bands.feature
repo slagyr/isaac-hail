@@ -30,7 +30,6 @@ Feature: Hail bands declared in config
     Then the stdout contains "OK"
     And the exit code is 0
 
-  @wip
   Scenario: config validate rejects :reach — fan-out is gone (isaac-5gu1)
     Given config file "hail/bogus.edn" containing:
       """

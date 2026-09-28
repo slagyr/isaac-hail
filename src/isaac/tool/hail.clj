@@ -93,7 +93,6 @@
                           (sequential? tags) tags
                           :else [tags]))))
 
-        (:reach frequencies)         (update :reach keyword)
         (:create frequencies)        (update :create keyword)
         (:prefer frequencies)         (update :prefer keyword)
         (:with-context-mode frequencies) (update :with-context-mode keyword)
@@ -150,7 +149,7 @@
    Address keys (band, session, session_tags, crew, …) are flat top-level args
    in snake_case; the handler builds the internal :frequencies map.
    For compatibility, also accepts legacy nested 'frequencies' or 'frequency'.
-   Args: band, session, session_tags, crew, reach, prefer, create, with_*,
+   Args: band, session, session_tags, crew, prefer, create, with_*,
    prompt, params, thread_id, reply_to, session_key (runtime-injected)."
   [arguments]
   (let [args        (bounds/string-key-map arguments)

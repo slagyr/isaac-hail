@@ -14,9 +14,9 @@
                               {:data {:plan-hail "isaac-plan"}})))
 
   (it "replaces scalar keys wholesale without merge errors"
-    (should= {:crew "perceptor" :reach :all :session-tags [:isaac]}
-             (sut/merge-bands {:crew "ops" :reach :one :session-tags [:isaac]}
-                              {:crew "perceptor" :reach :all})))
+    (should= {:crew "perceptor" :session-tags [:isaac]}
+             (sut/merge-bands {:crew "ops" :session-tags [:isaac]}
+                              {:crew "perceptor"})))
 
   (it "inherits base prompt when child has no prompt"
     (let [{:keys [bands]} (sut/resolve-slice
@@ -36,18 +36,22 @@
       (should= "Child body" (:prompt resolved))))
 
   (it "resolves transitive base chains"
-    (let [raw {"_root"   {:session-tags [:isaac] :reach :one}
+    (let [raw {"_root"   {:session-tags [:isaac] }
                "_mid"    {:base "_root" :data {:repo "isaac"}}
                "leaf"    {:base "_mid" :crew "perceptor"}}
           {:keys [bands errors]} (sut/resolve-slice raw)]
       (should= [] errors)
       (should= {:session-tags [:isaac]
-                :reach        :one
+                
                 :data         {:repo "isaac"}
                 :crew         "perceptor"}
                (get bands "leaf"))
       (should= nil (get bands "_root"))
       (should= nil (get bands "_mid"))))
+
+  (it "rejects reach in a band"
+    (should (some #(re-find #"reach" (:value %))
+                  (:errors (sut/resolve-slice {"work" {:crew "ops" :reach :one}})))))
 
   (it "reports a cycle in the base chain"
     (let [raw {"a" {:base "b" :crew "ops"}
@@ -74,7 +78,7 @@
       (should (some #(and (.contains (:value %) "cycle") %) errors))))
 
   (it "excludes underscore-prefixed template bands from the resolved slice"
-    (let [raw {"_template" {:session-tags [:isaac] :reach :one}
+    (let [raw {"_template" {:session-tags [:isaac] }
                "isaac-work" {:base "_template" :crew "worker"}}
           {:keys [bands]} (sut/resolve-slice raw)]
       (should= nil (get bands "_template"))

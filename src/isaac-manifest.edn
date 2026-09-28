@@ -1,5 +1,5 @@
 {:id :isaac.hail,
- :version "0.1.22",
+ :version "0.1.23",
  :builtin? true,
  :factory isaac.hail.module/create-module,
  :isaac.config/component
@@ -66,13 +66,9 @@
       :prompt
       {:type :string,
        :description "Optional companion markdown prompt for the band"},
-      :reach
-      {:type :keyword,
-       :description "How many listeners receive the hail",
-       :validations [[:one-of? :one :all]]},
       :create
       {:type :keyword,
-       :description "Create policy when :reach is :one and no matching session is available (:never or :if-missing).",
+       :description "Create policy when no matching session is available (:never or :if-missing).",
        :validations [[:one-of? :never :if-missing]]},
       :data
       {:type :map,

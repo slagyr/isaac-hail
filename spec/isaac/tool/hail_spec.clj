@@ -113,7 +113,7 @@
   (it "errors when an explicit session id equals a configured band name"
     (helper/create-session! "/test/isaac" "work-sess" {:crew "main"})
     (loader/set-snapshot! {:hail {"engineering-intercom" {:session-tags #{:project/warp-coil}
-                                                          :reach        :one}}}
+                                                          }}}
                           "spec")
     (let [sent* (atom false)]
       (with-redefs [queue/send! (fn [_] (reset! sent* true) {:id "hail-1"})]
