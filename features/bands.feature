@@ -24,18 +24,18 @@ Feature: Hail bands declared in config
       """
       {:crew         "ops"
        :session-tags [:project/chess]
-       :reach        :one
        :create :if-missing}
       """
     When isaac is run with "config validate"
     Then the stdout contains "OK"
     And the exit code is 0
 
-  Scenario: config validate rejects a band with an invalid :reach
+  @wip
+  Scenario: config validate rejects :reach — fan-out is gone (isaac-5gu1)
     Given config file "hail/bogus.edn" containing:
       """
       {:session-tags [:project/chess]
-       :reach        :many}
+       :reach        :one}
       """
     When isaac is run with "config validate"
     Then the stderr contains "reach"
@@ -45,8 +45,7 @@ Feature: Hail bands declared in config
     Given config file "hail/stale.edn" containing:
       """
       {:crew [:ops]
-       :session-tags [:project/chess]
-       :reach :one}
+       :session-tags [:project/chess]}
       """
     When isaac is run with "config validate"
     Then the stderr contains "crew"
@@ -70,7 +69,6 @@ Feature: Hail bands declared in config
       ---
       session-tags:
         - :project/chess
-      reach: :one
       data:
         bean-repo: isaac
         bean-id: "{{bean-id}}"
@@ -100,7 +98,6 @@ Feature: Hail bands declared in config
       crew: ops
       session-tags:
         - :project/chess
-      reach: :one
       ---
       Pick up the beans in the galley.
       """
@@ -115,12 +112,12 @@ Feature: Hail bands declared in config
       ---
       session-tags:
         - :project/chess
-      reach: 5
+      prefer: 5
       ---
-      Bad reach type.
+      Bad prefer type.
       """
     When isaac is run with "config validate"
-    Then the stderr contains "reach"
+    Then the stderr contains "prefer"
     And the exit code is 1
 
   Scenario: a body-only .md still works as the prompt companion for an .edn band
@@ -139,8 +136,7 @@ Feature: Hail bands declared in config
     And config file "hail/relay.edn" containing:
       """
       {:crew         "ops"
-       :session-tags [:project/chess]
-       :reach        :one}
+       :session-tags [:project/chess]}
       """
     And config file "hail/relay.md" containing:
       """

@@ -10,7 +10,6 @@ Feature: Explicit session id trumps band session selectors
     Given the isaac EDN file "config/hail/ci-failure.edn" exists with:
       | path         | value               |
       | session-tags | #{:orchestration}   |
-      | reach        | :one                |
     And the isaac file "config/hail/ci-failure.md" exists with:
       """
       CI failure on the Marigold.
@@ -33,35 +32,6 @@ Feature: Explicit session id trumps band session selectors
       | path    | value               |
       | bound-session | :glimmering-cardinal |
       | crew    | main                |
-
-  Scenario: An explicit session prevents band reach :all fan-out
-    Given the isaac EDN file "config/hail/alert.edn" exists with:
-      | path         | value             |
-      | session-tags | #{:role/command}  |
-      | reach        | :all              |
-    And the isaac EDN file "config/crew/atticus.edn" exists with:
-      | path  | value            |
-      | model | grover           |
-      | tags  | #{:role/command} |
-    And the isaac EDN file "config/crew/cordelia.edn" exists with:
-      | path  | value            |
-      | model | grover           |
-      | tags  | #{:role/command} |
-    And the following sessions exist:
-      | name        | crew     | tags             |
-      | bridge      | atticus  | #{:role/command} |
-      | first-watch | cordelia | #{:role/command} |
-    And the isaac EDN file hail/pending/hail-1.edn exists with:
-      | path                | value                   |
-      | id                  | hail-1                  |
-      | frequencies.band    | alert                   |
-      | frequencies.session | [:bridge]               |
-      | from                | :cli                    |
-    When the hail router ticks
-    Then the isaac file "hail/broadcasts/hail-1.edn" does not exist
-    And the isaac file "hail/deliveries/hail-1.edn" EDN contains:
-      | path    | value  |
-      | bound-session | :bridge |
 
   Scenario: Band with-crew still applies when the hail names an explicit session
     Given the isaac EDN file "config/hail/gauge-check.edn" exists with:
@@ -90,7 +60,6 @@ Feature: Explicit session id trumps band session selectors
     Given the isaac EDN file "config/hail/spawn-band.edn" exists with:
       | path         | value        |
       | session-tags | #{:wip}      |
-      | reach        | :one         |
       | create       | :if-missing  |
     And the isaac EDN file hail/pending/hail-1.edn exists with:
       | path                | value            |

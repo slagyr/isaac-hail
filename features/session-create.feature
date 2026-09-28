@@ -1,5 +1,5 @@
 Feature: Hail-driven session create (get-or-create)
-  A create-enabled reach-one hail uses get-or-create for its target session.
+  A create-enabled hail uses get-or-create for its target session.
   The :create flag is the descriptive/prescriptive toggle for the
   frequencies' tags:
 
@@ -25,8 +25,7 @@ Feature: Hail-driven session create (get-or-create)
     tagging the session with the hail's :session-tags and marking
     :origin {:kind :hail ...}.
 
-  Create is reach-one only; :reach :all never creates. Default :create is
-  :never.
+  Default :create is :never.
 
   Background:
     Given an Isaac root at "target/test-state"
@@ -41,7 +40,6 @@ Feature: Hail-driven session create (get-or-create)
       | path                    | value                 |
       | id                      | hail-1                |
       | frequencies.session-tags  | #{:project/warp-coil} |
-      | frequencies.reach         | :one                  |
       | frequencies.create | :if-missing                  |
       | prompt                  | Resonance climbing.   |
       | from                    | :cli                  |
@@ -64,7 +62,6 @@ Feature: Hail-driven session create (get-or-create)
       | path                   | value                 |
       | id                     | hail-1                |
       | frequencies.session-tags | #{:project/warp-coil} |
-      | frequencies.reach        | :one                  |
       | prompt                 | Resonance climbing.   |
       | from                   | :cli                  |
     When the hail router ticks
@@ -88,7 +85,6 @@ Feature: Hail-driven session create (get-or-create)
       | id                      | hail-1                |
       | crew                    | :bartholomew          |
       | frequencies.session-tags  | #{:project/warp-coil} |
-      | frequencies.reach         | :one                  |
       | frequencies.create | :if-missing                  |
       | prompt                  | Resonance climbing.   |
       | attempts                | 0                     |
@@ -123,7 +119,6 @@ Feature: Hail-driven session create (get-or-create)
       | id                      | hail-1                |
       | crew                    | :main                 |
       | frequencies.session-tags  | #{:project/warp-coil} |
-      | frequencies.reach         | :one                  |
       | frequencies.create | :if-missing                  |
       | prompt                  | Resonance climbing.   |
       | attempts                | 0                     |
@@ -152,7 +147,6 @@ Feature: Hail-driven session create (get-or-create)
       | id                      | hail-1                |
       | crew                    | :main                 |
       | frequencies.session-tags  | #{:project/warp-coil} |
-      | frequencies.reach         | :one                  |
       | frequencies.create | :if-missing                  |
       | prompt                  | Resonance climbing.   |
       | attempts                | 0                     |

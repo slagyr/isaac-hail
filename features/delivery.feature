@@ -1,7 +1,7 @@
 Feature: Hail delivery
   Hail is a mailman. The delivery worker ticks on the shared scheduler,
   reads routed delivery hails from hail/deliveries/ (each named by its own
-  hail id), binds unbound (reach-one) deliveries to an idle candidate, and
+  hail id), binds unbound deliveries to an idle candidate, and
   gates on the bound session's own in-flight turn — there is no crew-wide
   cap (isaac-ximd). For each ready delivery it
   starts a turn: the bridge records a durable turn marker (isaac-7li9), the
@@ -17,9 +17,7 @@ Feature: Hail delivery
   nothing open and never reads the turn's outcome. The turn opens with an
   origin+autonomy system preamble (this turn came from a hail; it runs
   unattended, the user may not see the reply or be available for questions)
-  followed by the resolved prompt. A reach-all child delivery is just a
-  delivery hail (carrying :source-hail); the worker treats it like any other
-  and never touches the broadcast parent.
+  followed by the resolved prompt.
 
   In tests the scheduler interval is mocked away — ticks are invoked
   directly — and turn completion is driven explicitly with
@@ -219,39 +217,6 @@ Feature: Hail delivery
       | error | :hail/dead-lettered | hail-1 | :exhausted | :unknown-crew |
     And the isaac file "hail/delivered/hail-1.edn" does not exist
 
-  Scenario: a reach-all child delivery completes independently and leaves the broadcast parent untouched
-    Given the isaac EDN file "config/crew/atticus.edn" exists with:
-      | path  | value  |
-      | model | grover |
-    And the following sessions exist:
-      | name   | crew    |
-      | bridge | atticus |
-    And the following model responses are queued:
-      | type | content     | model  |
-      | text | Bridge aye. | grover |
-    And the isaac EDN file hail/broadcasts/hail-1.edn exists with:
-      | path     | value           |
-      | id       | hail-1          |
-      | children | [hail-2 hail-3] |
-    And the isaac EDN file hail/deliveries/hail-2.edn exists with:
-      | path        | value      |
-      | id          | hail-2     |
-      | source-hail | hail-1     |
-      | prompt      | Red alert! |
-      | crew        | atticus    |
-      | bound-session | :bridge   |
-      | attempts    | 0          |
-    When the hail delivery worker ticks
-    And the turn ends on session "bridge"
-    Then the isaac file "hail/delivered/hail-2.edn" EDN contains:
-      | path        | value  |
-      | id          | hail-2 |
-      | source-hail | hail-1 |
-    And the isaac file "hail/broadcasts/hail-1.edn" EDN contains:
-      | path     | value           | #comment                        |
-      | id       | hail-1          | parent untouched by the worker  |
-      | children | [hail-2 hail-3] | no aggregation, list unchanged  |
-
   Scenario: the hail delivery worker tick is registered with the shared scheduler
     When the Isaac system is started
     Then the scheduled tasks include:
@@ -364,7 +329,6 @@ Feature: Hail delivery
     And the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                 |
       | session-tags | #{:project/warp-coil} |
-      | reach        | :one                  |
     And the isaac file "config/hail/engineering-intercom.md" exists with:
       """
       Seal the leak.

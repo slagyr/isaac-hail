@@ -8,7 +8,6 @@ Feature: Hail band prompt templating with params
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                  |
       | session-tags | #{:project/warp-coil} |
-      | reach        | :one                  |
     And the isaac file "config/hail/engineering-intercom.md" exists with:
       """
       Resonance climbing on {{coil}}, drift {{drift}}.
@@ -33,7 +32,6 @@ Feature: Hail band prompt templating with params
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                  |
       | session-tags | #{:project/warp-coil} |
-      | reach        | :one                  |
     And the isaac file "config/hail/engineering-intercom.md" exists with:
       """
       Resonance climbing on {{coil}}, drift {{drift}}.
@@ -63,7 +61,6 @@ Feature: Hail band prompt templating with params
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                  |
       | session-tags | #{:project/warp-coil} |
-      | reach        | :one                  |
     And the isaac file "config/hail/engineering-intercom.md" exists with:
       """
       Resonance climbing on {{coil}}, drift {{drift}}.
@@ -82,7 +79,6 @@ Feature: Hail band prompt templating with params
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                  |
       | session-tags | #{:project/warp-coil} |
-      | reach        | :one                  |
     And the isaac file "config/hail/engineering-intercom.md" exists with:
       """
       Resonance climbing on {{coil}}, drift {{drift}}.

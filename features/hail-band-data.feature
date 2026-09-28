@@ -12,7 +12,6 @@ Feature: Hail band data survives prompt override and appears in delivery metadat
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                                                  |
       | session-tags | #{:project/warp-coil}                                  |
-      | reach        | :one                                                   |
       | data         | {:bean-repo "isaac", :bean-id "{{bean-id}}"}           |
     And the isaac file "config/hail/engineering-intercom.md" exists with:
       """
@@ -50,7 +49,6 @@ Feature: Hail band data survives prompt override and appears in delivery metadat
     Given the isaac EDN file "config/hail/bean-pickup.edn" exists with:
       | path         | value                                        |
       | session-tags | #{:project/chess}                            |
-      | reach        | :one                                         |
       | data         | {:bean-repo "isaac", :notification-comm "longwave"} |
     And the isaac file "config/hail/bean-pickup.md" exists with:
       """
@@ -84,7 +82,6 @@ Feature: Hail band data survives prompt override and appears in delivery metadat
     Given the isaac EDN file "config/hail/bean-pickup.edn" exists with:
       | path         | value                                                     |
       | session-tags | #{:project/chess}                                         |
-      | reach        | :one                                                      |
       | data         | {:bean-repo "isaac", :sector "alpha"}                    |
     And the isaac file "config/hail/bean-pickup.md" exists with:
       """
@@ -102,7 +99,6 @@ Feature: Hail band data survives prompt override and appears in delivery metadat
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                                    |
       | session-tags | #{:project/warp-coil}                    |
-      | reach        | :one                                     |
       | data         | {:coil "port", :plan-hail "engine-plan"} |
     And the isaac file "config/hail/engineering-intercom.md" exists with:
       """
@@ -133,7 +129,6 @@ Feature: Hail band data survives prompt override and appears in delivery metadat
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                 |
       | session-tags | #{:project/warp-coil} |
-      | reach        | :one                  |
       | data         | {:bean "{{bean-id}}"} |
     And the isaac file "config/hail/engineering-intercom.md" exists with:
       """
@@ -150,7 +145,6 @@ Feature: Hail band data survives prompt override and appears in delivery metadat
     Given the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                 |
       | session-tags | #{:project/warp-coil} |
-      | reach        | :one                  |
     And the isaac file "config/hail/engineering-intercom.md" exists with:
       """
       Resonance climbing on {{coil}}.
@@ -183,7 +177,6 @@ Feature: Hail band data survives prompt override and appears in delivery metadat
     And config file "hail/good-band.edn" containing:
       """
       {:session-tags [:project/chess]
-       :reach        :one
        :data         {:bean-repo "git@example.com:acme/chess.git"}}
       """
     When isaac is run with "config validate"
@@ -192,7 +185,6 @@ Feature: Hail band data survives prompt override and appears in delivery metadat
     Given config file "hail/bad-band.edn" containing:
       """
       {:session-tags [:project/chess]
-       :reach        :one
        :data         "not-a-map"}
       """
     When isaac is run with "config validate"

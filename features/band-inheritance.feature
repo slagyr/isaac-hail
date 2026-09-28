@@ -23,7 +23,6 @@ Feature: Hail band inheritance via base template bands
     And the isaac EDN file "config/hail/_engineering-template.edn" exists with:
       | path         | value                                        |
       | session-tags | #{:project/warp-coil}                        |
-      | reach        | :one                                         |
       | data         | {:bean-repo "git@example.com:acme/warp.git"} |
     And the isaac EDN file "config/hail/engineering-verify.edn" exists with:
       | path | value                             |
@@ -61,7 +60,6 @@ Feature: Hail band inheritance via base template bands
     Given the isaac EDN file "config/hail/_engineering-template.edn" exists with:
       | path         | value                                                     |
       | session-tags | #{:project/warp-coil}                                     |
-      | reach        | :one                                                      |
       | data         | {:notification-channel "shipwide", :bean-repo "git@x:a/b.git"} |
     And the isaac EDN file "config/hail/engineering-work.edn" exists with:
       | path | value                            |
@@ -82,7 +80,6 @@ Feature: Hail band inheritance via base template bands
     Given the isaac EDN file "config/hail/_engineering-template.edn" exists with:
       | path         | value                 |
       | session-tags | #{:project/warp-coil} |
-      | reach        | :one                  |
     And the isaac file "config/hail/_engineering-template.md" exists with:
       """
       Attend to {{task}} in the engine room.
@@ -105,7 +102,6 @@ Feature: Hail band inheritance via base template bands
       | path         | value                 |
       | base         | _fleet-template       |
       | session-tags | #{:project/warp-coil} |
-      | reach        | :one                  |
       | data         | {:deck "engineering"} |
     And the isaac EDN file "config/hail/engineering-work.edn" exists with:
       | path | value                 |
@@ -138,8 +134,7 @@ Feature: Hail band inheritance via base template bands
     Given config file "hail/orphan.edn" containing:
       """
       {:base "_no-such-template"
-       :session-tags [:project/chess]
-       :reach :one}
+       :session-tags [:project/chess]}
       """
     When isaac is run with "config validate"
     Then the stderr contains "base"
@@ -149,7 +144,6 @@ Feature: Hail band inheritance via base template bands
     Given the isaac EDN file "config/hail/_engineering-template.edn" exists with:
       | path         | value                 |
       | session-tags | #{:project/warp-coil} |
-      | reach        | :one                  |
     When the config is loaded
     When isaac is run with "hail send --band _engineering-template --prompt 'hello'"
     Then the exit code is 1

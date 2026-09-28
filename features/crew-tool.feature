@@ -42,7 +42,6 @@ Feature: Hail crew tool
     And the isaac EDN file "config/hail/engineering-intercom.edn" exists with:
       | path         | value                 |
       | session-tags | #{:project/warp-coil} |
-      | reach        | :one                  |
     And the isaac EDN file "config/crew/bartholomew.edn" exists with:
       | path  | value  |
       | model | grover |

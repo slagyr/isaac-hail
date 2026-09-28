@@ -37,47 +37,6 @@ Feature: Hail naming strategy
       | params           | {"n": 1}                                                           |
       | from             | "cli"                                                              |
 
-  Scenario: sequential strategy mints reach-all child deliveries as hail-2 and hail-3
-    Given config:
-      | hail-settings.naming-strategy | sequential |
-    And the isaac EDN file "config/crew/atticus.edn" exists with:
-      | path  | value            |
-      | model | grover           |
-      | tags  | #{:role/command} |
-    And the isaac EDN file "config/crew/cordelia.edn" exists with:
-      | path  | value            |
-      | model | grover           |
-      | tags  | #{:role/command} |
-    And the following sessions exist:
-      | name        | crew     | tags             |
-      | bridge      | atticus  | #{:role/command} |
-      | first-watch | cordelia | #{:role/command} |
-    And the isaac EDN file "hail/pending/hail-1.edn" exists with:
-      | path        | value                            |
-      | id          | hail-1                           |
-      | frequencies | {:session-tags #{:role/command}} |
-      | reach       | :all                             |
-      | prompt      | Red alert!                       |
-      | from        | :cli                             |
-    When the hail router ticks
-    Then the isaac file "hail/pending/hail-1.edn" does not exist
-    And the isaac file "hail/broadcasts/hail-1.edn" EDN contains:
-      | path | value  |
-      | id   | hail-1 |
-    And child delivery for session bridge EDN contains:
-      | path        | value    |
-      | id          | hail-2   |
-      | source-hail | hail-1   |
-      | crew        | :atticus |
-      | bound-session | :bridge |
-    And child delivery for session first-watch EDN contains:
-      | path        | value        |
-      | id          | hail-3       |
-      | source-hail | hail-1       |
-      | crew        | :cordelia    |
-      | bound-session | :first-watch |
-    And delivery hail count is 2
-
   Scenario: absent hail naming config defaults to a bare short-uuid
     When isaac is run with "hail send --band bean-pickup --params '{:n 1}' --json"
     Then the exit code is 0

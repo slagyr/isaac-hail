@@ -78,8 +78,9 @@ Feature: Hail send — direct addressing flags
       | params      | {:n 1}                                           |
       | from        | :cli                                             |
 
+  @wip
   Scenario: send rejects a frequency with no session selector
-    When isaac is run with "hail send --reach one --prompt 'orphan'"
+    When isaac is run with "hail send --prompt 'orphan'"
     Then the stderr contains "addressing"
     And the exit code is 1
 

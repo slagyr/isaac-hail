@@ -64,30 +64,6 @@ Feature: Hail get and search
     Then it locates the matching *.edn file by walking the sub-directories
     And no index file is read or required
 
-  Scenario: hail_get on a broadcast parent returns its child ids without aggregating
-    Given the EDN isaac file "hail/broadcasts/hail-42.edn" exists with:
-      | path      | value             |
-      | id        | hail-42           |
-      | children  | [hail-43 hail-44] |
-      | thread-id | thread-1          |
-    When an agent calls the hail_get tool with id "hail-42"
-    Then it returns the hail record containing:
-      | path     | value             |
-      | id       | hail-42           |
-      | children | [hail-43 hail-44] |
-
-  Scenario: hail_get on a fan-out child returns its source-hail back-reference
-    Given the EDN isaac file "hail/deliveries/hail-43.edn" exists with:
-      | path        | value   |
-      | id          | hail-43 |
-      | source-hail | hail-42 |
-      | bound-session | bridge |
-    When an agent calls the hail_get tool with id "hail-43"
-    Then it returns the hail record containing:
-      | path        | value   |
-      | id          | hail-43 |
-      | source-hail | hail-42 |
-
   Scenario: hail_get on an in-flight delivery id returns the record with lifecycle in-flight
     Given an in-flight turn on session "engine-room" claims delivery "hail-99" with:
       | path          | value        |
