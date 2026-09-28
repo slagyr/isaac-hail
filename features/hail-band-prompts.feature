@@ -105,6 +105,13 @@ Feature: Hail band prompt templating with params
       """
       Resonance climbing on {{coil}}, drift {{drift}}.
       """
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value                 |
+      | model | grover                |
+      | tags  | #{:project/warp-coil} |
+    And the following sessions exist:
+      | name        | crew        | tags                  |
+      | engine-room | bartholomew | #{:project/warp-coil} |
     And the isaac EDN file "turns/turn-1.edn" exists with:
       | path   | value                                                                                                        |
       | id     | turn-1                                                                                                      |
