@@ -94,3 +94,62 @@
                                         :data {:notification-channel "engine"}}}]
       (should= {:data {:bean-repo "git@x:a/b.git" :notification-channel "engine"}}
                (get (sut/resolved-slice raw) "engineering-work")))))
+(def ^:private hail-band-schema
+  {:name :hail-band
+   :type :map
+   :schema
+   {:crew         {:type :string}
+    :create       {:type :keyword :validations [[:one-of? :never :if-missing]]}
+    :session-tags {:type :seq :spec {:type :keyword}}
+    :base         {:type :string}}})
+
+(def ^:private root-schema
+  {:schema {:hail {:type :map :key-spec {:type :string} :value-spec hail-band-schema}}})
+
+(describe "check-config"
+  (it "resolves from the conformed band, ignoring differing raw values (isaac-cgzd)"
+    ;; Frontmatter's raw create: :never arrives as the string ":never"; config
+    ;; conforms it to the keyword :never. The raw slice must never win.
+    (let [result (sut/check-config {:config           {:hail {"ci-watch" {:crew "ops" :create :never :session-tags [:ci]}}}
+                                     :result           {:raw {:hail {"ci-watch" {:crew "ops" :create ":never" :session-tags [":ci"]}}}}
+                                     :effective-schema root-schema})]
+      (should= [] (:errors result))))
+
+  (it "has no errors when raw is empty and the conformed band is valid"
+    (let [result (sut/check-config {:config           {:hail {"ci-watch" {:crew "ops" :create :never :session-tags [:ci]}}}
+                                     :result           {:raw {:hail {}}}
+                                     :effective-schema root-schema})]
+      (should= [] (:errors result))))
+
+  (it "detects a removed :reach key from the raw slice even though conform dropped it"
+    (let [result (sut/check-config {:config           {:hail {"bogus" {:session-tags [:isaac]}}}
+                                     :result           {:raw {:hail {"bogus" {:session-tags [:isaac] :reach ":one"}}}}
+                                     :effective-schema root-schema})]
+      (should (some #(re-find #"reach" (:value %)) (:errors result)))))
+
+  (it "is empty when both conformed and raw hail slices are empty"
+    (should= {:errors [] :warnings []}
+             (sut/check-config {:config {} :result {:raw {}} :effective-schema root-schema}))))
+
+(describe "apply-to-load-result!"
+  (it "loads the conformed band value, not the raw un-coerced one (isaac-cgzd)"
+    (let [result (sut/apply-to-load-result!
+                   root-schema
+                   {:config {:hail {"ci-watch" {:crew "ops" :create :never :session-tags [:ci]}}}
+                    :raw    {:hail {"ci-watch" {:crew "ops" :create ":never" :session-tags [":ci"]}}}
+                    :errors []})]
+      (should= {"ci-watch" {:crew "ops" :create :never :session-tags [:ci]}}
+               (get-in result [:config :hail]))
+      (should= [] (:errors result))))
+
+  (it "still reports a removed :reach key detected from the raw slice"
+    (let [result (sut/apply-to-load-result!
+                   root-schema
+                   {:config {:hail {"bogus" {:session-tags [:isaac]}}}
+                    :raw    {:hail {"bogus" {:session-tags [:isaac] :reach ":one"}}}
+                    :errors []})]
+      (should (some #(re-find #"reach" (:value %)) (:errors result)))))
+
+  (it "passes the result through unchanged when both hail slices are empty"
+    (let [result {:config {} :raw {} :errors []}]
+      (should= result (sut/apply-to-load-result! root-schema result)))))

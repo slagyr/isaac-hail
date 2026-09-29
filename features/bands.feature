@@ -105,7 +105,6 @@ Feature: Hail bands declared in config
     And the stdout does not contain "dangling"
     And the exit code is 0
 
-  @wip
   Scenario: a frontmatter band's keyword values are coerced before they are checked and sent (isaac-cgzd)
     Given default Grover setup
     And config file "hail/ci-watch.md" containing:

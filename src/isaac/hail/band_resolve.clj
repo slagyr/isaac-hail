@@ -96,14 +96,26 @@
     raw-slice))
 
 (defn- resolution-errors
-  [root-schema raw-hail]
+  [root-schema hail-slice]
   (let [entity-schema (schema-compose/schema-for-kind root-schema :hail)
-        {:keys [bands errors]} (resolve-slice raw-hail)
+        {:keys [bands errors]} (resolve-slice hail-slice)
         validate-errors (mapcat (fn [[k v]]
                                   (when (map? v)
                                     (validate-resolved-band entity-schema k v)))
                                 bands)]
     {:bands bands :errors (vec (concat errors validate-errors))}))
+
+(defn- reach-error-rows
+  "Detect the removed :reach key from a raw (un-conformed) hail slice.
+   Conform silently drops unknown keys, so :reach can only be caught here —
+   never used to resolve or validate bands, only to report this one error."
+  [raw-hail]
+  (reduce (fn [errors [band-id band]]
+            (if (and (map? band) (contains? band :reach))
+              (conj errors (error-row band-id "unknown key :reach"))
+              errors))
+          []
+          raw-hail))
 
 (defn resolved-slice
   "Resolve hail band inheritance from a raw :hail config slice. Returns only
@@ -116,22 +128,30 @@
       (merge settings (:bands (resolve-slice raw-slice))))))
 
 (defn check-config
-  "isaac.config/check contribution — surface inheritance errors at validate time."
+  "isaac.config/check contribution — surface inheritance errors at validate time.
+   The raw slice is read only to detect the removed :reach key (conform drops
+   unknown keys silently); bands are resolved and validated from the
+   conformed (:hail config), never from raw un-coerced values."
   [{:keys [config result effective-schema]}]
-  (let [raw-hail (merge (:hail config) (get-in result [:raw :hail]))]
-    (if (empty? raw-hail)
+  (let [conformed-hail (:hail config)
+        raw-hail (get-in result [:raw :hail])]
+    (if (and (empty? conformed-hail) (empty? raw-hail))
       {:errors [] :warnings []}
-      {:errors (:errors (resolution-errors effective-schema raw-hail))
+      {:errors (into (reach-error-rows raw-hail)
+                     (:errors (resolution-errors effective-schema conformed-hail)))
        :warnings []})))
 
 (defn apply-to-load-result!
-  "Post-process a config load result: resolve hail band inheritance."
+  "Post-process a config load result: resolve hail band inheritance from the
+   conformed (:hail config). The raw slice is read only to detect the removed
+   :reach key; it never overrides a conformed band value."
   [root-schema {:keys [config] :as result}]
-  (let [raw-hail (merge (:hail config) (get-in result [:raw :hail]))]
-    (if (empty? raw-hail)
+  (let [conformed-hail (:hail config)
+        raw-hail (get-in result [:raw :hail])]
+    (if (and (empty? conformed-hail) (empty? raw-hail))
       result
-      (let [{:keys [bands errors]} (resolution-errors root-schema raw-hail)
-            settings (into {} (remove (fn [[_ v]] (map? v)) (:hail config)))]
+      (let [{:keys [bands errors]} (resolution-errors root-schema conformed-hail)
+            settings (into {} (remove (fn [[_ v]] (map? v)) conformed-hail))]
         (cond-> result
           true (assoc-in [:config :hail] (merge settings bands))
-          true (update :errors into errors))))))
+          true (update :errors into (into (reach-error-rows raw-hail) errors)))))))
