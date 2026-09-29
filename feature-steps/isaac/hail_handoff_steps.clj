@@ -3,9 +3,10 @@
     [cheshire.core :as json]
     [clojure.edn :as edn]
     [clojure.string :as str]
-    [gherclj.core :as g :refer [defthen defwhen helper!]]
+    [gherclj.core :as g :refer [defgiven defthen defwhen helper!]]
     [isaac.foundation.cli-steps :as cli-steps]
     [isaac.http.server-steps :as http-steps]
+    [isaac.cli.host :as host]
     [isaac.fs :as fs]
     [isaac.nexus :as nexus]
     [isaac.config.loader :as loader]
@@ -120,6 +121,20 @@
 
 (defthen #"the last hail-send tool result is an error matching (.+)"
   isaac.hail-handoff-steps/last-hail-send-error-matches)
+
+(defn next-isaac-command-starts-in-a-fresh-process
+  "A real shell starts every isaac invocation with nothing registered. The
+   Background's root setup pre-registers a session store (isaac.session.
+   store.spi) and the CLI host boundary (isaac.cli.host) memoizes each
+   :install! fn it has already run for the lifetime of this test JVM — both
+   process-wide, both invisible to a real fresh shell. Clear them so the next
+   'isaac is run with' sees what a real shell sees (isaac-1i1x)."
+  []
+  (nexus/deregister! [:sessions])
+  (reset! (.installed ^isaac.cli.host.ProcessHost host/process-host) #{}))
+
+(defgiven "the next isaac command starts in a fresh process"
+  isaac.hail-handoff-steps/next-isaac-command-starts-in-a-fresh-process)
 
 (alter-var-root #'session-steps/turn-ends-on-session
   (fn [original]

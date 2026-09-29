@@ -112,7 +112,6 @@ Feature: Hail hands a message to Agent's turn queue
       | #turn-id |
     And the exit code is 0
 
-  @wip
   Scenario: hail send works from a fresh shell, with no runtime already installed (isaac-1i1x)
     A real shell starts with nothing registered; the in-process harness
     pre-registers a session store, which hid this.

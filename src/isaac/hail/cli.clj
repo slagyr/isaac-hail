@@ -4,9 +4,13 @@
     [clojure.edn :as edn]
     [clojure.string :as str]
     [clojure.tools.cli :as tools-cli]
+    [isaac.agent.config.runtime :as runtime]
     [isaac.cli.api :as cli-api]
     [isaac.cli.common :as cli-common]
     [isaac.cli.host :as host]
+    [isaac.config.loader :as loader]
+    [isaac.config.root :as root]
+    [isaac.fs :as fs]
     [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.queue :as queue]))
 
@@ -192,7 +196,19 @@
     (:dry-run options) (cli-common/print-edn! record)
     :else           (println (:id record))))
 
-(defn- run-send [args]
+(defn- ensure-runtime!
+  "Boots the Agent runtime (session store) for this process before send
+   resolves/submits a turn. A real shell starts with nothing registered —
+   only the server and its in-process callers (HTTP route, hail-send tool)
+   already have a live runtime. Mirrors isaac.session.cli/install-cli!."
+  [opts]
+  (host/ensure-runtime!
+    {:install!
+     (fn []
+       (runtime/install!
+         {:config (loader/load-config! (root/default-root opts) (fs/instance) "hail send")}))}))
+
+(defn- run-send [opts args]
   (let [{:keys [errors options] :as parsed} (parse-send-opts args)]
     (cond
       (:help options)
@@ -215,6 +231,7 @@
                 (println error)))
             1)
           (try
+            (ensure-runtime! opts)
             (let [record (if (:dry-run options)
                            (queue/check-readable!
                              {:frequencies (:frequencies record)
@@ -226,30 +243,32 @@
             (catch clojure.lang.ExceptionInfo e
               (do (binding [*out* *err*] (println (ex-message e))) 1))))))))
 
-(defn run [args]
-  (let [{:keys [arguments errors options]} (tools-cli/parse-opts args hail-option-spec :in-order true)]
-    (cond
-      (:help options)
-      (do (println (hail-help)) 0)
+(defn run
+  ([args] (run {} args))
+  ([opts args]
+   (let [{:keys [arguments errors options]} (tools-cli/parse-opts args hail-option-spec :in-order true)]
+     (cond
+       (:help options)
+       (do (println (hail-help)) 0)
 
-      (seq errors)
-      (do
-        (doseq [error errors]
-          (binding [*out* *err*]
-            (println error)))
-        1)
+       (seq errors)
+       (do
+         (doseq [error errors]
+           (binding [*out* *err*]
+             (println error)))
+         1)
 
-      (= "send" (first arguments))
-      (run-send (rest arguments))
+       (= "send" (first arguments))
+       (run-send opts (rest arguments))
 
-      :else
-      (do
-        (binding [*out* *err*]
-          (println (str "Unknown hail subcommand: " (or (first arguments) ""))))
-        1))))
+       :else
+       (do
+         (binding [*out* *err*]
+           (println (str "Unknown hail subcommand: " (or (first arguments) ""))))
+         1)))))
 
-(defn run-fn [{:keys [_raw-args]}]
-  (run (or _raw-args [])))
+(defn run-fn [{:keys [_raw-args] :as opts}]
+  (run opts (or _raw-args [])))
 
 
 ;; ----- :isaac/cli berth implementation -----

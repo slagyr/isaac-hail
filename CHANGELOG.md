@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `hail send` (CLI) boots the Agent runtime via `host/ensure-runtime!` before resolving/submitting, registering the session store a real shell process has never installed. Previously only the in-process feature harness (which pre-registers a store) masked this; a real shell crashed with `No implementation of method: :list-sessions ... found for: nil` (isaac-1i1x).
 - Hail is stateless: send expands bands, submits one durable Agent turn, returns that turn id and its metadata; retired Hail router, worker, store, attention, hail_get/show/drop/requeue. Agent owns admission, busy waiting, and retry. Drain in-flight hails before deployment (isaac-ex4q).
 
 ## 0.1.22
