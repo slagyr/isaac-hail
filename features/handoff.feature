@@ -111,3 +111,14 @@ Feature: Hail hands a message to Agent's turn queue
     Then the stdout matches:
       | #turn-id |
     And the exit code is 0
+
+  @wip
+  Scenario: hail send works from a fresh shell, with no runtime already installed (isaac-1i1x)
+    A real shell starts with nothing registered; the in-process harness
+    pre-registers a session store, which hid this.
+    Given the next isaac command starts in a fresh process
+    When isaac is run with "hail send --band engineering-intercom --params '{:coil \"primary\"}'"
+    Then the exit code is 0
+    And the turn Hail submitted has:
+      | path  | value                  |
+      | input | Seal the primary leak. |
