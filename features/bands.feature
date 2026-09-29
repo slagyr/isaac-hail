@@ -105,6 +105,34 @@ Feature: Hail bands declared in config
     And the stdout does not contain "dangling"
     And the exit code is 0
 
+  @wip
+  Scenario: a frontmatter band's keyword values are coerced before they are checked and sent (isaac-cgzd)
+    Given default Grover setup
+    And config file "hail/ci-watch.md" containing:
+      """
+      ---
+      session-tags:
+        - :ci
+      create: :never
+      ---
+      CI reported a regression on the default branch.
+      """
+    And the isaac EDN file "config/crew/bartholomew.edn" exists with:
+      | path  | value  |
+      | model | grover |
+      | tags  | #{:ci} |
+    And the following sessions exist:
+      | name        | crew        | tags   |
+      | engine-room | bartholomew | #{:ci} |
+    When isaac is run with "config validate"
+    Then the exit code is 0
+    When isaac is run with "hail send --band ci-watch"
+    Then the exit code is 0
+    And the turn Hail submitted has:
+      | path                     | value  |
+      | frequencies.create       | :never |
+      | frequencies.session-tags | #{:ci} |
+
   Scenario: config validate schema-checks a frontmatter band (type conflict rejected)
     Given config file "hail/bad.md" containing:
       """
