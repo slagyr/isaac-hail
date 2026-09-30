@@ -1,15 +1,3 @@
-<!--
-Lint convention (isaac.hail.handbook-chapter-spec, isaac-p3nt): a backtick
-`config:<dotted.path>` reference (no angle-bracket placeholder inside the
-path) is checked against the composed config schema, and the word right
-after `isaac ` in `isaac <command>` is checked against the registered
-top-level CLI commands. Keep both literal and real when you write one —
-the lint fails the build once either drifts from what Isaac actually
-exposes. `<placeholder>` shapes (e.g. `config:<dotted.path>` itself, band
-names like `<band-name>`, or `<module-id>#<slug>`) are intentionally
-skipped.
--->
-
 # isaac.hail — Isaac's operating handbook, hails and bands
 
 You are a crew running inside Isaac. This chapter covers what **isaac-hail**
