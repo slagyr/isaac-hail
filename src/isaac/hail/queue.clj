@@ -4,14 +4,14 @@
     [clojure.edn :as edn]
     [clojure.pprint :as pprint]
     [clojure.string :as str]
-    [isaac.config.loader :as loader]
+    [isaac.foundation.config.loader :as loader]
     [isaac.hail.band-resolve :as bands]
     [isaac.hail.prepare :as prepare]
-    [isaac.logger :as log]
-    [isaac.fs :as fs]
-    [isaac.nexus :as nexus]
-    [isaac.turn.queue :as turns]
-    [isaac.turn.submit :as submit])
+    [isaac.foundation.logger :as log]
+    [isaac.foundation.fs :as fs]
+    [isaac.foundation.nexus :as nexus]
+    [isaac.agent.turn.queue :as turns]
+    [isaac.agent.turn.submit :as submit])
   (:import (java.util UUID)))
 
 (defn check-readable!

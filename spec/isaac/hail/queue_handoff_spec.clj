@@ -1,11 +1,11 @@
 (ns isaac.hail.queue-handoff-spec
   (:require
-    [isaac.config.loader :as loader]
-    [isaac.fs :as fs]
+    [isaac.foundation.config.loader :as loader]
+    [isaac.foundation.fs :as fs]
     [isaac.hail.queue :as sut]
-    [isaac.nexus :as nexus]
-    [isaac.turn.queue :as turns]
-    [isaac.turn.submit :as submit]
+    [isaac.foundation.nexus :as nexus]
+    [isaac.agent.turn.queue :as turns]
+    [isaac.agent.turn.submit :as submit]
     [speclj.core :refer :all]))
 
 (describe "Stateless hail submission"

@@ -2,9 +2,9 @@
 
  :deps {
         io.github.slagyr/isaac-foundation {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                          :git/sha "6b95406a4052cc3c8b0000383a878b0a47b409a7"}
+                                          :git/sha "33ac50d9d7a50c9c22b7fe8e1f02c1220c360527"}
         io.github.slagyr/isaac-agent {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                          :git/sha "1d262870aab52a7f589873e1d54d27afd290b243"}
+                                          :git/sha "123d71850b480dc0859886e1a4fa53e082c258f1"}
         cheshire/cheshire                   {:mvn/version "5.13.0"}
         }
 
@@ -21,13 +21,13 @@
 
   :spec {:extra-paths ["spec"]
          :extra-deps  {io.github.slagyr/isaac-foundation-test-support {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                                                       :git/sha "6b95406a4052cc3c8b0000383a878b0a47b409a7"
+                                                                       :git/sha "33ac50d9d7a50c9c22b7fe8e1f02c1220c360527"
                                                                        :deps/root "spec-support"}
                        io.github.slagyr/isaac-agent-spec              {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                                                       :git/sha "1d262870aab52a7f589873e1d54d27afd290b243"
+                                                                       :git/sha "123d71850b480dc0859886e1a4fa53e082c258f1"
                                                                        :deps/root "spec"}
                        io.github.slagyr/isaac-http                {:git/url "https://github.com/slagyr/isaac-http.git"
-                                                                       :git/sha "42e302f3586737543fd8eb3393ae2d9bfcdad977"}
+                                                                       :git/sha "56998543b3e5c40593d2a3ea97b16550e3731463"}
                        speclj/speclj                                  {:mvn/version "3.13.0"}
                        babashka/process                               {:mvn/version "0.5.22"}}
          :main-opts   ["-m" "speclj.main" "-c" "-D" "spec"]}
@@ -66,12 +66,12 @@
                            "-s" "isaac.foundation.harness-config-steps"
                            "-s" "isaac.foundation.cli-steps"
                            "-s" "isaac.foundation.log-steps"
-                           "-s" "isaac.config.agent-steps"
-                           "-s" "isaac.config.config-steps"
-                           "-s" "isaac.scheduler-steps"
-                           "-s" "isaac.session.session-steps"
-                           "-s" "isaac.comm.comm-steps"
-                           "-s" "isaac.tool.tools-steps"
+                           "-s" "isaac.agent.config.agent-steps"
+                           "-s" "isaac.foundation.config.config-steps"
+                           "-s" "isaac.foundation.scheduler-steps"
+                           "-s" "isaac.agent.session.session-steps"
+                           "-s" "isaac.agent.comm.comm-steps"
+                           "-s" "isaac.agent.tool.tools-steps"
                            "-s" "isaac.http.server-steps"
                            "-s" "isaac.hail-steps"
                            "-s" "isaac.hail-hlt1-steps"

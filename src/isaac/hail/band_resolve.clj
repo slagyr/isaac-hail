@@ -2,9 +2,9 @@
   (:require
     [c3kit.apron.schema :as cs]
     [clojure.string :as str]
-    [isaac.config.schema-base :as schema-base]
-    [isaac.config.schema-compose :as schema-compose]
-    [isaac.schema.lexicon :as lexicon]))
+    [isaac.foundation.config.schema-base :as schema-base]
+    [isaac.foundation.config.schema-compose :as schema-compose]
+    [isaac.foundation.schema.lexicon :as lexicon]))
 
 (defn template-band?
   "Band files whose names start with _ are templates — inherited from, not hailed."

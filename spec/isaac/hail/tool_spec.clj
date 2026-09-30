@@ -1,11 +1,11 @@
-(ns isaac.tool.hail-spec
+(ns isaac.hail.tool-spec
   (:require
-    [isaac.config.loader :as loader]
-    [isaac.fs :as fs]
+    [isaac.foundation.config.loader :as loader]
+    [isaac.foundation.fs :as fs]
     [isaac.hail.queue :as queue]
-    [isaac.nexus :as nexus]
-    [isaac.session.spec-helper :as helper]
-    [isaac.tool.hail :as sut]
+    [isaac.foundation.nexus :as nexus]
+    [isaac.agent.session.spec-helper :as helper]
+    [isaac.hail.tool :as sut]
     [speclj.core :refer :all]))
 
 (describe "hail tool"

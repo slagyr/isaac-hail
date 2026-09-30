@@ -3,8 +3,8 @@
   (:require
     [gherclj.core :as g :refer [helper!]]
     [isaac.foundation.cli-steps :as fcli]
-    [isaac.logger :as log]
-    [isaac.tool.memory :as memory]))
+    [isaac.foundation.logger :as log]
+    [isaac.agent.tool.memory :as memory]))
 
 (helper! isaac.hail.feature-steps)
 

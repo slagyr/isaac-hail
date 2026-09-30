@@ -1,14 +1,14 @@
-(ns isaac.tool.hail
+(ns isaac.hail.tool
   (:require
     [clojure.string :as str]
     [clojure.walk :as walk]
-    [isaac.config.loader :as loader]
-    [isaac.fs :as fs]
+    [isaac.foundation.config.loader :as loader]
+    [isaac.foundation.fs :as fs]
     [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.queue :as queue]
-    [isaac.session.frequencies :as frequencies]
-    [isaac.session.store.spi :as store]
-    [isaac.tool.fs-bounds :as bounds]))
+    [isaac.agent.frequencies :as frequencies]
+    [isaac.agent.session.store.spi :as store]
+    [isaac.agent.tool.fs-bounds :as bounds]))
 
 (defn- session-crew [args]
   (let [session-key   (get args "session_key")

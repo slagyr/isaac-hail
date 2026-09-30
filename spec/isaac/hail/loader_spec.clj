@@ -1,9 +1,9 @@
-(ns isaac.config.hail-loader-spec
+(ns isaac.hail.loader-spec
   (:require
     [c3kit.apron.schema :as schema]
     [clojure.edn :as edn]
     [clojure.java.io :as io]
-    [isaac.config.validation]
+    [isaac.foundation.config.validation]
     [speclj.core :refer :all]))
 
 (defn- hail-manifest []

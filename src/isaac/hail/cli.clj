@@ -5,12 +5,12 @@
     [clojure.string :as str]
     [clojure.tools.cli :as tools-cli]
     [isaac.agent.config.runtime :as runtime]
-    [isaac.cli.api :as cli-api]
-    [isaac.cli.common :as cli-common]
-    [isaac.cli.host :as host]
-    [isaac.config.loader :as loader]
-    [isaac.config.root :as root]
-    [isaac.fs :as fs]
+    [isaac.foundation.cli.api :as cli-api]
+    [isaac.foundation.cli.common :as cli-common]
+    [isaac.foundation.cli.host :as host]
+    [isaac.foundation.config.loader :as loader]
+    [isaac.foundation.config.root :as root]
+    [isaac.foundation.fs :as fs]
     [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.queue :as queue]))
 
@@ -200,7 +200,7 @@
   "Boots the Agent runtime (session store) for this process before send
    resolves/submits a turn. A real shell starts with nothing registered —
    only the server and its in-process callers (HTTP route, hail-send tool)
-   already have a live runtime. Mirrors isaac.session.cli/install-cli!."
+   already have a live runtime. Mirrors isaac.agent.session.cli/install-cli!."
   [opts]
   (host/ensure-runtime!
     {:install!

@@ -1,4 +1,4 @@
-(ns isaac.hail-handoff-steps
+(ns isaac.hail.handoff-steps
   (:require
     [cheshire.core :as json]
     [clojure.edn :as edn]
@@ -6,20 +6,20 @@
     [gherclj.core :as g :refer [defgiven defthen defwhen helper!]]
     [isaac.foundation.cli-steps :as cli-steps]
     [isaac.http.server-steps :as http-steps]
-    [isaac.cli.host :as host]
-    [isaac.fs :as fs]
-    [isaac.nexus :as nexus]
-    [isaac.config.loader :as loader]
-    [isaac.config.api :as config]
-    [isaac.tool.memory]
-    [isaac.tool.hail :as hail-tool]
-    [isaac.session.session-steps :as session-steps]
-    [isaac.session.store.spi :as session-store]
-    [isaac.step-tables :as tables]
-    [isaac.turn.queue :as turns]
-    [isaac.turn.worker :as worker]))
+    [isaac.foundation.cli.host :as host]
+    [isaac.foundation.fs :as fs]
+    [isaac.foundation.nexus :as nexus]
+    [isaac.foundation.config.loader :as loader]
+    [isaac.foundation.config.api :as config]
+    [isaac.agent.tool.memory]
+    [isaac.hail.tool :as hail-tool]
+    [isaac.agent.session.session-steps :as session-steps]
+    [isaac.agent.session.store.spi :as session-store]
+    [isaac.agent.step-tables :as tables]
+    [isaac.agent.turn.queue :as turns]
+    [isaac.agent.turn.worker :as worker]))
 
-(helper! isaac.hail-handoff-steps)
+(helper! isaac.hail.handoff-steps)
 
 (defn- turn-id []
   (or (some->> (g/get :channel-events)
@@ -44,7 +44,7 @@
                                                     :fs (or (g/get :mem-fs) (fs/real-fs))}))]
       (with-redefs [loader/snapshot (fn [_] cfg)]
         (if-let [ct (g/get :current-time)]
-          (binding [isaac.tool.memory/*now* ct] (thunk))
+          (binding [isaac.agent.tool.memory/*now* ct] (thunk))
           (thunk))))))
 
 (alter-var-root #'cli-steps/isaac-run
@@ -129,21 +129,21 @@
     (g/should (re-find (re-pattern (subs pattern-str 2 (dec (count pattern-str)))) error))))
 
 (defthen #"the last hail-send tool result is an error matching (.+)"
-  isaac.hail-handoff-steps/last-hail-send-error-matches)
+  isaac.hail.handoff-steps/last-hail-send-error-matches)
 
 (defn next-isaac-command-starts-in-a-fresh-process
   "A real shell starts every isaac invocation with nothing registered. The
-   Background's root setup pre-registers a session store (isaac.session.
-   store.spi) and the CLI host boundary (isaac.cli.host) memoizes each
+   Background's root setup pre-registers a session store (isaac.agent.session.
+   store.spi) and the CLI host boundary (isaac.foundation.cli.host) memoizes each
    :install! fn it has already run for the lifetime of this test JVM — both
    process-wide, both invisible to a real fresh shell. Clear them so the next
    'isaac is run with' sees what a real shell sees (isaac-1i1x)."
   []
   (nexus/deregister! [:sessions])
-  (reset! (.installed ^isaac.cli.host.ProcessHost host/process-host) #{}))
+  (reset! (.installed ^isaac.foundation.cli.host.ProcessHost host/process-host) #{}))
 
 (defgiven "the next isaac command starts in a fresh process"
-  isaac.hail-handoff-steps/next-isaac-command-starts-in-a-fresh-process)
+  isaac.hail.handoff-steps/next-isaac-command-starts-in-a-fresh-process)
 
 (alter-var-root #'session-steps/turn-ends-on-session
   (fn [original]
@@ -165,5 +165,5 @@
                           (mapv (fn [[path value :as row]]
                                   (if (= "input" path) [path (pr-str value)] row)) rows)))))))
 (alter-var-root #'cli-steps/stdout-matches (constantly stdout-matches-and-captures))
-(defthen "the turn Hail submitted has:" isaac.hail-handoff-steps/submitted-turn-has)
-(defwhen "the turn queue ticks at {iso:string}" isaac.hail-handoff-steps/turn-queue-ticks-at)
+(defthen "the turn Hail submitted has:" isaac.hail.handoff-steps/submitted-turn-has)
+(defwhen "the turn queue ticks at {iso:string}" isaac.hail.handoff-steps/turn-queue-ticks-at)

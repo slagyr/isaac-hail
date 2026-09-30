@@ -5,25 +5,25 @@
  ;; ships bb.test-tasks under spec-support/src/bb/.
  :deps {com.cleancoders.c3kit/apron {:mvn/version "3.0.0"}
         io.github.slagyr/isaac-foundation {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                           :git/sha "6b95406a4052cc3c8b0000383a878b0a47b409a7"}
+                                           :git/sha "33ac50d9d7a50c9c22b7fe8e1f02c1220c360527"}
         io.github.slagyr/isaac-foundation-spec {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                                :git/sha "6b95406a4052cc3c8b0000383a878b0a47b409a7"
+                                                :git/sha "33ac50d9d7a50c9c22b7fe8e1f02c1220c360527"
                                                 :deps/root "spec"}
         io.github.slagyr/isaac-foundation-test-support {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                                        :git/sha "6b95406a4052cc3c8b0000383a878b0a47b409a7"
+                                                        :git/sha "33ac50d9d7a50c9c22b7fe8e1f02c1220c360527"
                                                         :deps/root "spec-support"}
         io.github.slagyr/isaac-agent {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                           :git/sha "1d262870aab52a7f589873e1d54d27afd290b243"}
+                                           :git/sha "123d71850b480dc0859886e1a4fa53e082c258f1"}
         io.github.slagyr/isaac-agent-spec {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                                :git/sha "1d262870aab52a7f589873e1d54d27afd290b243"
+                                                :git/sha "123d71850b480dc0859886e1a4fa53e082c258f1"
                                                 :deps/root "spec"}
         io.github.slagyr/isaac-http {:git/url "https://github.com/slagyr/isaac-http.git"
-                                       :git/sha "42e302f3586737543fd8eb3393ae2d9bfcdad977"}
+                                       :git/sha "56998543b3e5c40593d2a3ea97b16550e3731463"}
         io.github.slagyr/isaac-http-spec {:git/url "https://github.com/slagyr/isaac-http.git"
-                                            :git/sha "42e302f3586737543fd8eb3393ae2d9bfcdad977"
+                                            :git/sha "56998543b3e5c40593d2a3ea97b16550e3731463"
                                             :deps/root "spec"}
         io.github.slagyr/isaac-http-test-support {:git/url "https://github.com/slagyr/isaac-http.git"
-                                                    :git/sha "42e302f3586737543fd8eb3393ae2d9bfcdad977"
+                                                    :git/sha "56998543b3e5c40593d2a3ea97b16550e3731463"
                                                     :deps/root "spec-support"}
         cheshire/cheshire {:mvn/version "5.13.0"}
         speclj/speclj {:mvn/version "3.13.0"}
@@ -32,7 +32,7 @@
         org.babashka/http-client {:mvn/version "0.4.22"}}
 
  :tasks
- {config-bypass-lint {:doc "Fail on raw config slurp/read outside isaac.config.* (isaac-foundation-test-support)"
+ {config-bypass-lint {:doc "Fail on raw config slurp/read outside isaac.foundation.config.* (isaac-foundation-test-support)"
                       :requires ([isaac.foundation.config-bypass-lint :as lint])
                       :task (apply lint/lint! (or (seq *command-line-args*) ["src"]))}
 
@@ -53,14 +53,14 @@
                              "isaac.foundation.harness-config-steps"
                              "isaac.foundation.cli-steps"
                              "isaac.foundation.log-steps"
-                             "isaac.config.agent-steps"
-                             "isaac.config.config-steps"
-                             "isaac.scheduler-steps"
-                             "isaac.session.session-steps"
-                             "isaac.comm.comm-steps"
-                             "isaac.tool.tools-steps"
+                             "isaac.agent.config.agent-steps"
+                             "isaac.foundation.config.config-steps"
+                             "isaac.foundation.scheduler-steps"
+                             "isaac.agent.session.session-steps"
+                             "isaac.agent.comm.comm-steps"
+                             "isaac.agent.tool.tools-steps"
                              "isaac.http.server-steps"
-                             "isaac.hail-handoff-steps"]]
+                             "isaac.hail.handoff-steps"]]
                     (apply tests/run-features! *command-line-args*))}
 
   jvm-features {:doc  "Run gherclj via clojure -M:features (JVM fallback)"
