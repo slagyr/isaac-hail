@@ -9,6 +9,8 @@ Feature: Hail HTTP route POST /hail/send
 
   Background:
     Given default Grover setup
+    And config:
+      | http.auth.token | secret123 |
     And the isaac EDN file "config/hail/bean-pickup.edn" exists with:
       | path         | value                |
       | session-tags | #{:project/galley}  |

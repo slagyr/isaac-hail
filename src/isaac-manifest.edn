@@ -2,6 +2,7 @@
  :version "0.1.26",
  :builtin? true,
  :factory isaac.hail.module/create-module,
+ :handbook "isaac/hail/handbook.md",
  :isaac.config/component
  {:hail-bands {:path [:hail] :impl "hail-bands" :factory isaac.hail.bands/make}},
 
@@ -91,7 +92,7 @@
        :schema
        {:limit {:type :int, :description "Tool-call cycle budget override"},
         :checkpoint-every {:type :int, :description "Nudge a checkpoint every N cycles"},
-        :checkpoint-prompt {:type :string},
-        :wrap-up-prompt {:type :string}}}}}}}}
+        :checkpoint-prompt {:type :string, :description "Override the built-in checkpoint nudge text sent at a checkpoint-every boundary"},
+        :wrap-up-prompt {:type :string, :description "Override the built-in wrap-up nudge text sent when the cycle budget runs out"}}}}}}}}
  :isaac.config/check
  {:hail-band-inheritance {:fn isaac.hail.band-resolve/check-config}}}

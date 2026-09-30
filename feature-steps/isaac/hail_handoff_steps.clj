@@ -103,7 +103,16 @@
       (when create-fixture?
         (config/dangerously-install-config!
           (assoc-in cfg [:sessions :naming-strategy] :sequential) "hail feature session create"))
-      (worker/tick! {:now (java.time.Instant/parse (str iso "Z"))}))))
+      (worker/tick! {:now (java.time.Instant/parse (str iso "Z"))})
+      ;; tick! only claims and starts each runnable record before returning
+      ;; (isaac-e9jl, isaac-agent) — a long-running turn no longer blocks
+      ;; another session's claimed turn from starting in the same pass, but
+      ;; that also means the tick itself no longer waits for any of them to
+      ;; finish. await-idle! blocks until every turn tick! just started (and
+      ;; anything it chains) has actually settled, so the very next step
+      ;; ("session ... has transcript matching", "the turn Hail submitted
+      ;; has") sees the finished result instead of racing it.
+      (worker/await-idle!))))
 
 (defn last-hail-send-error-matches [pattern-str]
   (session-steps/await-turn!)

@@ -2,9 +2,9 @@
 
  :deps {
         io.github.slagyr/isaac-foundation {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                          :git/sha "9ab25271aedb97c2e2e8abbc6a58955cdff8f274"}
+                                          :git/sha "6b95406a4052cc3c8b0000383a878b0a47b409a7"}
         io.github.slagyr/isaac-agent {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                          :git/sha "65b25efca7d74395851536e65c1fcd1727354cb6"}
+                                          :git/sha "1d262870aab52a7f589873e1d54d27afd290b243"}
         cheshire/cheshire                   {:mvn/version "5.13.0"}
         }
 
@@ -21,13 +21,13 @@
 
   :spec {:extra-paths ["spec"]
          :extra-deps  {io.github.slagyr/isaac-foundation-test-support {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                                                       :git/sha "9ab25271aedb97c2e2e8abbc6a58955cdff8f274"
+                                                                       :git/sha "6b95406a4052cc3c8b0000383a878b0a47b409a7"
                                                                        :deps/root "spec-support"}
                        io.github.slagyr/isaac-agent-spec              {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                                                       :git/sha "65b25efca7d74395851536e65c1fcd1727354cb6"
+                                                                       :git/sha "1d262870aab52a7f589873e1d54d27afd290b243"
                                                                        :deps/root "spec"}
                        io.github.slagyr/isaac-http                {:git/url "https://github.com/slagyr/isaac-http.git"
-                                                                       :git/sha "32603e6999f95e0dfea6ca0cf36926c493991773"}
+                                                                       :git/sha "42e302f3586737543fd8eb3393ae2d9bfcdad977"}
                        speclj/speclj                                  {:mvn/version "3.13.0"}
                        babashka/process                               {:mvn/version "0.5.22"}}
          :main-opts   ["-m" "speclj.main" "-c" "-D" "spec"]}
