@@ -7,7 +7,7 @@
  {:hail-bands {:path [:hail] :impl "hail-bands" :factory isaac.hail.bands/make}},
 
  :isaac.agent/tools
- {:hail-send {:factory isaac.tool.hail/hail-send-tool-factory}
+ {:hail-send {:factory isaac.hail.tool/hail-send-tool-factory}
 },
  :isaac/cli
  {:hail

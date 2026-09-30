@@ -1,6 +1,6 @@
 (ns isaac.hail.bands-spec
   (:require
-    [isaac.reconfigurable :as reconfigurable]
+    [isaac.foundation.reconfigurable :as reconfigurable]
     [isaac.hail.bands :as sut]
     [speclj.core :refer :all]))
 

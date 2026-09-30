@@ -1,7 +1,7 @@
 (ns isaac.hail.bands
   (:require
     [isaac.hail.band-resolve :as band-resolve]
-    [isaac.reconfigurable :as reconfigurable]))
+    [isaac.foundation.reconfigurable :as reconfigurable]))
 
 (defprotocol BandRegistry
   (lookup [this band-name])

@@ -5,12 +5,12 @@
    pre-registers, so only a unit test that starts from a truly empty nexus
    catches a missing host/ensure-runtime! call."
   (:require
-    [isaac.config.loader :as loader]
-    [isaac.fs :as fs]
+    [isaac.foundation.config.loader :as loader]
+    [isaac.foundation.fs :as fs]
     [isaac.hail.cli :as sut]
     [isaac.hail.queue :as queue]
-    [isaac.nexus :as nexus]
-    [isaac.session.store.spi :as store]
+    [isaac.foundation.nexus :as nexus]
+    [isaac.agent.session.store.spi :as store]
     [speclj.core :refer :all]))
 
 (describe "hail cli bootstrap"
@@ -36,7 +36,7 @@
   (it "does not blow up with a nil-store protocol error when the runtime was never installed"
     (with-redefs [loader/load-config! (fn [_ _ _] {:root "/test/isaac"})]
       ;; No stub on queue/send! here: this runs the real submit path
-      ;; (isaac.turn.submit/submit! -> isaac.session.store.spi/registered-store)
+      ;; (isaac.agent.turn.submit/submit! -> isaac.agent.session.store.spi/registered-store)
       ;; against a session-tag with no matching session. Before the fix this
       ;; raised IllegalArgumentException (no SessionPolicy impl for nil); the
       ;; fix turns that into a normal "no session" business error.
