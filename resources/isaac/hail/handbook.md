@@ -5,10 +5,14 @@ owns: hails (out-of-band requests that become turns), bands (config-declared
 templates a hail can address), `isaac hail send`, the `POST /hail/send` HTTP
 route, and the `hail-send` crew tool. If you haven't read `isaac.foundation`
 yet (config mechanics, `handbook__configure` itself), read that first — this
-chapter assumes it. Crews, sessions, frequencies as a shape, and the turn
-queue/tool loop belong to `isaac.agent`; this chapter names them once and
-moves on. This chapter's own topic id is `isaac.hail`; each `##` heading
-below is also addressable on its own, e.g. `isaac.hail#bands`.
+chapter assumes it. Crews, sessions, the frequencies shape, and the turn
+queue/tool loop belong to `isaac.agent` — see `isaac.agent#frequencies` for
+the shape and matching rules this chapter builds on; this chapter names them
+once and moves on. This chapter's own topic id is `isaac.hail`; each `##`
+heading below is also addressable on its own, e.g. `isaac.hail#bands`.
+
+Fittingly for a module named Hail: this is where a caller **opens hailing
+frequencies** and Isaac decides who answers.
 
 **The one thing to know up front:** Hail is stateless. A hail is not a
 tracked object with its own lifecycle — it is a message that becomes
@@ -168,13 +172,15 @@ session) and read it back with `isaac turns show <id>`.
 ## Addressing a hail
 
 **What it is.** Addressing decides which session (and which processing
-crew) receives a hail. It's resolved **synchronously at send time**, before
-anything is queued — an address that can't resolve to at least one live
-session is refused immediately, never parked "waiting for a match." The
-selectors are the same shape `isaac.agent` uses for frequencies generally
-(`session`, `session-tags`, `crew`, `with-crew`/`with-model`/`with-effort`/
-`with-context-mode`, `create`); Hail's own contribution is the `band`
-selector and the rules for combining a band's selectors with a hail's own.
+crew) receives a hail. The selectors and the general matching/`create`
+rules are `isaac.agent`'s frequencies shape (`isaac.agent#frequencies`) —
+read that first if you haven't. What Hail adds on top: the `band` selector,
+the rules for combining a band's selectors with a hail's own, and one
+timing difference that matters — Hail resolves **synchronously at send
+time**, before anything is queued. An address that can't resolve to at
+least one live session is refused immediately, right there in the send
+response — never parked "waiting for a match" the way an in-turn
+resolution can be.
 
 Rules, in order:
 
@@ -188,17 +194,14 @@ Rules, in order:
   --session-tag Y` narrows to sessions matching *both* the band's tags and
   `Y`.
 - **`create` decides what happens with no match**, only when there's no
-  explicit `session`: `:never` (the default) means "no match is
-  undeliverable" — refused at send, nothing queued, and a band-declared
-  address additionally logs a `:warn` `:hail/undeliverable` event.
-  `:if-missing` means match-or-create: an existing match is used (waited
-  on if busy — see below); with none, **Agent's turn queue** (not Hail)
-  creates a session under the resolved crew when it admits the turn,
-  tagged with the band's `session-tags`.
-- **A match that's merely busy is not a non-match.** The turn is still
-  queued and waits in Agent's durable queue for that session to free up
-  (never spawns a sibling session). That waiting, and everything after
-  admission, is `isaac.agent`'s concern.
+  explicit `session` — Hail's own default is `:never` ("no match is
+  undeliverable"), unlike `isaac.agent`'s general default of `:if-missing`,
+  and a band-declared address that comes back undeliverable additionally
+  logs a `:warn` `:hail/undeliverable` event. With `:if-missing`, a match
+  that's merely busy is still queued and waits in Agent's durable turn
+  queue (see `isaac.agent#frequencies`) rather than being treated as a
+  miss; with no match at all, **Agent's turn queue** (not Hail) creates the
+  session when it admits the turn, tagged with the band's `session-tags`.
 - **`with-crew` overrides the processing crew** without changing which
   session is addressed — useful when a band names an explicit session but
   still wants a specific crew's model/behavior to process it.
