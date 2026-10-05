@@ -1,6 +1,7 @@
 (ns isaac.hail.prepare
   (:require
     [clojure.string :as str]
+    [isaac.foundation.template :as foundation-template]
     [isaac.hail.band-resolve :as band-resolve]
     [isaac.hail.template :as template]))
 
@@ -26,16 +27,10 @@
       (assoc record :prompt (template/render template (or (:params record) {})))
       record)))
 
-(defn- render-data-value [value bindings]
-  (cond
-    (string? value) (template/render value bindings)
-    (map? value)    (into {} (map (fn [[k v]] [k (render-data-value v bindings)]) value))
-    :else           value))
-
 (defn- effective-data [cfg record]
   (when-let [band-data (not-empty (:data (band-entry cfg (band-name record))))]
     (let [params (or (:params record) {})]
-      (render-data-value (merge band-data params) params))))
+      (foundation-template/render-all (merge band-data params) params {:on-missing :empty}))))
 
 (defn enrich-band-data
   "Merge band :data with per-hail :params (params win), interpolate {{var}}
