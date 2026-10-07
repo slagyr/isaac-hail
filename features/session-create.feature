@@ -113,3 +113,40 @@ Feature: Hail-driven session create (get-or-create)
       | type    | message.role | message.content     |
       | message | user         | Resonance climbing. |
       | message | assistant    | On the coil.        |
+
+  # isaac-e0t7: a band spelled with vector session-tags ([:ops], which the
+  # schema allows) created a session whose vector tags matched nothing, so
+  # every later hail on the band created another. Tags are a set however
+  # they were written: the second hail finds the first session.
+  @wip
+  Scenario: a band whose session-tags are a vector reuses the session it created
+    Given the isaac EDN file "config/hail/ops-callout.edn" exists with:
+      | path         | value       |
+      | session-tags | [:ops]      |
+      | create       | :if-missing |
+      | with-crew    | bartholomew |
+    And the isaac file "config/hail/ops-callout.md" exists with:
+      """
+      Ops check.
+      """
+    And the following model responses are queued:
+      | type | content   | model  |
+      | text | Checked.  | grover |
+      | text | Again.    | grover |
+    When isaac is run with "hail send --band ops-callout"
+    Then the exit code is 0
+    When the turn queue ticks at "2026-03-01T18:00:00"
+    Then the following sessions match:
+      | id        | crew        | tags   | origin.kind |
+      | session-1 | bartholomew | #{:ops} | hail       |
+    When isaac is run with "hail send --band ops-callout"
+    Then the exit code is 0
+    When the turn queue ticks at "2026-03-01T18:05:00"
+    Then the session count is 1
+    And session "session-2" does not exist
+    And session "session-1" has transcript matching:
+      | type    | message.role | message.content |
+      | message | user         | Ops check.      |
+      | message | assistant    | Checked.        |
+      | message | user         | Ops check.      |
+      | message | assistant    | Again.          |
