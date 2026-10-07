@@ -118,7 +118,6 @@ Feature: Hail-driven session create (get-or-create)
   # schema allows) created a session whose vector tags matched nothing, so
   # every later hail on the band created another. Tags are a set however
   # they were written: the second hail finds the first session.
-  @wip
   Scenario: a band whose session-tags are a vector reuses the session it created
     Given the isaac EDN file "config/hail/ops-callout.edn" exists with:
       | path         | value       |
