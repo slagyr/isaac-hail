@@ -103,8 +103,8 @@ Feature: Hail send — direct addressing flags
     Then the stdout is empty
 
   Scenario: --crew and --session strip a leading colon too (isaac-k0xm)
-    When isaac is run with "hail send --crew :yopp --session :abc --prompt go --dry-run"
+    When isaac is run with "hail send --crew :bartholomew --session :abc --prompt go --dry-run"
     Then the exit code is 0
     And the stdout EDN contains:
       | path        | value                          |
-      | frequencies | {:crew "yopp" :session [:abc]} |
+      | frequencies | {:crew "bartholomew" :session [:abc]} |
