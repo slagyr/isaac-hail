@@ -201,7 +201,7 @@
 
 (defn- with-principal [record principal]
   (if-let [name (principal-name principal)]
-    (assoc record :principal name)
+    (assoc record :principal name :turn-from {:kind :http :id name})
     record))
 
 (defn handler [request]

@@ -18,12 +18,13 @@
                                                              :session-tags #{:project/warp}
                                                              :data {:sector "aft"}}}})
                   submit/submit! (fn [request] (assoc request :input (:prompt request) :state :queued))]
-      (let [turn (sut/send! {:frequencies {:band "engine"} :params {:coil "primary"} :from :cli})]
+      (let [turn (sut/send! {:frequencies {:band "engine"} :params {:coil "primary"} :from :cli :turn-from {:kind :cli}})]
         (should (re-matches #"[a-f0-9]{8}" (:id turn)))
         (should= "Fix primary" (:input turn))
         (should= #{:project/warp} (get-in turn [:frequencies :session-tags]))
         (should= (:id turn) (get-in turn [:origin :thread-id]))
         (should= {:sector "aft" :coil "primary"} (get-in turn [:origin :data]))
+        (should= {:kind :cli} (:from turn))
         (should-not (fs/exists? (nexus/get :fs) "/test/isaac/hail")))))
 
   (it "reuses the parent turn's thread when replying"

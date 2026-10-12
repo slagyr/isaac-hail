@@ -38,6 +38,13 @@ session synchronously, and — only if that resolves — submit one turn to
 Agent's durable queue and return. If resolution fails, nothing is queued
 and the caller gets an error immediately; there is no "try again later."
 
+The queued turn records who sent it in `:from`: `{:kind :cli}` for
+`isaac hail send`, `{:kind :http :id "<principal>"}` for HTTP (the plain
+server token uses `"admin"`), or `{:kind :crew :id "<crew>"}` when sent
+by a crew tool. A crew hail also inherits the running turn's `:for` party,
+if any; CLI and HTTP hails have no `:for`. The legacy `:origin :from` and
+"From crew:" preamble are separate and unchanged.
+
 A hail record (whichever surface builds it — CLI, HTTP, or the crew tool)
 carries: `:frequencies` (addressing), `:prompt` (optional if a band
 supplies the template), `:params` (a map interpolated into the band

@@ -180,9 +180,10 @@
 
 (defn- build-hail [{:keys [arguments options]}]
   (if (whole-hail-stdin? arguments)
-    (assoc (parse-whole-hail options) :from :cli)
+    (assoc (parse-whole-hail options) :from :cli :turn-from {:kind :cli})
     (cond-> {:frequencies (frequencies-from-options options)
-             :from        :cli}
+             :from        :cli
+             :turn-from   {:kind :cli}}
       (:prompt options)   (assoc :prompt (:prompt options))
       (:params options)   (assoc :params (read-edn (:params options)))
       (:reply-to options) (assoc :reply-to (:reply-to options))

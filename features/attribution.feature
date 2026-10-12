@@ -30,7 +30,6 @@ Feature: Hailed turns say who sent them and for whom
       | mooring    | ketch   |                    |
       | crows-nest | lookout | #{:project/harbor} |
 
-  @wip
   Scenario: a crew's hail is from the crew, for the person it was working for
     Given the crew "ketch" allows tools: "hail-send"
     And the following model responses are queued:
@@ -48,7 +47,6 @@ Feature: Hailed turns say who sent them and for whom
       | for.comm    | :logbook     |
       | for.id      | "cordelia-7" |
 
-  @wip
   Scenario: a crew working for nobody hails for nobody
     Given the crew "ketch" allows tools: "hail-send"
     And the following model responses are queued:
@@ -64,7 +62,6 @@ Feature: Hailed turns say who sent them and for whom
       | from.id     | "ketch"      |
       | for         |              |
 
-  @wip
   Scenario: a hail over HTTP is from the principal that sent it
     Given principal "tender" is configured with secret "tender-secret" and scopes "hail/send"
     When a POST request is made to "/hail/send":
@@ -80,7 +77,6 @@ Feature: Hailed turns say who sent them and for whom
       | from.id     | "tender"     |
       | for         |              |
 
-  @wip
   Scenario: a hail sent with the plain server token is from admin
     When a POST request is made to "/hail/send":
       | key                  | value                                    |
@@ -95,7 +91,6 @@ Feature: Hailed turns say who sent them and for whom
       | from.id     | "admin"      |
       | for         |              |
 
-  @wip
   Scenario: a hail from the command line is from the CLI
     When isaac is run with "hail send --band harbor-watch"
     Then the exit code is 0

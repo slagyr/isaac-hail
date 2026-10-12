@@ -88,7 +88,8 @@
         accepted  (try
                     (submit/submit! {:root (nexus/get :root) :config cfg :frequencies freqs
                                      :id id :prompt (:prompt record) :key (:idempotency-key record)
-                                     :origin origin :preamble preamble :cycle cycle})
+                                     :origin origin :preamble preamble :cycle cycle
+                                     :from (:turn-from record)})
                     (catch clojure.lang.ExceptionInfo e
                       (when (and band-name (= :no-match (:reason (ex-data e))))
                         (log/warn :hail/undeliverable :band band-name :reason :no-recipients))
