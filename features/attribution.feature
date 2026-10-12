@@ -81,6 +81,21 @@ Feature: Hailed turns say who sent them and for whom
       | for         |              |
 
   @wip
+  Scenario: a hail sent with the plain server token is from admin
+    When a POST request is made to "/hail/send":
+      | key                  | value                                    |
+      | header.Content-Type  | application/json                         |
+      | header.Authorization | Bearer secret123                         |
+      | body                 | {"frequencies": {"band": "harbor-watch"}} |
+    Then the response status is 201
+    And the turn Hail submitted has:
+      | path        | value        |
+      | origin.band | harbor-watch |
+      | from.kind   | :http        |
+      | from.id     | "admin"      |
+      | for         |              |
+
+  @wip
   Scenario: a hail from the command line is from the CLI
     When isaac is run with "hail send --band harbor-watch"
     Then the exit code is 0
